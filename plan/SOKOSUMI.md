@@ -18,7 +18,7 @@ sokosumi --version                                   # 1.0.4, installed globally
 | TUM organization | `TUM-Hackathon`, ID `01a17942-e6dd-724f-bae6-458b6a0f715a`, slug `tum-hackathon-u4ve65`, role member, `taskSeatEligible: true` |
 | Vendor | `Abnahme`, slug `abnahme-tum26`, ID `01a18c0c-2ef6-71f9-ab8d-3f75e9b431bb`, role admin |
 | Coworker | `Abnahme-Büro`, ID `01a18c0c-c2b5-72ea-93e6-a678359b9cc2`, capability `tasks` |
-| TUM workspace access | access ID `01a18c0c-c3e9-71e8-b420-23fab975cab3`, **PENDING** until a TUM workspace owner/admin approves |
+| TUM workspace access | access ID `01a18c0c-c3e9-71e8-b420-23fab975cab3`, **GRANTED** 10:34 (approved by the TUM workspace owner) |
 | Runtime key | in the OS vault (`runtime key-import` → `{"stored":true}`), never in `.env`. The Keychain item trusts the `node@24` binary, not the worker: any Node 24 script run by this macOS user reads it (and the CLI's OAuth token) without a prompt. For real use, run the worker under its own macOS account |
 | `.env` | `COWORKER_ID`, `SOKOSUMI_ORGANIZATION_ID`, `SOKOSUMI_ORGANIZATION_SLUG` set |
 
@@ -32,10 +32,10 @@ Credits come from the TUM organization pool (245 at 10:05), not from the persona
 1. `sokosumi --preprod auth login`, then `sokosumi --preprod auth whoami --json`. The CLI refreshes the token itself
    (refresh token in the vault). If a later CLI call says unauthenticated, run `auth login` again.
 2. Join the TUM workspace: https://preprod.sokosumi.com/join/GTAHB3OQFWgg8rGetMfleiqgeL6_ltdW
-3. **Open:** a TUM workspace owner or admin must approve the access request of Coworker `Abnahme-Büro` (Vendor `Abnahme`).
-   Then the agent re-runs `connect` and gets `GRANTED`.
+3. A TUM workspace owner or admin approves the access request of Coworker `Abnahme-Büro` (Vendor `Abnahme`).
+   Then the agent re-runs `connect` and gets `GRANTED` (done, 10:34).
 
-## B. Non-interactive (run by the agent), done except the final GRANTED
+## B. Non-interactive (run by the agent), done
 
 ```sh
 sokosumi --preprod workspaces list --json
@@ -72,15 +72,26 @@ Extraction follows `EXTRACT_MODE` (`llm` by default, uses `ANTHROPIC_API_KEY`; `
 
 ## D. Tasks (TUM workspace)
 
-The first line of the description picks the route (`buero/sokosumi.mjs`):
+The first line of the description picks the route (`buero/sokosumi.mjs`). A description holds at most 16,000 characters.
 
-- `PRÜFEN` (unpaid). Then the invoice text, plus two control lines anywhere: `Empfänger: bau-isar` (or `hv-giesing`) and
-  `Betrag: 18.400,00` (expected gross total). Progress goes into Task comments. Accepted → COMPLETED with the protocol,
-  the tx table and `Senden: 1 tUSDM (nur für abgenommene Rechnungen)`. Refused → COMPLETED with the German defect list, no charge.
-  Any error → FAILED with the reason (`gate-failed`).
+- `PRÜFEN` (unpaid). The two control lines `Empfänger: bau-isar` (or `hv-giesing`) and `Betrag: 18.400,00` (expected gross
+  total) go **directly below line 1**, then the invoice text. A control line inside the invoice text neither sets nor hides
+  them, and a duplicate control line is refused. At most 2 PRÜFEN run at once; the others wait and get a queue comment.
+  Progress goes into Task comments. Accepted → COMPLETED with the protocol, the tx table and
+  `Senden: kostenpflichtig, Sokosumi bucht dafür Credits (Escrow 1 tUSDM); nur für abgenommene Rechnungen. Auftrag dafür: „SENDEN <Rechnungsnummer>“.`
+  Refused → COMPLETED with the German defect list, no charge. Any error → FAILED with the reason (`gate-failed`).
 - `SENDEN <Rechnungsnummer>` (paid, 1 tUSDM through the template's masumiPayment flow). Refused with FAILED **before any payment
-  request** if no PRÜFEN accepted that invoice, if it was already sent, or if paid tasks are off. After FundsLocked the § 14c guard
-  (`.local/sent-ledger.json`, same invoice number or XML sha256) runs again; a duplicate ends FAILED and never submits a result.
+  request** ("Es wurde nichts berechnet") if paid tasks are off, or if no COMPLETED PRÜFEN Task **of the same Sokosumi user**
+  accepted that invoice (a later refusing PRÜFEN withdraws the acceptance). It is also refused for free by two different guards in
+  `.local/sent-ledger.json`:
+  - **Doppelversand:** the same invoice number or XML sha256 was already sent, or another SENDEN for it is running.
+  - **Same supply:** the same supply (same AP inbox, line items and Leistungsdatum) was already sent under another invoice number.
+    The § 14c UStG note appears only when the invoice shows VAT.
+
+  Then the worker probes SMTP (refused for free if Mailpit does not answer) and **reserves** the invoice in the ledger before
+  it requests payment, so a second SENDEN for the same invoice fails for free. After FundsLocked the same check runs again
+  against the reservation; a refusal there ends FAILED and never submits a result. Every FAILED text says whether credits were
+  booked: after the payment request, Sokosumi has booked credits that a FAILED Task does not refund.
 
 ```sh
 SLUG=tum-hackathon-u4ve65; CW=01a18c0c-c2b5-72ea-93e6-a678359b9cc2
@@ -105,8 +116,8 @@ is **not** needed for Sokosumi paid tasks: Sokosumi buys from the `masumiPayment
 
 The template's `answer()` (Eve + `ZAI_*` OpenAI-compatible model) is replaced: PRÜFEN calls `runAbnahme`, SENDEN sends mail.
 `worker.mjs` no longer calls `client.health()`, so `npm start` does not have to run and `ZAI_API_KEY`/`ZAI_BASE_URL` stay empty.
-`comments.mjs` still imports `client.mjs`, but it only talks to Eve for a Task with a `.local/TASK_ID-session.json`, and our flows never
-write one. Consequence: follow-up user comments on a finished Task get no reply. `ZAI_MODEL` is still read once, by
+`worker.mjs` does not import `comments.mjs` and never reads Task comments; it only posts progress and queue comments.
+Consequence: follow-up user comments on a Task get no reply. `ZAI_MODEL` is still read once, by
 `payment-registration.mjs`, as the registry `Capability.name` (`claude-opus-5-5`). Claude itself is only called through the official
 SDK in `einvoice/extract.mjs`.
 
@@ -121,6 +132,6 @@ SDK in `einvoice/extract.mjs`.
 | G2 unpaid PRÜFEN COMPLETED | done: Task `01a18c29-f636-7378-aa12-8a4eb654a255`, COMPLETED 09:35:36Z, **ABNAHME_IMPL=local** (no escrow), ABGENOMMEN AR-2026-0087, 0 credits |
 | G4 paid SENDEN FundsLocked | done: Task `01a18c2a-6912-7478-9755-8872eb2ff753`, FundsLocked [`d9c69f50…2859`](https://preprod.cardanoscan.io/transaction/d9c69f508f1f15299cdd3cc056ff4444b9ba0fcadf00e197cd14f7286c952859) (block 5352737), ResultSubmitted [`68b5a6fc…242e`](https://preprod.cardanoscan.io/transaction/68b5a6fc55deb0d28481d4ac4976532ca4dcf88d419eb896a4ae658c60f4242e), COMPLETED 09:39:50Z, 100 credits (TUM pool) |
 | Mailpit delivery | Message-ID `<1bc07905-682d-4513-9f3c-2d2c541f90d8@abnahme.local>`, `250 2.0.0 Ok: queued as 0vC5CRzIiDK69V1YJl57Qn` |
-| § 14c duplicate | Task `01a18c2e-6de2-76ca-b42e-5d48cbef591e` (second `SENDEN AR-2026-0087`): FAILED before any payment request, 0 credits |
+| Doppelversand | Task `01a18c2e-6de2-76ca-b42e-5d48cbef591e` (second `SENDEN AR-2026-0087`): FAILED before any payment request, 0 credits |
 | SENDEN Withdrawn + seller receipt | Withdrawn [`5d61bf3f…7146`](https://preprod.cardanoscan.io/transaction/5d61bf3f11db7fb2e4a110e98ea44f1699e7fb8d779866d5513cb5e83e0a7146) 10:22:14Z; `settlement.mjs`: receipt `settled: true`, net +1000000 tUSDM units at the Abnahme-Büro seller address (journal stage `settled`) |
-| PRÜFEN with stream D's real escrow | Task `01a18c4b-3a89-717e-905d-6fd3d92b67c5`, COMPLETED 10:24:26Z, 17 progress comments, 0 credits. FundsLocked `e88c7599…`, ResultSubmitted `8515a0d9…`, Disputed `75177063…` (BR-AE-02, ABN-BT48), cure `c03d4aea…`, AuthorizeWithdrawal `af74d6d7…`, Withdrawn `378ee7a6…`, all confirmed on Blockfrost. Inspections fell back to local KoSIT (x402 answered HTTP 402) |
+| PRÜFEN with stream D's real escrow | Task `01a18c4b-3a89-717e-905d-6fd3d92b67c5`, COMPLETED 10:24:26Z, 17 progress comments, 0 credits. FundsLocked `e88c7599…`, ResultSubmitted `8515a0d9…`, Disputed `75177063…` (BR-AE-02, ABN-BT48), cure `c03d4aea…`, AuthorizeWithdrawal `af74d6d7…`, Withdrawn `378ee7a6…`, all confirmed on Blockfrost (FundsLocked [`e88c7599…a0c1`](https://preprod.cardanoscan.io/transaction/e88c7599eb2a2dd42127fd1ee182ebbb5d4418923548fa070a8ec9c00fdea0c1), Withdrawn [`378ee7a6…b5a9`](https://preprod.cardanoscan.io/transaction/378ee7a6d7d3ab70f62be5e519a70e00ca24d5a17d12e88ab9ac85b141abb5a9)). Inspections fell back to local KoSIT (x402 answered HTTP 402), but both x402 payments were charged on chain without a report: [`9d022f95…`](https://preprod.cardanoscan.io/transaction/9d022f95fd23769805ac8a276090cd17a6ef8f84057d5a335ab58411f4e360f1) (10:16:23Z) and [`8f4755d3…`](https://preprod.cardanoscan.io/transaction/8f4755d394c67f7d5ec31828219b8bf9fd94ed0e8102d6ba446673f5dd905f83) (10:20:24Z). Fixed in `72dee3a` (one signed payment, resent until it settles) |
