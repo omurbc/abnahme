@@ -10,6 +10,7 @@ import {basename} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {runAbnahme} from './abnahme.mjs';
 import {invoiceNumberOf} from './sokosumi.mjs';
+import {requireProfile} from '../scripts/env-split.mjs';
 
 // An x402 payment that did not settle has no hash or link (LANE-A2-2).
 const row=t=>`| ${t.label} | ${t.at??''} | ${t.txHash?`\`${t.txHash}\``:'–'} | ${t.explorerUrl??'–'} |`;
@@ -39,6 +40,7 @@ export function evidenceSection(result,{file,recipientProfileId,expectedTotal,mo
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(realpathSync(process.argv[1])).href){
+ try{requireProfile('buero');}catch(e){console.error(`buero/run.mjs: ${e.message}`);process.exit(1);}  // DELTA-SECRETS-5
  const args=process.argv.slice(2);
  const follow=args.includes('--follow');
  const [file,recipientProfileId,expectedTotal]=args.filter(a=>a!=='--follow');

@@ -33,5 +33,10 @@ export function verifyDelivery({result,nonce,onChainHash,profileHash}){
  const bytes=Buffer.from(xmlBase64,'base64');
  if(bytesSha256(bytes)!==manifest.xmlSha256)failures.push({code:'ABN-MANIFEST',textDe:'Der SHA-256 der gelieferten XML stimmt nicht mit dem Manifest überein.'});
  if(manifest.profileHash!==profileHash)failures.push({code:'ABN-PROFIL',textDe:`Das Ergebnis wurde gegen Prüfprofil ${manifest.profileHash} erstellt, vereinbart war ${profileHash}.`});
- return {failures,xml:bytes.toString('utf8'),manifest};
+ // The buyer inspects, stores and mails exactly the committed bytes: valid UTF-8 (BOM kept) that declares no other
+ // encoding, so the string is one reading of them (DELTA-SELLER-4).
+ let xml=null;try{xml=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes);}catch{}
+ const declared=xml&&/^\uFEFF?<\?xml[^>]*?\sencoding\s*=\s*["']([^"']*)["']/.exec(xml)?.[1];
+ if(xml==null||declared&&!/^utf-8$/i.test(declared))return {failures:[...failures,{code:'ABN-MANIFEST',textDe:'Die gelieferte XML ist nicht als UTF-8 kodiert oder erklärt eine andere Kodierung und ist damit nicht eindeutig lesbar.'}],xml:null,manifest};
+ return {failures,xml,manifest};
 }

@@ -37,13 +37,14 @@ const MAX_WINDOW=30*MINUTE;
 const SAFE=new Set(['Disputed','RefundRequested','WithdrawAuthorized','RefundAuthorized','Withdrawn','RefundWithdrawn','DisputedWithdrawn']);
 
 // ---------- default dependencies (real services) ----------
-// /status (the delivered result) and /dispute need the job token from /start_job.
+// /status (the delivered result) and /dispute need the job token from /start_job. /start_job carries RM_BUYER_KEY, so the
+// seller's window for new jobs does not count the Büro (DELTA-SELLER-3).
 export function rmClient(base=process.env.RM_URL??`http://127.0.0.1:${process.env.AGENT_API_PORT||21950}`){
- async function call(path,body,token){
-  const r=await fetch(base+path,{method:body?'POST':'GET',headers:{'content-type':'application/json',...token?{authorization:`Bearer ${token}`}:{}},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(60000)});
+ async function call(path,body,token,extra={}){
+  const r=await fetch(base+path,{method:body?'POST':'GET',headers:{'content-type':'application/json',...token?{authorization:`Bearer ${token}`}:{},...extra},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(60000)});
   return {httpStatus:r.status,body:await r.json().catch(()=>({}))};
  }
- return {startJob:body=>call('/start_job',body),status:(jobId,token)=>call(`/status?job_id=${encodeURIComponent(jobId)}`,undefined,token),dispute:(body,token)=>call('/dispute',body,token)};
+ return {startJob:body=>call('/start_job',body,undefined,process.env.RM_BUYER_KEY?{'x-buyer-key':process.env.RM_BUYER_KEY}:{}),status:(jobId,token)=>call(`/status?job_id=${encodeURIComponent(jobId)}`,undefined,token),dispute:(body,token)=>call('/dispute',body,token)};
 }
 
 // A Gutachter report is an inspection only of exactly these bytes by the pinned validator; otherwise it throws (not
@@ -57,21 +58,23 @@ export function kositFromReport(httpStatus,reportXml,pinned,xml){
 }
 
 // x402 Gutachter (1 tADA) unless INSPECT_MODE=local; falls back to the local KoSIT daemon without retrying x402.
-// A Gutachter answer counts only with a settled payment.
+// A Gutachter answer counts only with a settled payment. payment: buy.mjs returns a tx hash unless nothing was charged,
+// so a hash without a 200 and a successful receipt may still settle ('unknown'), never 'not-charged' (DELTA-ENGINE-4).
 export async function inspectXml(xml,{scenario,buyInspection}){
- let note=null,txHash=null;
+ let note=null,txHash=null,payment='not-charged';
  if(process.env.INSPECT_MODE!=='local'){
   try{
    buyInspection??=(await import('../gutachter/buy.mjs')).buyInspection;
    const r=await buyInspection(xml);txHash=r.txHash??null;
+   payment=!txHash?'not-charged':r.httpStatus===200&&r.receipt?.success?'settled':'unknown';
    if(r.httpStatus===200&&typeof r.result?.report==='string'){
     if(!txHash||!r.receipt?.success)throw new Error('Antwort ohne bezahlte Quittung, keine Prüfung');
-    return {mode:'x402',txHash,kosit:kositFromReport(r.result.httpStatus,r.result.report,scenario,xml)};
+    return {mode:'x402',txHash,payment,kosit:kositFromReport(r.result.httpStatus,r.result.report,scenario,xml)};
    }
    note=`x402 HTTP ${r.httpStatus}`;
   }catch(e){note=`x402: ${e.message}`;}
  }
- return {mode:'local',txHash,note,kosit:await validate(xml,{scenario})};
+ return {mode:'local',txHash,payment,note,kosit:await validate(xml,{scenario})};
 }
 // The protocol goes to the customer (Sokosumi Task): a short German reason for the fallback. The raw note (English, may
 // name local files) stays in the journal (LANE-A-4).
@@ -81,6 +84,9 @@ export function x402NoteDe(note){
  if(/fetch failed|ECONN|timeout|aborted|socket|HTTP 5\d\d/i.test(note))return 'x402: Gutachter nicht erreichbar';
  return 'x402: Gutachter-Prüfung nicht verwertbar';
 }
+
+// A deadline raced against a call still running: resolves after ms unless cancelled.
+const realTimer=ms=>{let t;return {promise:new Promise(r=>{t=setTimeout(r,Math.max(0,ms));}),cancel:()=>clearTimeout(t)};};
 
 export function defaultDeps(){
  return {rm:rmClient(),escrow:createEscrow(),inspect:inspectXml,now:()=>Date.now(),sleep:ms=>new Promise(r=>setTimeout(r,ms)),journalDir:'.local/abnahme-journal',pollMs:10000};
@@ -110,7 +116,7 @@ export async function runAbnahme(job,deps=defaultDeps()){
 }
 
 async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,followSettlement=false},deps){
- const {rm,escrow,inspect,now,sleep,journalDir,pollMs}=deps;
+ const {rm,escrow,inspect,now,sleep,journalDir,pollMs,timer=realTimer}=deps;
  mkdirSync(journalDir,{recursive:true,mode:0o700});
  const total=Number(expectedTotal);
  if(typeof invoiceText!=='string'||!invoiceText.trim())throw new Error('invoiceText fehlt');
@@ -142,7 +148,7 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
  const exposed=()=>!SAFE.has(j.escrowState);
  const paidOut=()=>`Die Escrow zahlt den RechnungsMeister ohne Abnahme aus (Fristablauf ${time(unlock())}): die 1 tUSDM sind bezahlt, die Rechnung ist nicht abgenommen. Ein erneutes PRÜFEN mit demselben Text kauft nicht erneut.`;
  const held=()=>`${j.escrowState==='Disputed'?`Das Geld ist in der Escrow eingefroren (Disputed): der RechnungsMeister wird ohne Freigabe des Büros nicht bezahlt; er kann erstatten, sonst entscheidet die Masumi-Schlichtung ab ${time(j.startJob.externalDisputeUnlockTime)}.`:`Escrow: ${j.escrowState??'Stand unbekannt'}.`} Erneutes PRÜFEN mit demselben Text setzt diesen Auftrag fort, es wird nicht erneut gekauft.`;
- let errors=0;
+ let errors=0,pending=null;  // pending: the inspection still running, see inspectOnce
  while(j.stage!=='done'&&!ended){
   try{
    await step();
@@ -151,9 +157,16 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
    if(e.permanent){j.error=e.message;finish('FAILED',`Abbruch: ${e.message}`);break;}
    errors++;j.lastError=e.message;save();
    const stuck=`Abnahme ${j.id} hängt nach ${errors} Fehlern (${e.message}); Journal ${journalPath(journalDir,j.id)} bleibt zum Fortsetzen erhalten.`;
+   // After a protective Mängelrüge the inspection goes on in Disputed until the cure cutoff; one that still cannot run
+   // then sends /dispute with the protective code instead of ending without it (DELTA-ENGINE-3).
+   const disputedInspection=j.stage==='inspect'&&j.escrowState==='Disputed';
+   if(disputedInspection&&now()>=cureCutoff()){
+    j.pendingFailures=[{code:j.inspectError?.code??'ABN-PRUEFUNG',textDe:j.inspectError?.why??`Die Abnahmeprüfung ist nicht möglich (${e.message}).`}];j.stage='notify';errors=0;
+    say(`Bis zur Frist für eine Nachbesserung (${time(cureCutoff())}) nicht geprüft. Sende die Mängelrüge [${j.pendingFailures[0].code}] an den RechnungsMeister.`);continue;
+   }
    // The defect list can still reach the seller until its cure cutoff: /dispute is retried with backoff until then, so an
-   // outage does not turn a curable defect into a refund (LB-1).
-   const deliverable=j.stage==='notify'&&now()<cureCutoff();
+   // outage does not turn a curable defect into a refund (LB-1). The same holds for the inspection in Disputed.
+   const deliverable=(j.stage==='notify'||disputedInspection)&&now()<cureCutoff();
    // Nothing bought yet: give up. No longer paid out on its own: stop, journal open. Else retry past unlockTime.
    if(errors>=12&&j.stage==='start')throw new Error(stuck);
    if(errors>=12&&!exposed()&&!deliverable){finish('FAILED',`ALARM: ${stuck} ${held()}`,{open:true});break;}
@@ -161,6 +174,8 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
    await sleep(deliverable&&errors>12?Math.min(pollMs*2**(errors-12),6*pollMs):pollMs);
   }
  }
+ // An inspection cut off at the decision deadline is still paid for: its verdict and tx are journaled before the run ends.
+ await pending?.promise.catch(()=>{});
  await refreshTxs().catch(()=>{});save();
  return outcome(j);
 
@@ -179,6 +194,22 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
   throw new Error(`MPS verlangt manuelles Eingreifen: ${note}`);
  }
  async function wait(){await sleep(pollMs);}
+ // One inspection per delivery. A call cut off at the decision deadline keeps running and is awaited, not bought again;
+ // its verdict is journaled when it arrives, a payment with its tx (DELTA-ENGINE-2). x402 payments are listed as not
+ // charged only when certain (DELTA-ENGINE-4); buy.mjs gives no hash for those.
+ function inspectOnce(xml,resultSha256){
+  if(pending?.resultSha256===resultSha256)return pending.promise;
+  const previous=pending?.promise.catch(()=>{});
+  const promise=(async()=>{await previous;return inspect(xml,{scenario:acceptance.scenario});})().then(inspection=>{
+   const n=j.inspectionTxs.length+1;
+   if(inspection.txHash)j.inspectionTxs.push({label:inspection.mode==='x402'?`x402 inspection ${n}`:inspection.payment==='settled'?`x402 inspection ${n} (paid, report not used; local KoSIT)`:`x402 inspection ${n} (payment unconfirmed, local KoSIT)`,
+    txHash:inspection.txHash,explorerUrl:explorerUrl(inspection.txHash)});
+   j.inspected={resultSha256,inspection};save();return inspection;
+  }).finally(()=>{if(pending?.promise===promise)pending=null;});
+  promise.catch(()=>{});
+  pending={resultSha256,promise};
+  return promise;
+ }
  // Protective Mängelrüge: without a passed inspection the escrow must not pay at unlockTime; inspection goes on in Disputed.
  function protect(code,why){
   j.pendingFailures=[{code,textDe:why}];j.protective=code;j.stage='dispute';
@@ -193,6 +224,9 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
     if(r.httpStatus!==200)throw permanent(`RechnungsMeister lehnt den Auftrag ab (HTTP ${r.httpStatus}: ${r.body.error})`);
     const s=r.body;
     if(s.input_hash!==j.inputHash)throw permanent(`Eingabe-Hash des RechnungsMeisters ${s.input_hash} weicht vom eigenen ${j.inputHash} ab`);
+    // The seller gives the token out in its first answer only (a crash before this journal save loses it): without it
+    // there is no /status result and no /dispute, so nothing is bought (DELTA-SELLER-1).
+    if(!/^[0-9a-f]{64}$/.test(s.job_token??''))throw permanent('Der RechnungsMeister hat kein Job-Token geliefert (es wird nur in der ersten Antwort ausgegeben); ohne es sind Ergebnis und Mängelrüge nicht möglich, es wurde nichts gekauft');
     if(JSON.stringify(s.amounts)!==JSON.stringify([{amount:'1000000',unit:USDM}]))throw permanent(`Preis ${JSON.stringify(s.amounts)} ist nicht 1 tUSDM`);
     if(Number(s.payByTime)<now()+MINUTE)throw permanent('Zahlungsfrist ist schon abgelaufen');
     const submitAt=Number(s.submitResultTime),unlockAt=Number(s.unlockTime),externalAt=Number(s.externalDisputeUnlockTime);
@@ -241,24 +275,24 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
    }
    case 'inspect':{
     const p=await read();
-    const disputed=p.onChainState==='Disputed',canDispute=!disputed&&now()<unlock()-LAST_DISPUTE;
+    const disputed=p.onChainState==='Disputed',canDispute=()=>!disputed&&now()<unlock()-LAST_DISPUTE;
     // Not inspected: retry; from INSPECT before the decision deadline (or at once, urgent) file the protective Mängelrüge;
     // too late for one, the escrow pays out at unlockTime.
     const notInspected=(code,why,urgent=false)=>{
      j.inspectError={code,why};
-     if(canDispute&&(urgent||now()>=unlock()-DECIDE-INSPECT))return protect(code,why);
-     if(!disputed&&!canDispute&&now()>unlock())return finish('FAILED',`Nicht geprüft: ${why} ${paidOut()}`,{paidWithoutAcceptance:true});
+     if(canDispute()&&(urgent||now()>=unlock()-DECIDE-INSPECT))return protect(code,why);
+     if(!disputed&&!canDispute()&&now()>unlock())return finish('FAILED',`Nicht geprüft: ${why} ${paidOut()}`,{paidWithoutAcceptance:true});
      throw new Error(why);
     };
     if(j.profileHash!==profileHash)return notInspected('ABN-PRUEFUNG',`Das Prüfprofil wurde seit dem Kauf geändert (vereinbart ${j.profileHash.slice(0,12)}…, jetzt ${profileHash.slice(0,12)}…); gegen das vereinbarte kann nicht mehr geprüft werden.`,true);
-    if(canDispute&&now()>=unlock()-DECIDE-INSPECT)return protect(j.inspectError?.code??'ABN-PRUEFUNG',j.inspectError?.why??`Das Ergebnis kann vor ${time(unlock()-DECIDE)} nicht mehr sicher geprüft werden.`);
+    if(canDispute()&&now()>=unlock()-DECIDE-INSPECT)return protect(j.inspectError?.code??'ABN-PRUEFUNG',j.inspectError?.why??`Das Ergebnis kann vor ${time(unlock()-DECIDE)} nicht mehr sicher geprüft werden.`);
     const st=await rm.status(jobId(),token()).catch(e=>({httpStatus:null,body:{error:e.message}}));
     if(st.httpStatus!==200)return notInspected('ABN-LIEFERUNG',`Der RechnungsMeister liefert das Ergebnis nicht aus (${st.httpStatus?`HTTP ${st.httpStatus}`:st.body.error}).`);
     const contract=p.PaymentSource?.smartContractAddress??j.startJob.smartContractAddress;
     let chainHash=null,hashSource='MPS';
     // This escrow's own datum; while Blockfrost fails, wait for it as long as a dispute is still possible.
     try{chainHash=await escrow.chainResultHash(p.CurrentTransaction?.txHash,contract,{inputHash:j.inputHash});if(chainHash)hashSource='Datum (Blockfrost)';}
-    catch(e){if(canDispute)return notInspected('ABN-PRUEFUNG',`Der Ergebnis-Hash im Datum auf Cardano ist nicht lesbar (${e.message}).`);hashSource=`MPS (Blockfrost: ${e.message})`;}
+    catch(e){if(canDispute())return notInspected('ABN-PRUEFUNG',`Der Ergebnis-Hash im Datum auf Cardano ist nicht lesbar (${e.message}).`);hashSource=`MPS (Blockfrost: ${e.message})`;}
     const onChainHash=chainHash??p.resultHash;
     const delivery=verifyDelivery({result:st.body.result,nonce:j.nonce,onChainHash,profileHash});
     if(chainHash&&chainHash!==p.resultHash)delivery.failures.push({code:'ABN-HASH',textDe:'Der Ergebnis-Hash im Datum auf Cardano weicht vom Stand des Payment Service ab.'});
@@ -268,13 +302,13 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
      const resultSha256=sha256(st.body.result);
      if(j.inspected?.resultSha256===resultSha256)inspection=j.inspected.inspection;
      else{
-      try{inspection=await inspect(delivery.xml,{scenario:acceptance.scenario});}
+      // While the escrow can still pay out on its own, the verdict must be in by the decision deadline; a slower one (a
+      // held x402 call, a second PRÜFEN queued behind it) gets the protective Mängelrüge and is used in Disputed.
+      const deadline=canDispute()?timer(unlock()-DECIDE-now()):null;
+      try{inspection=await (deadline?Promise.race([inspectOnce(delivery.xml,resultSha256),deadline.promise.then(()=>null)]):inspectOnce(delivery.xml,resultSha256));}
       catch(e){return notInspected('ABN-PRUEFUNG',`Die Abnahmeprüfung ist nicht möglich (${e.message}).`);}
-      // A payment that did not settle (mode local) is no transaction: no hash or link in the tx table (LANE-A2-2); its
-      // hash stays in the attempt for reconciliation.
-      if(inspection.txHash)j.inspectionTxs.push(inspection.mode==='x402'?{label:`x402 inspection ${j.inspectionTxs.length+1}`,txHash:inspection.txHash,explorerUrl:explorerUrl(inspection.txHash)}
-       :{label:`x402 inspection ${j.inspectionTxs.length+1} (not charged, local KoSIT)`,txHash:null,explorerUrl:null});
-      j.inspected={resultSha256,inspection};save();
+      finally{deadline?.cancel();}
+      if(!inspection)return notInspected('ABN-PRUEFUNG',`Die Abnahmeprüfung ist bis ${time(unlock()-DECIDE)} nicht abgeschlossen.`,true);
      }
      kosit=inspection.kosit;
      checks=runChecks({xml:delivery.xml,kosit,acceptance,recipient,expectedTotal:total});
@@ -319,6 +353,9 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
     return wait();
    }
    case 'notify':{
+    // No round beyond MAX_DISPUTES: a seller that announces cures it never submits gets no further round; the refund is
+    // waited for, then the frozen-money alarm ends the run (DELTA-ENGINE-1).
+    if(j.disputes>=MAX_DISPUTES){j.stage='wait-refund';say(`Keine weitere Mängelrüge nach ${MAX_DISPUTES} Runden ohne bestandene Nachbesserung. Die Escrow bleibt gesperrt, bis der RechnungsMeister erstattet.`);return wait();}
     const round=j.disputes+1;
     const r=await rm.dispute({jobId:jobId(),round,failures:j.pendingFailures.map(({code,textDe})=>({code,textDe})),kositReport:j.lastKositReport??null},token());
     // Only a cure or the seller's refund (422 cure-rejected comes after its AuthorizeRefund) ends a round; anything

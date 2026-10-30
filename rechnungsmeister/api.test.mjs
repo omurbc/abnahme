@@ -12,6 +12,7 @@ import {loadProfile} from '../verifier/profile.mjs';
 import {parseFixed} from '../einvoice/parse-fixed.mjs';
 import {sha256} from '../standard-hash.mjs';
 import {USDM} from '../paid-task.mjs';
+import {inputHashFor} from './mip004.mjs';
 
 const MIN=60000;
 const fixture=name=>readFileSync(new URL(`../fixtures/${name}`,import.meta.url),'utf8');
@@ -90,13 +91,30 @@ function makeJob({phase='result-confirmed',onChainState='Disputed',nextAction={r
  return {id,token,payment};
 }
 
-test('start_job gives the buyer a job token; a replay with the same nonce and input gets the same response',async()=>{
+test('start_job gives the buyer a job token once; a replay with the same nonce and input gets the same job without it',async()=>{
  const nonce=newNonce();
  const first=await startJob(nonce);
  assert.equal(first.status,200);
  assert.match(first.body.job_token,/^[0-9a-f]{64}$/);
  const replay=await startJob(nonce);
- assert.deepEqual(replay.body,first.body);
+ assert.equal(replay.status,200);
+ const {job_token,...rest}=first.body;
+ assert.deepEqual(replay.body,rest);
+});
+
+test('DELTA-SELLER-1: whoever replays /start_job with the purchaser nonce and the input gets no token: no result, no /dispute',async()=>{
+ const {id,token,payment}=makeJob();
+ const job=readJob(id);job.inputHash=inputHashFor(job.input,job.nonce);writeFileSync(join(jobsDir,`${id}.json`),JSON.stringify(job));
+ const replay=await call('/start_job',{body:{identifier_from_purchaser:job.nonce,input_data:job.input}});
+ assert.equal(replay.status,200,JSON.stringify(replay.body));
+ assert.equal(replay.body.job_id,id);
+ assert.equal(replay.body.job_token,undefined);
+ assert.ok(!JSON.stringify(replay.body).includes(token),'the token is in no field of the replay');
+ assert.equal((await call(`/status?job_id=${id}`)).body.result,undefined);
+ const refunds=callsTo('/payment/authorize-refund').filter(c=>c.input.blockchainIdentifier===payment.blockchainIdentifier).length;
+ assert.equal((await call('/dispute',{body:{jobId:id,round:1,failures:[{code:'BR-DE-99'}]}})).status,401);
+ assert.equal(callsTo('/payment/authorize-refund').filter(c=>c.input.blockchainIdentifier===payment.blockchainIdentifier).length,refunds);
+ assert.equal((await call('/dispute',{body:{jobId:id,round:1,failures:[{code:'BR-AE-02'},{code:'ABN-BT48'}]},token})).body.status,'cure-submitted','the buyer still holds its token');
 });
 
 test('RMPENTEST-2: /status shows the delivered invoice only to the holder of the job token',async()=>{
@@ -183,6 +201,38 @@ test('ESCROW-3: a cure not confirmed on chain within 20 minutes is refunded',asy
  assert.equal(readJob(id).phase,'refund-authorized');
 });
 
+test('DELTA-SELLER-2: a cure MPS holds outside WaitingForExternalAction (batched SubmitResult, failed cure tx) is still refunded: decided by the timer, answered on round 2, sent once MPS is idle',async()=>{
+ for(const requestedAction of ['SubmitResultInitiated','WaitingForManualAction']){
+  const cure={attempt:2,fields:fields0,result:'result-2',resultHash:'h2',submittedAt:Date.now()-30*MIN,cure:{patch:{buyerVatId:'DE287654321'},sources:{},retransmit:false}};
+  const {id,token,payment}=makeJob({phase:'awaiting-result',nextAction:{requestedAction,resultHash:'h2'},
+   attempts:[{attempt:1,fields:fields0,result:'result-1',resultHash:'h1'},cure],disputes:[{round:1,status:200,response:{status:'cure-submitted'}}]});
+  const refunds=()=>callsTo('/payment/authorize-refund').filter(c=>c.input.blockchainIdentifier===payment.blockchainIdentifier).length;
+  await rm.tick();
+  assert.equal(readJob(id).phase,'refund-pending',`${requestedAction}: the refund is decided`);
+  assert.equal(refunds(),0,'MPS refuses authorize-refund outside WaitingForExternalAction, so it is not sent yet');
+  const r=await call('/dispute',{body:{jobId:id,round:2,failures:[{code:'ABN-FRIST',textDe:'x'}]},token});
+  assert.equal(r.status,422,JSON.stringify(r.body));assert.equal(r.body.status,'cure-rejected');
+  assert.equal((await call(`/status?job_id=${id}`,{token})).body.phase,'refund-pending','the buyer reads the refund from /status');
+  payment.NextAction={requestedAction:'WaitingForExternalAction'};  // an operator returned the payment to idle
+  await rm.tick();
+  assert.equal(refunds(),1,requestedAction);
+  assert.equal(readJob(id).phase,'refund-authorized');
+ }
+});
+
+test('DELTA-SELLER-2: round 2 right after a cure MPS holds at SubmitResultInitiated is answered with the refund, not 409 until the deadline',async()=>{
+ const cure={attempt:2,fields:fields0,result:'result-2',resultHash:'h2',submittedAt:Date.now()-2*MIN,cure:{patch:{buyerVatId:'DE287654321'},sources:{},retransmit:false}};
+ const {id,token,payment}=makeJob({phase:'awaiting-result',nextAction:{requestedAction:'SubmitResultInitiated',resultHash:'h2'},
+  attempts:[{attempt:1,fields:fields0,result:'result-1',resultHash:'h1'},cure],disputes:[{round:1,status:200,response:{status:'cure-submitted'}}]});
+ const r=await call('/dispute',{body:{jobId:id,round:2,failures:[{code:'BR-AE-02',textDe:'x'}]},token});
+ assert.equal(r.status,422,JSON.stringify(r.body));
+ assert.equal(readJob(id).phase,'refund-pending');
+ assert.deepEqual((await call('/dispute',{body:{jobId:id,round:2,failures:[]},token})).body,r.body,'the round is answered from the cache');
+ payment.NextAction={requestedAction:'WaitingForExternalAction'};
+ await rm.tick();
+ assert.equal(readJob(id).phase,'refund-authorized');
+});
+
 test('ESCROW-3 / STATEMACHINE-8: a cure whose submit failed is refunded and the open round gets an answer',async()=>{
  const cure={attempt:2,fields:fields0,result:'result-2',resultHash:'h2',submittedAt:Date.now()-MIN,cure:{patch:{buyerVatId:'DE287654321'},sources:{},retransmit:false}};
  const {id,token}=makeJob({phase:'submit-pending',attempts:[{attempt:1,fields:fields0,result:'result-1',resultHash:'h1'},cure],disputes:[{round:1,receivedAt:new Date().toISOString(),failures:[{code:'BR-AE-02',textDe:''}]}]});
@@ -264,4 +314,18 @@ test('RMPENTEST-3 / PENTEST-4: /start_job limits new jobs; replays of a known no
  assert.equal((await startJob()).status,429);
  assert.equal(callsTo('/payment').length,payments,'a refused job writes nothing to MPS');
  assert.equal((await startJob(nonce)).status,200);
+});
+
+test('DELTA-SELLER-3: a full window for new jobs does not lock out the registered buyer (x-buyer-key); a wrong key does not help',async()=>{
+ const key='5e'.repeat(32),fresh=headers=>call('/start_job',{body:{identifier_from_purchaser:newNonce(),input_data:inputData},headers});
+ process.env.RM_BUYER_KEY=key;
+ try{
+  while((await startJob()).status!==429);  // the window is full (the test above, or this loop)
+  assert.equal((await fresh({'x-buyer-key':'5f'.repeat(32)})).status,429);
+  assert.equal((await fresh({'x-buyer-key':''})).status,429);
+  for(let i=0;i<3;i++){const r=await fresh({'x-buyer-key':key});assert.equal(r.status,200,JSON.stringify(r.body));assert.match(r.body.job_token,/^[0-9a-f]{64}$/);}
+  assert.equal((await startJob()).status,429,'the exemption does not open the window for others');
+  delete process.env.RM_BUYER_KEY;
+  assert.equal((await fresh({'x-buyer-key':key})).status,429,'no key configured: no exemption');
+ }finally{delete process.env.RM_BUYER_KEY;}
 });

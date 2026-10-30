@@ -1,7 +1,7 @@
 // RechnungsMeister: seller agent (MIP-003), forked from the template agent-api.mjs.
 // Converts an invoice text into an XRechnung (UBL), checks it with KoSIT, delivers it through a Masumi V2 escrow
-// and cures it when the buyer disputes. Run from the repo root:
-//   node --env-file=.env --env-file=.local/rechnungsmeister-runtime.env rechnungsmeister/server.mjs
+// and cures it when the buyer disputes. Run from the repo root with its own env profile only (it refuses any other):
+//   node --env-file=.local/env/rechnungsmeister.env --import=./scripts/env-guard.mjs rechnungsmeister/server.mjs
 // Demo switches (disclosed, read at job start): DEMO_SEED_DEFECT=1 drops the buyer VAT ID (BT-48) on the first
 // attempt only. CHEAT=1 submits a result hash that does not match the delivered bytes (refund demo).
 import {createServer} from 'node:http';
@@ -16,6 +16,7 @@ import {runChecks} from '../verifier/checks.mjs';
 import {loadProfile,recipientIds} from '../verifier/profile.mjs';
 import {inputHashFor,resultHash,buildResult} from './mip004.mjs';
 import {planCure} from './cure.mjs';
+import {requireProfile} from '../scripts/env-split.mjs';
 
 const jobsDir='.local/rechnungsmeister-jobs';mkdirSync(jobsDir,{recursive:true,mode:0o700});
 const token=process.env.MPS_RUNTIME_TOKEN;
@@ -39,6 +40,9 @@ const allJobs=()=>readdirSync(jobsDir).filter(x=>/^[0-9a-f-]{36}\.json$/.test(x)
 // The job token from /start_job is the buyer's credential for /dispute and for the delivered result on /status.
 const bearer=req=>/^Bearer ([0-9a-f]{64})$/.exec(req.headers.authorization??'')?.[1]??null;
 const authorized=(job,token)=>typeof job.token==='string'&&typeof token==='string'&&timingSafeEqual(Buffer.from(sha256(job.token)),Buffer.from(sha256(token)));
+// Every caller is on loopback, so the window for new jobs is shared; the registered buyer (the Büro) proves itself with
+// RM_BUYER_KEY (scripts/env-split.mjs) and is not counted, so no local caller can lock it out (DELTA-SELLER-3).
+const registeredBuyer=key=>{const own=process.env.RM_BUYER_KEY;return typeof own==='string'&&own.length>=32&&typeof key==='string'&&timingSafeEqual(Buffer.from(sha256(own)),Buffer.from(sha256(key)));};
 async function mps(path,body){
  const response=await fetch(process.env.MPS_URL+'/api/v1'+path,{method:body?'POST':'GET',headers:{token,'content-type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});
  const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(`Payment service ${path} HTTP ${response.status}: ${JSON.stringify(data.error??data.message??'')}`);return data.data;
@@ -85,7 +89,7 @@ const readBody=async(req,limit)=>{let bytes=0,body='';for await(const part of re
 const inFlight=new Set();
 const port=Number(process.env.AGENT_API_PORT||21950);
 
-async function startJob(input){
+async function startJob(input,buyerKey){
  const nonce=input?.identifier_from_purchaser??input?.identifierFromPurchaser;
  if(!/^[a-fA-F0-9]{14,26}$/.test(nonce||''))return [400,{error:'Expected hex purchaser nonce (14-26 chars)'}];
  const invalid=validateInput(input.input_data);if(invalid)return [400,{error:invalid}];
@@ -97,12 +101,16 @@ async function startJob(input){
  const key=sha256(nonce);const hash=inputHashFor(input.input_data,nonce);let job=allJobs().find(j=>j.nonceKey===key);
  if(job){
   if(job.inputHash!==hash)return [409,{error:'Nonce already used with another input'}];
-  if(job.response)return [200,job.response];
+  // The job token goes out in the first answer only: nonce and input are public (datum, fixtures), so a replay gets the
+  // job without it; the buyer journals the token it was given (DELTA-SELLER-1).
+  if(job.response){const {job_token,...response}=job.response;return [200,response];}
   if(inFlight.has(job.id))return [409,{error:'Payment request in progress, retry'}];
  }else{
   const now=Date.now();while(recentJobs.length&&recentJobs[0]<=now-NEW_JOBS.windowMs)recentJobs.shift();
-  if(recentJobs.length>=NEW_JOBS.max)return [429,{error:'Too many new jobs, retry later'},{'retry-after':String(Math.ceil((recentJobs[0]+NEW_JOBS.windowMs-now)/1000))}];
-  recentJobs.push(now);
+  if(!registeredBuyer(buyerKey)){
+   if(recentJobs.length>=NEW_JOBS.max)return [429,{error:'Too many new jobs, retry later'},{'retry-after':String(Math.ceil((recentJobs[0]+NEW_JOBS.windowMs-now)/1000))}];
+   recentJobs.push(now);
+  }
   job={id:randomUUID(),nonceKey:key,nonce,token:randomBytes(32).toString('hex'),input:input.input_data,inputHash:hash,status:'awaiting_payment',phase:'payment-pending',attempts:[],disputes:[],
    demo:{seedDefect:process.env.DEMO_SEED_DEFECT==='1',cheat:process.env.CHEAT==='1'}};save(job);
  }
@@ -153,14 +161,18 @@ async function dispute(body,token){
   const seen=job.disputes.find(d=>d.round===round);
   if(seen)return seen.response?[seen.status,seen.response]:[409,{error:'Dispute outcome requires inspection'}];
   if(job.phase==='refund-authorized')return [200,{status:'refund-authorized',reasons:job.refundReasons??[]}];
-  if(job.phase!=='result-confirmed')return [409,{error:`Job is ${job.phase}, retry when the result is confirmed on chain`}];
+  if(job.phase==='refund-pending')return [422,{status:'cure-rejected',reasons:job.refundReasons??[]}];
+  // A round after the cure ends in the refund (MAX_ATTEMPTS). It is decided at once, also while MPS still shows the cure
+  // as pending: a cure in a batched SubmitResult never reaches result-confirmed (DELTA-SELLER-2).
+  const exhausted=job.attempts.length>=MAX_ATTEMPTS;
+  if(job.phase!=='result-confirmed'&&!(exhausted&&job.phase==='awaiting-result'))return [409,{error:`Job is ${job.phase}, retry when the result is confirmed on chain`}];
   const payment=await resolvePayment(job.payment.blockchainIdentifier);
-  if(payment.onChainState!=='Disputed'||payment.NextAction?.requestedAction!=='WaitingForExternalAction')return [409,{error:`Escrow is ${payment.onChainState}/${payment.NextAction?.requestedAction}, retry when Disputed`}];
+  if(payment.onChainState!=='Disputed'||!exhausted&&payment.NextAction?.requestedAction!=='WaitingForExternalAction')return [409,{error:`Escrow is ${payment.onChainState}/${payment.NextAction?.requestedAction}, retry when Disputed`}];
   const entry={round,receivedAt:new Date().toISOString(),failures:Array.isArray(failures)?failures.map(f=>({code:String(f.code),textDe:String(f.textDe??'')})):[],kositReportSha256:typeof body.kositReport==='string'?sha256(body.kositReport):null};
   job.disputes.push(entry);save(job);
   const finish=(status,response)=>{Object.assign(entry,{status,response});save(job);return [status,response]};
   const last=job.attempts.at(-1);
-  if(job.attempts.length>=MAX_ATTEMPTS){await authorizeRefund(job,['Nachbesserung ausgeschöpft.']);return finish(200,{status:'refund-authorized',reasons:job.refundReasons});}
+  if(exhausted)return await refundOrHold(job,payment,['Nachbesserung ausgeschöpft.'])?finish(200,{status:'refund-authorized',reasons:job.refundReasons}):finish(422,{status:'cure-rejected',reasons:job.refundReasons});
   if(Date.now()>=cureCutoff(job)){await authorizeRefund(job,['Die Frist für eine Nachbesserung ist abgelaufen.']);return finish(422,{status:'cure-rejected',reasons:job.refundReasons});}
   const {recipient}=loadProfile(job.input.recipientProfileId);
   const plan=planCure({failures:entry.failures,current:last.fields,fields0:job.fields0,inputData:job.input,recipient});
@@ -193,7 +205,7 @@ export async function handler(req,res){
    if(String(req.headers['content-type']??'').split(';')[0].trim().toLowerCase()!=='application/json')return respond(res,415,{error:'Content-Type must be application/json'});
    const body=await readBody(req,url.pathname==='/dispute'?2_000_000:40000);if(body==null)return respond(res,413,{error:'Request too large'});
    let parsed;try{parsed=JSON.parse(body)}catch{return respond(res,400,{error:'Invalid JSON'})}
-   const [status,data,headers]=url.pathname==='/start_job'?await startJob(parsed):await dispute(parsed,bearer(req));
+   const [status,data,headers]=url.pathname==='/start_job'?await startJob(parsed,req.headers['x-buyer-key']):await dispute(parsed,bearer(req));
    return respond(res,status,data,headers);
   }catch(e){console.error('request failed',e.message);respond(res,500,{error:'Request failed. Inspect the saved job state before retrying.'})}
 }
@@ -203,6 +215,20 @@ const answerOpen=(job,status,response)=>{for(const d of job.disputes)if(!d.respo
 const disputedIdle=p=>p.onChainState==='Disputed'&&p.NextAction?.requestedAction==='WaitingForExternalAction';
 // Seller-side refund from the timer, so a refusal never leaves the buyer's money frozen in Disputed.
 async function refund(job,reasons){await authorizeRefund(job,reasons);answerOpen(job,422,{status:'cure-rejected',reasons});}
+// MPS can hold a Disputed payment outside WaitingForExternalAction: a cure in a batched SubmitResult stays at
+// SubmitResultInitiated (plan/MPS.md, LB2-1), a failed cure tx goes to WaitingForManualAction. authorize-refund needs
+// WaitingForExternalAction, so the refund is decided now (phase refund-pending: rounds get 422, /status shows it) and the
+// tick sends it once an operator has returned the payment to idle; until then an alarm names the state (DELTA-SELLER-2).
+async function refundOrHold(job,payment,reasons){
+ if(disputedIdle(payment)){await refund(job,reasons);return true;}
+ job.phase='refund-pending';job.refundReasons=reasons;answerOpen(job,422,{status:'cure-rejected',reasons});held(job,payment);return false;
+}
+function held(job,payment){
+ const state=`${payment.onChainState}/${payment.NextAction?.requestedAction}`;
+ if(job.refundHeld===state)return;
+ job.refundHeld=state;save(job);
+ console.error(`ALARM job ${job.id}: refund decided, but MPS holds payment ${job.payment.blockchainIdentifier.slice(0,24)}… at ${state}; authorize-refund needs WaitingForExternalAction. Operator: return it to WaitingForExternalAction with the supported MPS repair (plan/MPS.md); this server then sends the refund.`);
+}
 
 export async function tick(){
   for(const {id} of allJobs()){
@@ -216,6 +242,8 @@ export async function tick(){
      // authorizeRefund was interrupted: done if MPS took it, otherwise ask again.
      if(payment.onChainState==='RefundAuthorized'||payment.NextAction?.requestedAction==='AuthorizeRefundRequested'){job.phase='refund-authorized';job.status='failed';save(job);}
      else if(disputedIdle(payment))await refund(job,job.refundReasons);
+     else if(FINAL.includes(payment.onChainState)){job.closed=payment.onChainState;save(job);}
+     else if(payment.onChainState==='Disputed')held(job,payment);
      continue;
     }
     if(FINAL.includes(payment.onChainState)){job.closed=payment.onChainState;save(job);continue;}
@@ -229,11 +257,11 @@ export async function tick(){
     if(job.phase==='awaiting-result'){
      const expected=job.attempts.length>1?'Disputed':'ResultSubmitted';
      if(payment.resultHash===job.resultHash&&['ResultSubmitted','Disputed'].includes(payment.onChainState)&&confirmedState(payment,payment.onChainState)){job.phase='result-confirmed';job.status='completed';save(job);console.log(`job ${id} attempt ${job.attempts.length} confirmed (${payment.onChainState}, expected ${expected})`)}
-     else if(job.attempts.length>1&&disputedIdle(payment)&&(now>=last.submittedAt+CURE_WAIT||now>=refundAt(job)))await refund(job,['Die Nachbesserung wurde nicht rechtzeitig auf Cardano bestätigt.']);
+     else if(job.attempts.length>1&&payment.onChainState==='Disputed'&&(now>=last.submittedAt+CURE_WAIT||now>=refundAt(job)))await refundOrHold(job,payment,['Die Nachbesserung wurde nicht rechtzeitig auf Cardano bestätigt.']);
      continue;
     }
     if(job.phase==='result-confirmed'){
-     if(disputedIdle(payment)&&now>=refundAt(job))await refund(job,['Die Escrow ist kurz vor Ablauf der Streitfrist noch im Streitfall.']);
+     if(payment.onChainState==='Disputed'&&now>=refundAt(job))await refundOrHold(job,payment,['Die Escrow ist kurz vor Ablauf der Streitfrist noch im Streitfall.']);
      continue;
     }
     if(payment.onChainState!=='FundsLocked'||!confirmedState(payment,'FundsLocked')){
@@ -255,6 +283,7 @@ export async function tick(){
 }
 
 if(import.meta.main){
+ try{requireProfile('rechnungsmeister');}catch(e){console.error(`RechnungsMeister: ${e.message}`);process.exit(1);}  // DELTA-SECRETS-5
  createServer(handler).listen(port,'127.0.0.1',()=>console.log('RechnungsMeister API running',port,`(seed defect ${process.env.DEMO_SEED_DEFECT==='1'?'on':'off'}, cheat ${process.env.CHEAT==='1'?'on':'off'})`));
  let busy=false;
  setInterval(async()=>{

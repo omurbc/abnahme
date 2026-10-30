@@ -48,6 +48,8 @@ function world({firstDefective=true,firstXml=null,firstResult=null,cure='ok',che
    if(refunded||attempt>=2||silent)return refuse(200,{status:'refund-authorized',reasons:['Nachbesserung ausgeschöpft.']});
    if(cure==='reject')return refuse(422,{status:'cure-rejected',reasons:['Mangel nicht heilbar.']});
    if(cure==='silent'){silent=true;return {httpStatus:200,body:{status:'cure-submitted',attempt:attempt+1,patch:{},sources:{}}};}  // announces a cure, never submits it
+   // Announces a cure on every round and never submits one; a runaway loop is stopped here instead of hanging the test.
+   if(cure==='hostile'){if(calls.filter(c=>c.startsWith('dispute#')).length>20)throw Object.assign(new Error('runaway /dispute loop'),{permanent:true});return {httpStatus:200,body:{status:'cure-submitted',attempt:attempt+1,patch:{},sources:{}}};}
    deliver(goodXml);tx('Disputed','Disputed');
    return {httpStatus:200,body:{status:'cure-submitted',attempt,patch:{buyerVatId:'DE287654321'},sources:{buyerVatId:'input_data.invoiceText'}}};
   },
@@ -179,6 +181,32 @@ test('ESCROW-1: an inspector that keeps failing (KoSIT 5xx) is no deemed accepta
   assert.equal(r.status,'ACCEPTED');
   assert.deepEqual(w.calls.filter(c=>['request-refund','dispute#1','cancel-refund-request'].includes(c)),['request-refund','dispute#1','cancel-refund-request']);
   assert.match(r.protocolDe,/ABN-PRUEFUNG/);
+ }finally{rmSync(dir,{recursive:true})}
+});
+
+test('DELTA-ENGINE-3: after a protective Mängelrüge the inspection is retried in Disputed past 12 errors; a correct delivery is then released',async()=>{
+ const w=world({firstDefective:false,statusFails:w=>w.clock.t<w.job.unlockTime-20*MIN}),dir=tmp();
+ try{
+  const r=await run(w,dir);
+  assert.ok(w.times['request-refund']<=w.job.unlockTime-25*MIN+10000,'protective dispute');
+  assert.equal(r.status,'ACCEPTED');
+  assert.ok(w.calls.includes('cancel-refund-request'));
+  assert.ok(!w.calls.some(c=>c.startsWith('dispute#')),'nothing to cure');
+ }finally{rmSync(dir,{recursive:true})}
+});
+
+test('DELTA-ENGINE-3: an inspection that cannot run before the cure cutoff sends /dispute with the protective code at the cutoff, never ends without it',async()=>{
+ const w=world({firstDefective:false,statusFails:()=>true,cure:'reject'}),dir=tmp(),bodies=[];
+ const real=w.rm.dispute;w.rm.dispute=async(body,token)=>{bodies.push(body);return real(body,token);};
+ let before;const requestRefund=w.escrow.requestRefund;w.escrow.requestRefund=async(...a)=>{before=count(w,'status');return requestRefund(...a);};
+ try{
+  const r=await run(w,dir);
+  const cutoff=w.job.externalDisputeUnlockTime-30*MIN;
+  assert.equal(r.status,'REFUSED');
+  assert.equal(w.state().onChainState,'RefundAuthorized');
+  assert.deepEqual(bodies.map(b=>b.failures.map(f=>f.code)),[['ABN-LIEFERUNG']]);
+  assert.ok(w.times['dispute#1']>=cutoff,'not before the cure cutoff');
+  assert.ok(count(w,'status')-before<(cutoff-w.times['request-refund'])/10000/2,'backoff: far fewer /status calls than one per poll');
  }finally{rmSync(dir,{recursive:true})}
 });
 
@@ -338,6 +366,25 @@ test('ESCROW-3: a cure the seller announces but never submits ends in the seller
  }finally{rmSync(dir,{recursive:true})}
 });
 
+test('DELTA-ENGINE-1: a seller that announces a cure on every round but never submits one gets at most MAX_DISPUTES rounds; the run waits for the refund and ends with the frozen-money alarm',async()=>{
+ const w=world({cure:'hostile'}),dir=tmp();let sleeps=0;
+ w.deps={sleep:async ms=>{sleeps++;w.clock.t+=Math.max(ms,10000);}};
+ try{
+  const r=await run(w,dir);
+  const rounds=w.calls.filter(c=>c.startsWith('dispute#'));
+  assert.deepEqual(rounds,['dispute#1','dispute#2'],'one defect round, one round asking for the refund, then no more');
+  assert.equal(r.status,'REFUSED');
+  assert.match(r.protocolDe,/ALARM/);assert.match(r.protocolDe,/eingefroren/);
+  const j=onlyJournal(dir);
+  assert.notEqual(j.stage,'done','the money is not settled: the journal stays open');
+  assert.ok(Date.parse(j.log.at(-1).at)<=w.job.externalDisputeUnlockTime+20*MIN,'bounded by the cure deadline plus the refund wait');
+  assert.ok(sleeps>=10,'the wait for the refund sleeps between polls');
+  const again=await run(w,dir);
+  assert.equal(again.status,'REFUSED');
+  assert.equal(w.calls.filter(c=>c.startsWith('dispute#')).length,2,'a resume sends no further round');
+ }finally{rmSync(dir,{recursive:true})}
+});
+
 test('ESCROW-3: a seller that answers every /dispute with 409 leaves a FAILED with an alarm about the frozen money; the journal stays resumable',async()=>{
  const w=world({disputeMode:'409'}),dir=tmp();
  try{
@@ -464,6 +511,40 @@ test('the job token from start_job goes with /status and /dispute; a 429 from st
  }finally{rmSync(dir,{recursive:true})}
 });
 
+test('DELTA-SELLER-1: a start_job answer without a job token (the seller gives it out once) buys nothing; a resume uses the journaled token',async()=>{
+ const w=world(),dir=tmp();
+ const real=w.rm.startJob;w.rm.startJob=async body=>{const r=await real(body);delete r.body.job_token;return r;};
+ try{
+  const r=await run(w,dir);
+  assert.equal(r.status,'FAILED');
+  assert.ok(!w.calls.includes('purchase'),'nothing bought without the credential for /status and /dispute');
+  assert.match(r.protocolDe,/Job-Token/);
+ }finally{rmSync(dir,{recursive:true})}
+ // A run killed after the purchase resumes with the token from its journal and never calls start_job again.
+ const v=world(),dir2=tmp();class Crash extends Error{}
+ try{
+  v.deps={sleep:async()=>{if(v.calls.includes('purchase'))throw new Crash('killed');}};
+  await assert.rejects(run(v,dir2),Crash);
+  delete v.deps;
+  const r=await run(v,dir2);
+  assert.equal(r.status,'ACCEPTED');
+  assert.equal(count(v,'start_job'),1);
+  assert.deepEqual([...new Set(v.tokens.map(([,t])=>t))],[TOKEN]);
+ }finally{rmSync(dir2,{recursive:true})}
+});
+
+test('DELTA-SELLER-3: the buyer sends RM_BUYER_KEY with /start_job only, so a full window for new jobs does not lock it out',async()=>{
+ const seen=[];
+ const server=createServer((req,res)=>{seen.push([req.url.split('?')[0],req.headers['x-buyer-key']]);req.resume();req.on('end',()=>{res.writeHead(200,{'content-type':'application/json'});res.end('{}');});});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const saved=process.env.RM_BUYER_KEY;process.env.RM_BUYER_KEY='5e'.repeat(32);
+ try{
+  const rm=(await import('./abnahme.mjs')).rmClient(`http://127.0.0.1:${server.address().port}`);
+  await rm.startJob({});await rm.status('id',TOKEN);await rm.dispute({},TOKEN);
+  assert.deepEqual(seen,[['/start_job','5e'.repeat(32)],['/status',undefined],['/dispute',undefined]]);
+ }finally{server.close();if(saved===undefined)delete process.env.RM_BUYER_KEY;else process.env.RM_BUYER_KEY=saved;}
+});
+
 test('a 401 from /dispute is retried, not read as the seller refusing the cure',async()=>{
  const w=world({disputeMode:'401once'}),dir=tmp();
  try{
@@ -539,16 +620,63 @@ test('LANE-A-4: an x402 failure reaches the customer protocol only as a short Ge
  }
 });
 
-test('LANE-A2-2: an x402 payment that did not settle (the local KoSIT decided) is listed as not charged, without hash or explorer link',async()=>{
- const w=world({firstDefective:false}),dir=tmp(),unsettled='e'.repeat(64);
- w.deps={inspect:async(xml,o)=>({...await w.inspect(xml,o),mode:'local',txHash:unsettled,note:'x402 HTTP 402'})};
+test('DELTA-ENGINE-4 / LANE-A2-2: an x402 payment is listed as not charged only when certain; a settled or possibly settled one keeps its hash and link',async()=>{
+ const hash='e'.repeat(64),link=`https://preprod.cardanoscan.io/transaction/${hash}`;
+ for(const [payment,txHash,expected] of [
+  ['settled',hash,[{label:'x402 inspection 1 (paid, report not used; local KoSIT)',txHash:hash,explorerUrl:link}]],
+  ['unknown',hash,[{label:'x402 inspection 1 (payment unconfirmed, local KoSIT)',txHash:hash,explorerUrl:link}]],
+  [undefined,hash,[{label:'x402 inspection 1 (payment unconfirmed, local KoSIT)',txHash:hash,explorerUrl:link}]],  // no outcome given: not certain
+  ['not-charged',null,[]],
+ ]){
+  const w=world({firstDefective:false}),dir=tmp();
+  w.deps={inspect:async(xml,o)=>({...await w.inspect(xml,o),mode:'local',txHash,payment,note:'x402 HTTP 504'})};
+  try{
+   const r=await run(w,dir);
+   assert.equal(r.status,'ACCEPTED');
+   assert.deepEqual(r.txs.filter(t=>t.label.startsWith('x402')),expected,String(payment));
+   assert.doesNotMatch(JSON.stringify(r.txs),/not charged/);
+  }finally{rmSync(dir,{recursive:true})}
+ }
+});
+
+test('DELTA-ENGINE-4: inspectXml reports the x402 payment outcome: settled, unknown or not charged',async()=>{
+ const server=createServer((req,res)=>{let body='';req.on('data',c=>body+=c);req.on('end',()=>{res.writeHead(200,{'content-type':'application/xml'});res.end(report({hash:b64sha(body)}));});});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const saved={KOSIT_URL:process.env.KOSIT_URL,INSPECT_MODE:process.env.INSPECT_MODE};
+ process.env.KOSIT_URL=`http://127.0.0.1:${server.address().port}/`;delete process.env.INSPECT_MODE;
  try{
-  const r=await run(w,dir);
-  assert.equal(r.status,'ACCEPTED');
-  assert.deepEqual(r.txs.filter(t=>t.label.startsWith('x402')),[{label:'x402 inspection 1 (not charged, local KoSIT)',txHash:null,explorerUrl:null}]);
-  assert.ok(!JSON.stringify(r.txs).includes(unsettled));
-  assert.equal(journal(dir,r.journalId).attempts[0].inspection.txHash,unsettled,'the hash stays in the journal');
- }finally{rmSync(dir,{recursive:true})}
+  const of=buyInspection=>inspectXml(goodXml,{scenario:XRECHNUNG_UBL_SCENARIO,buyInspection}).then(r=>[r.mode,r.txHash,r.payment]);
+  // paid, but the report is of other bytes: the local KoSIT decides, the payment is settled
+  assert.deepEqual(await of(async()=>({httpStatus:200,txHash:'tx1',receipt:{success:true},result:{httpStatus:200,report:report({hash:b64sha(badXml)})}})),['local','tx1','settled']);
+  assert.deepEqual(await of(async()=>({httpStatus:504,txHash:'tx2',receipt:null,result:null})),['local','tx2','unknown']);
+  assert.deepEqual(await of(async()=>({httpStatus:200,txHash:'tx3',receipt:null,result:{httpStatus:200,report:report({hash:b64sha(goodXml)})}})),['local','tx3','unknown']);
+  assert.deepEqual(await of(async()=>({httpStatus:503,txHash:null,receipt:null,result:null})),['local',null,'not-charged']);
+  assert.deepEqual(await of(async()=>{throw new Error('x402 budget reached');}),['local',null,'not-charged']);
+  assert.deepEqual(await of(async xml=>({httpStatus:200,txHash:'tx4',receipt:{success:true},result:{httpStatus:200,report:report({hash:b64sha(xml)})}})),['x402','tx4','settled']);
+ }finally{server.close();for(const [k,v] of Object.entries(saved))if(v===undefined)delete process.env[k];else process.env[k]=v;}
+});
+
+test('DELTA-ENGINE-2: an inspection still running at the decision deadline is cut off by a protective Mängelrüge; its verdict is used in Disputed, never bought again',async()=>{
+ for(const late of ['defect','throws']){
+  const w=world(),dir=tmp();let release,first=true;
+  const slow=new Promise(r=>{release=r;});
+  // The engine's deadline timer fires on the next turn of the event loop and moves the simulated clock to the deadline.
+  w.deps={timer:ms=>{let off=false;return {promise:new Promise(r=>setImmediate(()=>{if(!off){w.clock.t+=ms;r();}})),cancel:()=>{off=true;}};},
+   inspect:async(xml,o)=>{if(!first)return w.inspect(xml,o);first=false;await slow;
+    w.clock.t=Math.max(w.clock.t,w.job.unlockTime-4*MIN);  // a 22-minute inspection: the verdict arrives at unlockTime - 4 min
+    if(late==='throws')throw new Error('x402 HTTP 504');return w.inspect(xml,o);}};
+  const timer=setTimeout(release,50);
+  try{
+   const r=await run(w,dir);
+   assert.ok(w.times['request-refund']<=w.job.unlockTime-15*MIN+10000,`${late}: protective dispute by the decision deadline`);
+   assert.equal(r.status,'ACCEPTED',late);
+   assert.equal(w.state().onChainState,'Withdrawn',late);
+   // defect: the late verdict is used, then the cure; throws: nothing was inspected before the cure cutoff, so the
+   // protective code goes out and only the cure is inspected (DELTA-ENGINE-3).
+   assert.equal(count(w,'inspect'),late==='defect'?2:1,`${late}: one inspection per delivery`);
+   assert.ok(w.calls.includes('dispute#1'),`${late}: disputed and cured`);
+  }finally{clearTimeout(timer);rmSync(dir,{recursive:true})}
+ }
 });
 
 test('LANE-A2-4 / LB2-4: the REFUSED line names no operator step; the refund-repair loop pays the refund out (MPS #1327)',async()=>{
