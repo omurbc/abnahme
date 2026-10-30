@@ -262,3 +262,41 @@ Run by the "Live preprod scenarios" auditor with our own wallets, the running Re
 | 7 | Deemed acceptance, fixture a, `hv-giesing`, 527.17 | Round 0 accepted at 3.1 min, no further buyer tx; MPS auto-withdrew for RM at unlock + 10:20 | FundsLocked `bdb84f45e8cf1720bf29cc0adf31d2bc12dbfd7bfd99fc27190aaed12971f253`, ResultSubmitted `d79cf09e69e5642f0950ddd1ee47a0171aa4ca8d724ec7e5783260b1c918eb61`, Withdrawn `1ec56faf0d1167beb8d7b3b2e6388bd5d3cea39ee86a3a7e5cc7a5d3fdbc3dd1` | PASS |
 
 Gutachter buyer top-up (20 tADA from the Büro purchasing wallet, `mps/fund.mjs`): `f9380000c10080865a27abbf035b2d27f32292c8ec93f6fd75b6eb37ddde12f1`. Spend: 5 tUSDM moved purchasing → RM selling, 16.60 tADA in fees in total. The RM selling wallet is down to 8.97 tADA: top it up before the final evidence runs (LIVE-6).
+
+## Escrow run 2026-10-30T13-29-14-578Z-0041d9: ACCEPTED
+
+Fixture `/tmp/b-g1-live.txt`, recipient `bau-isar`, expected 18400.00 EUR, x402 inspection, --follow. Finished 2026-10-30T13:39:05.147Z, 9.8 min. Purchase `cmvv0drmb00e001pg5vzg9gl3`.
+RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
+
+| Step | Time (UTC) | Tx | Explorer |
+|---|---|---|---|
+| FundsLocked | 2026-10-30T13:31:18.000Z | `f976004e41eb606041db12f1312d7a267338b4c28ad1bb184189f6c5265b9191` | https://preprod.cardanoscan.io/transaction/f976004e41eb606041db12f1312d7a267338b4c28ad1bb184189f6c5265b9191 |
+| ResultSubmitted | 2026-10-30T13:32:57.000Z | `4f50ed76aa5deb493f6107a8bcf07486a37601c68fb83583eb60ef95a4dda049` | https://preprod.cardanoscan.io/transaction/4f50ed76aa5deb493f6107a8bcf07486a37601c68fb83583eb60ef95a4dda049 |
+| Disputed | 2026-10-30T13:33:53.000Z | `5f2d1236fab2cc5463fb192f928ae083849180a252d80b17e01cf5d569774e6f` | https://preprod.cardanoscan.io/transaction/5f2d1236fab2cc5463fb192f928ae083849180a252d80b17e01cf5d569774e6f |
+| ResultSubmitted (cure) | 2026-10-30T13:35:01.000Z | `b36ed2dbd05d165a31b5c41098aaf20292e96eb88d685ecf48a6721a31a80551` | https://preprod.cardanoscan.io/transaction/b36ed2dbd05d165a31b5c41098aaf20292e96eb88d685ecf48a6721a31a80551 |
+| AuthorizeWithdrawal | 2026-10-30T13:38:02.000Z | `b65e79d1de603bf7b62e31fcd5d4b78562871fe8c2b9e97f395b7ff0b8366600` | https://preprod.cardanoscan.io/transaction/b65e79d1de603bf7b62e31fcd5d4b78562871fe8c2b9e97f395b7ff0b8366600 |
+| Withdrawn | 2026-10-30T13:38:50.000Z | `239c0dab2b87be3ece943b840dd63c6d5d85274c736b973d808d47a8f085541c` | https://preprod.cardanoscan.io/transaction/239c0dab2b87be3ece943b840dd63c6d5d85274c736b973d808d47a8f085541c |
+| x402 inspection 1 |  | `6c2b9e77358f07a8d3c94baf95a3e20ceeed86d3b04b320703048b2a156311a9` | https://preprod.cardanoscan.io/transaction/6c2b9e77358f07a8d3c94baf95a3e20ceeed86d3b04b320703048b2a156311a9 |
+| x402 inspection 2 |  | `caa5f314453d928794e5e169e73cc8cbcdcf7e6a533c0aeb95210cf57e126eac` | https://preprod.cardanoscan.io/transaction/caa5f314453d928794e5e169e73cc8cbcdcf7e6a533c0aeb95210cf57e126eac |
+
+<details><summary>Abnahmeprotokoll</summary>
+
+- Auftrag 2026-10-30T13-29-14-578Z-0041d9: Rechnung für Bau Isar Generalunternehmer GmbH, erwarteter Betrag 18.400,00 €, Prüfprofil 64a8294cadfa…
+- Angebot von RechnungsMeister (Auftrag fa86a275-225b-489d-9007-484ad1276dd4): 1 tUSDM, Ergebnis bis 14:54, Freigabe ab 15:14. Eingabe-Hash geprüft.
+- Kauf an den Masumi Payment Service übergeben; 1 tUSDM wird in der Escrow auf Cardano gesperrt.
+- Geld gesperrt (FundsLocked). Der RechnungsMeister liest jetzt die Rechnung aus und erstellt die XRechnung; warte auf das Ergebnis.
+- Ergebnis auf Cardano eingereicht (ResultSubmitted). Starte die Abnahmeprüfung.
+- Prüfung 1 (Gutachter über x402, 1 tADA): Ergebnis-Hash (Datum (Blockfrost)) stimmt, KoSIT abgelehnt.
+- Mängel: [BR-AE-02] Bei Steuerschuldnerschaft des Leistungsempfängers (Kategorie „AE“) müssen beim Verkäufer die USt-IdNr. (BT-31), die Steuernummer (BT-32) oder die USt-IdNr. des Steuervertreters (BT-63) und beim Käufer die USt-IdNr. (BT-48) oder die Registernummer (BT-47) angegeben sein. [ABN-BT48] Die USt-IdNr. des Käufers (BT-48) fehlt; bei § 13b muss DE287654321 angegeben sein.
+- Mängelrüge auf Cardano: Rückerstattung verlangt, die Escrow geht in den Streitfall (Disputed).
+- Streitfall bestätigt (Disputed). Das Geld ist eingefroren. Sende das Prüfprotokoll an den RechnungsMeister.
+- RechnungsMeister bessert nach (Versuch 2): buyerVatId = DE287654321 (Quelle: input_data.invoiceText).
+- Nachbesserung 1 auf Cardano eingereicht. Prüfe erneut.
+- Prüfung 2 (Gutachter über x402, 1 tADA): Ergebnis-Hash (Datum (Blockfrost)) stimmt, KoSIT akzeptiert.
+- Nachbesserung besteht die Abnahme. Gebe die Zahlung frei (AuthorizeWithdrawal).
+- Freigabe auf Cardano beauftragt (cancel-refund-request → AuthorizeWithdrawal).
+- Zahlung freigegeben (WithdrawAuthorized). Warte auf die Auszahlung an den RechnungsMeister.
+- ABGENOMMEN. Der RechnungsMeister hat die Zahlung aus der Escrow erhalten (Withdrawn).
+- Escrow abgeschlossen: Withdrawn.
+
+</details>

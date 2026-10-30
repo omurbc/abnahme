@@ -31,5 +31,19 @@
   "txHash": "138b9c0a11d991f1306277a23e2273bcd60ac5c75d92e9944df4d24684714a4e",
   "verdict": "ACCEPTABLE",
   "status": "settled"
+ },
+ {
+  "time": "2026-10-30T13:33:22.599Z",
+  "id": "92d0609363e9",
+  "txHash": "6c2b9e77358f07a8d3c94baf95a3e20ceeed86d3b04b320703048b2a156311a9",
+  "verdict": "REJECT",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T13:35:19.077Z",
+  "id": "6fb7f461a657",
+  "txHash": "caa5f314453d928794e5e169e73cc8cbcdcf7e6a533c0aeb95210cf57e126eac",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
  }
 ]
