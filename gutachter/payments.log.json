@@ -1,0 +1,17 @@
+[
+ {
+  "time": "2026-10-30T08:58:42.481Z",
+  "txHash": "5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9",
+  "verdict": "ACCEPTABLE"
+ },
+ {
+  "time": "2026-10-30T09:10:15.842Z",
+  "txHash": "7dc0c48aeea27ad28af8329a6eab14730aa77756ca1f4e95d6261293034ced60",
+  "verdict": "REJECT"
+ },
+ {
+  "time": "2026-10-30T09:12:31.249Z",
+  "txHash": "f846f7980834260f46e297643936ab5f07b2ad27ed4b182f564b1cccdc5c6d9b",
+  "verdict": "ACCEPTABLE"
+ }
+]

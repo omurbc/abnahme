@@ -113,6 +113,9 @@ SDK in `einvoice/extract.mjs`.
 | CLI 1.0.4 installed (Node 24) | done |
 | Login, TUM workspace joined | done (operator) |
 | Vendor, Coworker, runtime key, `.env` | done |
-| TUM workspace access GRANTED | **PENDING approval** |
-| G2 unpaid PRÜFEN COMPLETED | TBD |
-| G4 paid SENDEN FundsLocked | TBD (needs GRANTED and the Büro registration) |
+| TUM workspace access GRANTED | done, 10:34 (approved by the TUM workspace owner) |
+| G2 unpaid PRÜFEN COMPLETED | done: Task `01a18c29-f636-7378-aa12-8a4eb654a255`, COMPLETED 09:35:36Z, **ABNAHME_IMPL=local** (no escrow), ABGENOMMEN AR-2026-0087, 0 credits |
+| G4 paid SENDEN FundsLocked | done: Task `01a18c2a-6912-7478-9755-8872eb2ff753`, FundsLocked [`d9c69f50…2859`](https://preprod.cardanoscan.io/transaction/d9c69f508f1f15299cdd3cc056ff4444b9ba0fcadf00e197cd14f7286c952859) (block 5352737), ResultSubmitted [`68b5a6fc…242e`](https://preprod.cardanoscan.io/transaction/68b5a6fc55deb0d28481d4ac4976532ca4dcf88d419eb896a4ae658c60f4242e), COMPLETED 09:39:50Z, 100 credits (TUM pool) |
+| Mailpit delivery | Message-ID `<1bc07905-682d-4513-9f3c-2d2c541f90d8@abnahme.local>`, `250 2.0.0 Ok: queued as 0vC5CRzIiDK69V1YJl57Qn` |
+| § 14c duplicate | Task `01a18c2e-6de2-76ca-b42e-5d48cbef591e` (second `SENDEN AR-2026-0087`): FAILED before any payment request, 0 credits |
+| Withdrawn + seller receipt | TBD (unlockTime 10:11:56Z) |
