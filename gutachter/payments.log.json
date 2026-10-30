@@ -139,5 +139,81 @@
   "txHash": "4eda26c5a65ae6d5cea1e03a745e591cff657a37c03407ce92b9dde635747f8f",
   "verdict": "REJECT",
   "status": "settled"
+ },
+ {
+  "time": "2026-10-30T16:03:57.683Z",
+  "id": "eabf56d8eb88",
+  "txHash": "64f6456c627ca07522b4bee9e8aa07dc3f2a1bb2c9fbad9ef4e24d11ab491bd4",
+  "verdict": "REJECT",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T16:04:27.725Z",
+  "id": "d4052ad4c474",
+  "txHash": "17f4e7287298876e3b971b8699840e711de59e22cc364ad8d1ebe4d300475f5b",
+  "verdict": null,
+  "status": "unknown",
+  "httpStatus": 402,
+  "sends": 9,
+  "error": "invalid_exact_cardano_payload_nonce_not_on_chain"
+ },
+ {
+  "time": "2026-10-30T16:07:55.223Z",
+  "id": "e0b4eb96b9dd",
+  "txHash": "f92080420bb4579db3eec6e2e0bd51eddb23feff41279147ab02393ccdb98972",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T16:12:47.441Z",
+  "id": "67ffffe0c441",
+  "txHash": "0e81b19c8ebadb0fcec797c6b21ea8e821d065f0169afe81de09b878d81d7a8b",
+  "verdict": "REJECT",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T16:18:29.191Z",
+  "id": "1fd7c27eee09",
+  "txHash": "3e54b9be5c054865a9cae97a7ba3b631aec5d938f60f69cc808113e3602c461c",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T16:22:26.580Z",
+  "id": "4c981ed47448",
+  "txHash": "5e6999eafa733ad7a0f3ef55f4ca437fd61ed4622a721e94c2bf3a8d672523fd",
+  "verdict": "REJECT",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T16:22:41.685Z",
+  "id": "5834e528f5e7",
+  "txHash": "c7f05b3ebee024a6028d1dcdb4cf151050d9f862129b6f9c84bd12bdf4a8e67b",
+  "verdict": null,
+  "status": "unknown",
+  "httpStatus": 402,
+  "sends": 9,
+  "error": "invalid_exact_cardano_payload_nonce_not_on_chain"
+ },
+ {
+  "time": "2026-10-30T16:25:31.855Z",
+  "id": "b39ade1d05fb",
+  "txHash": "a8beecaaa896b3f44baed64073d522299edf2727f75d12d6c6f78a29c07aa73b",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T16:26:14.231Z",
+  "id": "61dea6c3eda3",
+  "txHash": "1884652845738cd9a50d91492ed48df37bbf105f783d4487446d2c692237efad",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T16:37:20.935Z",
+  "id": "01684e1d4ab8",
+  "txHash": "30dca15f4827cc85ff59d8b153df6432e81bbb28dc81f1196364f022d01ea21a",
+  "verdict": "REJECT",
+  "status": "settled"
  }
 ]
