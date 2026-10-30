@@ -646,14 +646,14 @@ Hashes are filled in from preprod as each run lands; rows still marked TBD have 
 | 1 | x402 inspection payment, 1 tADA | x402 | Gutachter paid per call (track requirement) | [`5820e591b57f…`](https://preprod.cardanoscan.io/transaction/5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9) |
 | 2 | RechnungsMeister registration (agent NFT mint) | Masumi registry | Seller agent on the registry | [`8548d4f7a4a8…`](https://preprod.cardanoscan.io/transaction/8548d4f7a4a8667a91ccbd068d41ad6070062bc5794d1e6fe72159b625836333) |
 | 3 | Abnahme-Büro registration (agent NFT mint) | Masumi registry | Buyer / Coworker agent on the registry | [`f63a51dc5728…`](https://preprod.cardanoscan.io/transaction/f63a51dc57282b2a680ce12ef25f4d80d74f65ed12a19330af1986d00bc0fc22) |
-| 4 | `FundsLocked` | Masumi V2 escrow | Büro-Agent buys from RechnungsMeister, `input_hash` pins the profile | TBD |
-| 5 | `ResultSubmitted`, first delivery | Masumi V2 escrow | Delivery with BT-48 missing | TBD |
-| 6 | x402 inspection → REJECT `BR-AE-02` | x402 | The paid inspection that found the defect | TBD |
-| 7 | `SetRefundRequested` → `Disputed` | Masumi V2 escrow | Mängelrüge, §640(2) BGB | TBD |
-| 8 | `SubmitResult` while `Disputed` | Masumi V2 escrow | Nacherfüllung, §635 BGB | TBD |
-| 9 | x402 re-inspection → ACCEPTABLE | x402 | The cure passes | TBD |
-| 10 | `AuthorizeWithdrawal` → `WithdrawAuthorized` | Masumi V2 escrow | Abnahme, §640(1) BGB | TBD |
-| 11 | `Withdraw` → `Withdrawn` | Masumi V2 escrow | Payment on acceptance, §641(1) BGB | TBD |
+| 4 | `FundsLocked` | Masumi V2 escrow | Büro-Agent buys from RechnungsMeister, `input_hash` pins the profile | [`a57c43ee1030…`](https://preprod.cardanoscan.io/transaction/a57c43ee103097f67b6650b2db896682ef254fef0c3dcf0f8e03d82cce9d1cab) |
+| 5 | `ResultSubmitted`, first delivery | Masumi V2 escrow | Delivery with BT-48 missing | [`20ca2cf5c3a9…`](https://preprod.cardanoscan.io/transaction/20ca2cf5c3a9acc46b89e076a606e6bd4ff094254aa996eafbf9edcb307ead26) |
+| 6 | x402 inspection → REJECT `BR-AE-02` | x402 | The paid inspection that found the defect | [`7dc0c48aeea2…`](https://preprod.cardanoscan.io/transaction/7dc0c48aeea27ad28af8329a6eab14730aa77756ca1f4e95d6261293034ced60) |
+| 7 | `SetRefundRequested` → `Disputed` | Masumi V2 escrow | Mängelrüge, §640(2) BGB | [`995c6c489cb5…`](https://preprod.cardanoscan.io/transaction/995c6c489cb537edecdfe565fba78565560c6a6b2ef438fc527a3d6f22669c77) |
+| 8 | `SubmitResult` while `Disputed` | Masumi V2 escrow | Nacherfüllung, §635 BGB | [`6c63b8f64ae0…`](https://preprod.cardanoscan.io/transaction/6c63b8f64ae0684b717fc9c4b39dc4ad4edf71aa940d4361d78b14db02476f5c) |
+| 9 | x402 re-inspection → ACCEPTABLE | x402 | The cure passes | [`f846f7980834…`](https://preprod.cardanoscan.io/transaction/f846f7980834260f46e297643936ab5f07b2ad27ed4b182f564b1cccdc5c6d9b) |
+| 10 | `AuthorizeWithdrawal` → `WithdrawAuthorized` | Masumi V2 escrow | Abnahme, §640(1) BGB | [`4b6d275e39d4…`](https://preprod.cardanoscan.io/transaction/4b6d275e39d47fd21f5a70b2c6a7b3115b39f99b281bb3a1fe8b548065047c50) |
+| 11 | `Withdraw` → `Withdrawn` | Masumi V2 escrow | Payment on acceptance, §641(1) BGB | [`8f21ca18ad0a…`](https://preprod.cardanoscan.io/transaction/8f21ca18ad0aa9ee7e10ac9f9022a47a02e360a33c4329a74d7218dab66d4435) |
 | 12 | Sokosumi paid Task `FundsLocked` | Masumi V2 escrow (Sokosumi) | Frau Berger's Task paid in credits (SENDEN AR-2026-0087, 1 tUSDM) | [`d9c69f508f1f…`](https://preprod.cardanoscan.io/transaction/d9c69f508f1f15299cdd3cc056ff4444b9ba0fcadf00e197cd14f7286c952859) |
 | 13 | Sokosumi paid Task `Withdrawn` + seller receipt check | Masumi V2 escrow (Sokosumi) | Abnahme-Büro paid, checked by `settlement.mjs` | TBD |
 
