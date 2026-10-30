@@ -130,7 +130,7 @@ Campaign 1 hit it on all 5 refusals. The workaround runs with the admin profile:
 
 ```sh
 export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
-node --env-file=.local/env/mps-admin.env mps/refund-repair.mjs          # one pass; exit 1 if a purchase failed
+node --env-file=.local/env/mps-admin.env mps/refund-repair.mjs          # one pass; exit 1 if a request failed
 node --env-file=.local/env/mps-admin.env mps/refund-repair.mjs --loop   # a pass every 60 s, next to the worker
 ```
 
@@ -146,7 +146,61 @@ It is idempotent: a repaired purchase has `resultHash: null` and is not picked a
 plus a pass summary, and never prints a key. The Büro's REFUSED protocol still names the operator step ("Hinweis für den Betreiber … #1327").
 Done by hand before the script existed: A8, B5 and B3 (campaign 1), then A4 and A9b (both refunded in one WithdrawRefund,
 [`3278fb11…`](https://preprod.cardanoscan.io/transaction/3278fb112d2c43858294e1a2cf43abe876bd30585ca7e158078e0367c506540b), 30 Oct 15:37:20Z).
-The first live run (30 Oct 15:52Z) found 0 stuck purchases. Remove the script once MPS ships the #1328 fix.
+The first live run (30 Oct 15:52Z) found 0 stuck purchases. Remove the refund half once MPS ships the #1328 fix.
+
+## Seller payouts stuck in WithdrawAuthorized (LB2-1, CAMPAIGN2-1): same script, `repairStuckWithdrawals`
+
+**Cause (MPS 0.29.0, read in the source; unchanged on `main` a846392 and `dev` 99686769; not #1327).** A batched V2 SubmitResult
+gives all its escrows ONE shared Transaction row (`payments/submit-result/service.ts`, "V2 batch shared-Transaction pre-submit").
+tx-sync handles the entries one by one, in sorted-input order. The first entry's handler marks the shared row `Confirmed`.
+For every later entry, the idempotency guard in `handleV2PaymentTransaction` (`packages/payment-source-v2/src/services/tx-sync/handlers.ts`)
+checks `CurrentTransaction.txHash === tx_hash && status === Confirmed && onChainState === newState`. A cure (Disputed → Disputed)
+already has `onChainState === newState`, so the guard returns without a log line. The payment keeps `SubmitResultInitiated`.
+When the buyer's AuthorizeWithdrawal lands, the transition table maps `(SubmitResultInitiated, WithdrawAuthorized)` to
+`WaitingForManualAction` / "Unexpected state change detected. Possible a action was executed externally". MPS never builds the Withdraw.
+Escrows whose state changes in the batch (first deliveries, disputes) are not affected. The shared row's
+`previousOnChainState`/`newOnChainState` is last-writer-wins too, which is why D3's cure is labelled `FundsLocked>ResultSubmitted`.
+
+Evidence (campaign 2, 30 Oct):
+- Cure batch `91e1b067…`: D4b (#0, input `a173fb93…#0`, first in sorted order) got its `WaitingForExternalAction` at 16:16:18.820Z.
+  D4 (#1) and D1-2 (#2) have no action after `SubmitResultInitiated`. The shared row's `updatedAt` is 16:16:18.820Z: nothing wrote it later.
+- Mixed batch `92c282d8…`: two lane-A first deliveries (inputs `b0f74880…#0/#1`) came first, and D3's cure (`f6312a30…#3`) was skipped.
+- After the AuthorizeWithdrawals `f8c5881d…` (D4, D1-2) and `a6a9f43e…` (D3): exactly these 3 of 19 payments were in `WaitingForManualAction`.
+
+**Repair (supported admin endpoints only).** `error-state-recovery` on its own is not safe here. It repoints the payment to the newest
+`Confirmed` row of its `TransactionHistory`, and the AuthorizeWithdrawal is not in that history yet (it is only the current tx).
+The newest history row is the spent cure tx, so the Withdraw would be built from a spent UTxO. `retryPreviousAction: true` would
+submit the cure again. So the script does, per payment:
+1. Lists `GET /payment?network=Preprod&filterPaymentSourceType=Web3CardanoV2&filterOnChainState=WithdrawAuthorized&limit=100` (cursor paging).
+2. Acts on `WaitingForManualAction` with an `errorType` right away. It also acts on `WaitingForExternalAction` with no change for more
+   than 15 min, but only when `resultHash` is null. Any other action unchanged for more than 15 min (for example `WithdrawInitiated`)
+   gets a `skip … no automatic repair` alarm line and nothing else.
+3. Requires a confirmed current tx with `newOnChainState` WithdrawAuthorized. Checks on Blockfrost that its own escrow output
+   (datum `input_hash` = the payment's) is unique and unspent, has state WithdrawAuthorized (field 18, constructor 4), and has a
+   non-empty `result_hash` equal to MPS's `resultHash`.
+4. Calls `POST /request-repair/preview {kind: Payment, network, blockchainIdentifier, txHash}`. It must derive `WithdrawAuthorized`
+   at that output index with that result hash. Then `POST /request-repair` with the `requestVersion`, never `force`. This links the
+   AuthorizeWithdrawal into the history (and fills a null `resultHash` from the datum).
+5. Re-reads the payment with `POST /payment/resolve-blockchain-identifier` (`includeHistory: "true"`, a string in 0.29.0). Only if the newest
+   `Confirmed` history row is the AuthorizeWithdrawal does it call `POST /payment/error-state-recovery {blockchainIdentifier, network, updatedAt}`
+   (no `retryPreviousAction`). The response must show `WaitingForExternalAction` on the AuthorizeWithdrawal.
+6. MPS's auto-withdraw then queues `WithdrawRequested` and sends the Withdraw by itself.
+
+Side effect: request-repair rewrites the payment's AuthorizeWithdrawal row to `WithdrawAuthorized>WithdrawAuthorized`, so the seller
+history shows that label for this tx (the buyer side keeps `Disputed>WithdrawAuthorized`).
+
+**Live recovery, 30 Oct.** All three are `Withdrawn`, and RechnungsMeister received 3 × 1 tUSDM:
+
+| Escrow | Payment | Stuck output | Repair + clear (Z) | Withdraw (on chain) |
+|---|---|---|---|---|
+| D3 | `cmvv5sduj012j01pg0fa2reof` | `a6a9f43e…#0` | 18:06:36 / 18:06:45, by hand (same calls) | [`d6d48469…`](https://preprod.cardanoscan.io/transaction/d6d484694ce2d8af2f1bae88d11cb41e9495124782dbf91be33da0cae614da08), block 5354075, 18:07:43 |
+| D4 | `cmvv632v2017d01pgqagm2159` | `f8c5881d…#1` | 18:14:50, one pass of the script | [`4d580b35…`](https://preprod.cardanoscan.io/transaction/4d580b35eb441be0ed25701c9f4c1ef254fd6cbbc267fcb877d6a95d2590c17a), block 5354098, 18:15:25 |
+| D1-2 | `cmvv5sdu7012g01pgc4uwjooy` | `f8c5881d…#2` | 18:14:52, same pass | same tx `4d580b35…` (batched) |
+
+The buyer purchases followed to `Withdrawn` / `None`. Afterwards no V2 payment or purchase was left in `WithdrawAuthorized`.
+The trigger cannot be switched off by configuration: the L1 SubmitResult batch size is hardcoded (`SUBMIT_RESULT_BATCH_SIZE = 7`
+in `payments/submit-result/service.ts`), so the `--loop` is the safety net. It only picks up the new mode after a restart.
+Upstream issue draft (not filed): `/tmp/mps-upstream-drafts/ISSUE2.md`.
 
 ## Ports (stream D, Fri 30 Oct)
 
