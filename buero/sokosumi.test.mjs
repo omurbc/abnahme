@@ -42,7 +42,7 @@ test('SENDEN is refused before payment unless a PRÜFEN Task accepted that invoi
  const refused=setup({status:'REFUSED'});
  assert.equal(refused.buero.sendenCheck('SENDEN AR-2026-0087').ok,false);
  const text=await refused.buero.pruefen({taskId:'t1',input:pruefenInput,onProgress:refused.onProgress});
- assert.match(text,/ABN-BT48/);assert.match(text,/keine Kosten/);assert.doesNotMatch(text,/SENDEN AR/);
+ assert.match(text,/ABN-BT48/);assert.doesNotMatch(text,/keine Kosten/);assert.match(text,/Betreiber/);assert.doesNotMatch(text,/SENDEN AR/);
  assert.match(refused.buero.sendenCheck('SENDEN AR-2026-0087').reasonDe,/nicht in einer PRÜFEN-Aufgabe abgenommen/);
  await assert.rejects(refused.buero.senden('SENDEN AR-2026-0087',{id:'s1'}),/PRÜFEN/);assert.equal(refused.sent.length,0);
 
@@ -228,4 +228,36 @@ test('PENTEST-2: invoiceNumberOf reads BT-1 with the strict XML reader and refus
  assert.throws(()=>invoiceNumberOf('<cbc:ID>AR-1</cbc:ID>'),/Rechnungsnummer/);
  for(const bad of ['AR"evil','AR&#13;&#10;Bcc: x@evil.example','x";filename*=UTF-8\'\'Zahlung.exe;x="','AR\\1'])
   assert.throws(()=>invoiceNumberOf(ubl(`<cbc:ID>${bad}</cbc:ID>`)),/Rechnungsnummer/,JSON.stringify(bad));
+});
+
+// ---- Fix round 3 (G1, STATEMACHINE-2, EINVOICE-10).
+const refusedWith=txs=>createBuero({dir:mkdtempSync(join(tmpdir(),'buero-')),runAbnahme:async()=>({status:'REFUSED',protocolDe:'Abnahme: ABGELEHNT',xml:xmlB,txs,purchaseId:txs.length?'purchase-1':null})});
+const txOf=label=>({label,txHash:'cd'.repeat(32),explorerUrl:'https://preprod.cardanoscan.io/transaction/x'});
+test('G1: a REFUSED escrow protocol says where the refund stands and that an operator completes a stuck one (MPS #1327)',async()=>{
+ const authorized=await refusedWith([txOf('FundsLocked'),txOf('AuthorizeRefund')]).pruefen({taskId:'t',input:pruefenInput});
+ assert.match(authorized,/Rückerstattung freigegeben/);assert.match(authorized,/20 Minuten.*Betreiber.*#1327/su);assert.doesNotMatch(authorized,/keine Kosten/);
+ const withdrawn=await refusedWith([txOf('FundsLocked'),txOf('AuthorizeRefund'),txOf('RefundWithdrawn')]).pruefen({taskId:'t',input:pruefenInput});
+ assert.match(withdrawn,/Rückerstattung abgeschlossen/);assert.doesNotMatch(withdrawn,/Betreiber|keine Kosten/);
+ const open=await refusedWith([txOf('FundsLocked'),txOf('Disputed')]).pruefen({taskId:'t',input:pruefenInput});
+ assert.match(open,/noch nicht auf Cardano.*Betreiber/su);assert.doesNotMatch(open,/freigegeben|keine Kosten/);
+ assert.match(await refusedWith([]).pruefen({taskId:'t',input:pruefenInput}),/keine Kosten/);  // local check: no escrow, nothing paid
+});
+test('STATEMACHINE-2: after an ACCEPTED run (an old journal with a BT-1 the Büro cannot send, or no XML) pruefen answers, never throws',async()=>{
+ const bad=await xmlWith('b-abschlag-13b-bau-isar.fixed.txt',{invoiceNumber:'AR:2026:0087'});
+ for(const xml of [bad,null]){
+  const buero=createBuero({dir:mkdtempSync(join(tmpdir(),'buero-')),runAbnahme:async()=>({status:'ACCEPTED',protocolDe:'Abnahme: ABGENOMMEN',xml,txs:[tx],purchaseId:'purchase-1'})});
+  const text=await buero.pruefen({taskId:'t',userId:'u',input:pruefenInput});
+  assert.match(text,/ABGENOMMEN/);assert.match(text,/nicht versendbar/);assert.match(text,/Escrow bezahlt den RechnungsMeister/);assert.doesNotMatch(text,/Auftrag dafür: „SENDEN/);
+  buero.confirm('t');assert.equal(buero.sendenCheck('SENDEN AR:2026:0087',{userId:'u'}).ok,false);
+ }
+});
+test('EINVOICE-10: the VOB/B due date moves past weekends and Bavarian public holidays (§ 193 BGB)',async()=>{
+ for(const [now,due] of [['2026-10-31T09:00:00Z','23.11.2026'],['2026-12-04T09:00:00Z','28.12.2026'],['2026-12-16T09:00:00Z','07.01.2027'],['2027-03-05T09:00:00Z','30.03.2027'],['2027-05-06T09:00:00Z','28.05.2027']]){
+  const b=setup2({now});await b.accept();
+  assert.match(await b.buero.senden('SENDEN AR-2026-0087',s1),new RegExp(`VOB/B § 16 Abs\\. 1 Nr\\. 3.*am ${due.replaceAll('.','\\.')}.*§ 193 BGB`,'u'),now);
+ }
+});
+test('EINVOICE-10: the e-mail says the buyer\'s agent accepted the e-invoice, not that anyone accepted the construction work',async()=>{
+ const {buero,sent,accept}=setup2();await accept();await buero.senden('SENDEN AR-2026-0087',s1);
+ assert.match(sent[0].text,/e-invoice accepted by the buyer's agent/i);assert.match(sent[0].text,/not the construction work/);assert.doesNotMatch(sent[0].text,/geprüft und abgenommen/);
 });

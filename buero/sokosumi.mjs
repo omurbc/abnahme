@@ -17,8 +17,18 @@ export const sha256=text=>createHash('sha256').update(text,'utf8').digest('hex')
 const euro=n=>Number(n).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 const dateDe=d=>d.toLocaleDateString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric'});
 const timeDe=d=>`${new Date(d).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})} Uhr`;
-// Calendar days on the Berlin date, so a DST change cannot move the result by a day.
-const plusDaysDe=(d,days)=>{const [day,month,year]=dateDe(d).split('.').map(Number);return dateDe(new Date(Date.UTC(year,month-1,day+days,12)));};
+// Public holidays at the place of payment (Munich), 2026-2027: Art. 1 Abs. 1 Bayerisches Feiertagsgesetz (FTG), with
+// 15 August, which counts in predominantly Catholic municipalities such as Munich; Easter Sunday is 5 Apr 2026 and
+// 28 Mar 2027. From 2028 only weekends are skipped until the list is extended.
+const HOLIDAYS_MUNICH=new Set(['2026-01-01','2026-01-06','2026-04-03','2026-04-06','2026-05-01','2026-05-14','2026-05-25','2026-06-04','2026-08-15','2026-10-03','2026-11-01','2026-12-25','2026-12-26',
+ '2027-01-01','2027-01-06','2027-03-26','2027-03-29','2027-05-01','2027-05-06','2027-05-17','2027-05-27','2027-08-15','2027-10-03','2027-11-01','2027-12-25','2027-12-26']);
+// Calendar days on the Berlin date, so a DST change cannot move the result by a day; then § 193 BGB: a last day on a
+// Saturday, Sunday or public holiday moves to the next working day.
+const dueDateDe=(d,days)=>{
+ const [day,month,year]=dateDe(d).split('.').map(Number),due=new Date(Date.UTC(year,month-1,day+days,12));
+ while([0,6].includes(due.getUTCDay())||HOLIDAYS_MUNICH.has(due.toISOString().slice(0,10)))due.setUTCDate(due.getUTCDate()+1);
+ return dateDe(due);
+};
 // Pasted text: NFC (macOS pastes NFD umlauts), no zero-width characters; quotes around a copied „SENDEN …“ line.
 const normalize=text=>String(text??'').normalize('NFC').replace(/[​-‍⁠﻿]/gu,'');
 const QUOTES=/^[\s„“”"‚‘’'»«]+|[\s„“”"‚‘’'»«]+$/gu;
@@ -85,6 +95,15 @@ export function supplyKey(xml,to){
 const facts=xml=>{try{return invoiceFacts(xml)}catch{return {taxSubtotals:[]}}};
 const vatShown=xml=>facts(xml).taxSubtotals.some(t=>Number(t.tax)>0);
 const typeCode=xml=>facts(xml).invoiceType;
+// Where the escrow refund of a REFUSED run stands, read from its txs (labels from escrow.mjs). MPS 0.29.0 does not
+// collect a refund whose resultHash is set (upstream #1327); an operator's request-repair completes it.
+function refundDe(r){
+ const has=label=>(r.txs??[]).some(t=>t.label===label);
+ if(!r.purchaseId)return 'Es fallen keine Kosten an.';  // local check: no escrow, nothing was paid
+ if(has('RefundWithdrawn'))return 'Rückerstattung abgeschlossen (RefundWithdrawn): die 1 tUSDM sind aus der Escrow an das Büro zurückgegangen.';
+ if(has('AuthorizeRefund'))return 'Rückerstattung freigegeben (AuthorizeRefund auf Cardano): die 1 tUSDM gehen aus der Escrow an das Büro zurück. Ist die Rückzahlung nach etwa 20 Minuten nicht auf Cardano, schließt sie ein Betreiber ab (Masumi Payment Service, upstream #1327).';
+ return 'Die Rückerstattung ist noch nicht auf Cardano: die 1 tUSDM bleiben in der Escrow gesperrt, der RechnungsMeister wird ohne Freigabe des Büros nicht bezahlt. Ein Betreiber schließt die Rückerstattung ab.';
+}
 const smtpErrorDe=e=>/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|ECONNRESET/u.test(e.message)?'Postausgang (SMTP) nicht erreichbar':/timeout/iu.test(e.message)?'Zeitüberschreitung beim Postausgang (SMTP)':e.message;
 
 export function txTableDe(txs){
@@ -105,7 +124,7 @@ export function createBuero({runAbnahme,send=smtpSend,probe=probeSmtp,dir='.loca
   :`im Versand mit ungeklärtem Ausgang${e.messageId?` (Message-ID ${e.messageId})`:''}. Bitte Postfach prüfen; danach kann der Betreiber den Eintrag als versendet oder nicht versendet klären`;
  const sentText=(e,accepted,xml)=>[`Versendet: XRechnung ${e.invoiceNumber} an ${e.to} (Empfängerprofil ${accepted.recipientProfileId}).`,
   `Message-ID: ${e.messageId}`,`SMTP-Antwort: ${e.smtpReply}`,`XML sha256: ${e.xmlSha256}`,`Versandzeit: ${timeDe(e.sentAt)}`,
-  ...(typeCode(xml)==='875'?[`Fälligkeit: Eine Abschlagsforderung nach VOB/B § 16 Abs. 1 Nr. 3 wird 21 Tage nach Zugang fällig; bei Zugang heute am ${plusDaysDe(new Date(e.sentAt),21)}.`]:[]),
+  ...(typeCode(xml)==='875'?[`Fälligkeit: Eine Abschlagsforderung nach VOB/B § 16 Abs. 1 Nr. 3 wird 21 Tage nach Zugang fällig; bei Zugang heute am ${dueDateDe(new Date(e.sentAt),21)} (§ 193 BGB: fällt Tag 21 auf ein Wochenende oder einen Feiertag in München, gilt der nächste Werktag).`]:[]),
   'Der Zugang beim Empfänger ist damit nicht bewiesen.',
   'Doppelversand gesperrt: Rechnungsnummer und XML-Hash sind jetzt gesperrt; ein zweites SENDEN wird abgelehnt.',
   `Eine weitere Rechnung für dieselbe Leistung unter neuer Nummer wird ebenfalls abgelehnt${vatShown(xml)?' (§ 14c UStG: sie würde die ausgewiesene Umsatzsteuer ein zweites Mal schulden)':''}.`,
@@ -123,11 +142,21 @@ export function createBuero({runAbnahme,send=smtpSend,probe=probeSmtp,dir='.loca
    let n;try{n=typeof r.xml==='string'?invoiceNumberOf(r.xml):null}catch{n=null}
    const store=read(acceptedPath,{});
    if(n&&store[n]){store[n]={taskId,userId,refused:true,refusedAt:now().toISOString()};write(acceptedPath,store);}
-   return [r.protocolDe,'',txTableDe(r.txs),'','Nicht abgenommen. Es fallen keine Kosten an. Bitte die Mängel beheben und erneut PRÜFEN.'].join('\n');
+   return [r.protocolDe,'',txTableDe(r.txs),'',`Nicht abgenommen. ${refundDe(r)} Bitte die Mängel beheben und erneut PRÜFEN.`].join('\n');
   }
-  if(r?.status!=='ACCEPTED')throw new Error(`Prüfung fehlgeschlagen. ${r?.protocolDe??'Kein Ergebnis.'}`);
-  if(typeof r.xml!=='string'||!r.xml.trim())throw new Error('Abnahme ohne XRechnung-XML.');
-  const invoiceNumber=invoiceNumberOf(r.xml),xmlSha256=sha256(r.xml);
+  // journalId lets the worker resume an escrow run whose journal is still open.
+  if(r?.status!=='ACCEPTED')throw Object.assign(new Error(`Prüfung fehlgeschlagen. ${r?.protocolDe??'Kein Ergebnis.'}`),{journalId:r?.journalId});
+  // After ACCEPTED the seller is paid: answer with the protocol, never with FAILED (STATEMACHINE-2).
+  let invoiceNumber;
+  try{
+   if(typeof r.xml!=='string'||!r.xml.trim())throw new Error('Abnahme ohne XRechnung-XML.');
+   invoiceNumber=invoiceNumberOf(r.xml);
+  }catch(e){
+   return [r.protocolDe,'',txTableDe(r.txs),'',`Abgenommen, aber nicht versendbar: ${e.message}`,
+    ...(r.purchaseId?['Die Escrow bezahlt den RechnungsMeister für diese Umwandlung; ein erneutes PRÜFEN mit demselben Text kauft nicht erneut.']:[]),
+    'SENDEN ist für diese Rechnung nicht möglich. Bitte die Rechnung korrigieren und erneut PRÜFEN.'].join('\n');
+  }
+  const xmlSha256=sha256(r.xml);
   mkdirSync(`${dir}/abnahmen`,{recursive:true,mode:0o700});
   const xmlFile=`${dir}/abnahmen/${xmlSha256}.xml`;writeFileSync(xmlFile,r.xml,{mode:0o600});
   const store=read(acceptedPath,{});
@@ -196,7 +225,8 @@ export function createBuero({runAbnahme,send=smtpSend,probe=probeSmtp,dir='.loca
   let mail;
   try{
    mail=await send({from:SENDER,to,subject:`XRechnung ${invoiceNumber}`,messageId,
-    text:`Guten Tag,\n\nanbei die XRechnung ${invoiceNumber} (XML sha256 ${accepted.xmlSha256}).\nSie wurde vor dem Versand mit dem KoSIT-Validator und Ihrem Empfängerprofil ${accepted.recipientProfileId} geprüft und abgenommen.\n\nToni Huber Elektrotechnik GmbH`,
+    // "Abgenommen" would read as the GC's own acceptance of the construction work (§ 640 BGB, audit EINVOICE-10).
+    text:`Hello,\n\nattached is the e-invoice (XRechnung) ${invoiceNumber} (XML sha256 ${accepted.xmlSha256}).\nE-invoice accepted by the buyer's agent: our Büro agent bought the conversion of this invoice into an XRechnung and accepted the result before sending, after the KoSIT validator and the checks of the recipient profile we keep for you (${accepted.recipientProfileId}) passed. This concerns the e-invoice only, not the construction work (keine Abnahme der Bauleistung nach § 640 BGB).\n\nToni Huber Elektrotechnik GmbH`,
     attachment:{filename:`${invoiceNumber.replace(/[/\\]/gu,'-')}.xml`,content:xml,contentType:'application/xml'}});
   }catch(error){
    const current=read(ledgerPath,{entries:[]}),i=current.entries.findIndex(e=>e.taskId===task.id&&e.status==='sending');

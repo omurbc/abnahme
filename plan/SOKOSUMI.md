@@ -79,7 +79,11 @@ The first line of the description picks the route (`buero/sokosumi.mjs`). A desc
   them, and a duplicate control line is refused. At most 2 PRÜFEN run at once; the others wait and get a queue comment.
   Progress goes into Task comments. Accepted → COMPLETED with the protocol, the tx table and
   `Senden: kostenpflichtig, Sokosumi bucht dafür Credits (Escrow 1 tUSDM); nur für abgenommene Rechnungen. Auftrag dafür: „SENDEN <Rechnungsnummer>“.`
-  Refused → COMPLETED with the German defect list, no charge. Any error → FAILED with the reason (`gate-failed`).
+  Refused → COMPLETED with the German defect list, 0 credits, and where the escrow refund stands ("Rückerstattung freigegeben",
+  refund authorized; an operator completes a refund that MPS 0.29.0 does not collect, upstream #1327). Accepted, but with an
+  invoice number the Büro cannot e-mail → COMPLETED with the protocol and no SENDEN offer. An escrow run that ends FAILED with its
+  journal still open is resumed once by the worker, 5 minutes later, without a new purchase. Any other error → FAILED with the
+  reason (`gate-failed`).
 - `SENDEN <Rechnungsnummer>` (paid, 1 tUSDM through the template's masumiPayment flow). Refused with FAILED **before any payment
   request** ("Es wurde nichts berechnet") if paid tasks are off, or if no COMPLETED PRÜFEN Task **of the same Sokosumi user**
   accepted that invoice (a later refusing PRÜFEN withdraws the acceptance). It is also refused for free by two different guards in

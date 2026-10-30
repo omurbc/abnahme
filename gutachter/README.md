@@ -23,7 +23,7 @@ Generate both from the repo root with `node scripts/env-split.mjs`, and rerun it
 
 ```sh
 cd gutachter
-npm install
+npm ci                            # exact versions from package-lock.json
 npm run wallet                    # once: appends GUTACHTER_* wallets to ../.env, prints addresses only, then regenerates ../.local/env/
 npm run balance                   # buyer balance via Blockfrost (needs about 1.2 tADA per call)
 ../kosit/start.sh                 # KoSIT daemon on 127.0.0.1:8090 (stream C)
@@ -48,7 +48,7 @@ From code (Büro-Agent): `import {buyInspection} from './gutachter/buy.mjs'`, th
 | 200 `{verdict:'REJECT', httpStatus:406, …}` | KoSIT rejected; the inspection is complete | yes |
 | 400 | body is not XML | no |
 | 503 | KoSIT unreachable | no |
-| 502 | KoSIT answered something other than 200/406, or its report is not from the pinned validator (`KoSIT Validator 1.6.3`, XRechnung 3.0.2) or not about this body (`rep:documentHash`) | no |
+| 502 | KoSIT answered something other than 200/406, or its report is not from the pinned validator (`KoSIT Validator 1.6.3`, XRechnung 3.0.2) or not about this body (`rep:documentHash`); on a resend, the facilitator did not answer `/settle` | no |
 | 409 | this payment was already used for a different body | no |
 
 A 200 body also carries what the buyer needs to bind the verdict to the bytes it sent: `scenario`, `engine` and
@@ -79,12 +79,13 @@ stored payment, which the facilitator resumes without broadcasting again. Differ
 | `GUTACHTER_HOST` | `127.0.0.1` | seller (bind address) |
 | `GUTACHTER_LEDGER` | `gutachter/.local/ledger.json` | seller (replay ledger) |
 | `GUTACHTER_URL` | `http://127.0.0.1:$GUTACHTER_PORT` (not `localhost`: Node tries `::1` first, which any local process can bind) | buyer |
-| `KOSIT_URL` | `http://127.0.0.1:8090/` | seller |
+| `KOSIT_URL` | `http://127.0.0.1:$KOSIT_PORT/` | seller |
+| `KOSIT_PORT` | `8090` (used only when `KOSIT_URL` is unset) | seller |
 | `GUTACHTER_STUB` | unset (`1` = fixed ACCEPTABLE) | seller |
 | `FACILITATOR_URL` | CF hosted preprod facilitator | seller |
 | `GUTACHTER_SELLER_ADDRESS` | from `npm run wallet` | seller (payTo, keyless); buyer (pays only this address, refuses to sign otherwise) |
 | `GUTACHTER_SELLER_MNEMONIC` | from `npm run wallet` | nobody at runtime (spends the seller's income); in no generated env file, keep it offline |
-| `GUTACHTER_BUYER_MNEMONIC`, `GUTACHTER_BUYER_ADDRESS` | from `npm run wallet` | buyer |
+| `GUTACHTER_BUYER_MNEMONIC`, `GUTACHTER_BUYER_ADDRESS` | from `npm run wallet` | buyer (mnemonic), balance (address, unless one is passed) |
 | `BLOCKFROST_API_KEY_PREPROD` | required | buyer, balance |
 | `GUTACHTER_MAX_PAYMENTS_PER_DAY` | `20` | buyer (refuses to sign more charged payments per rolling 24 h, counted in `payments.log.json`; a value that is not a whole number makes `buy.mjs` refuse to load) |
 
@@ -95,7 +96,7 @@ stored payment, which the facilitator resumes without broadcasting again. Differ
 
 ## Payments
 
-`buy.mjs` signs one payment and writes its tx hash to `payments.log.json` before the first paid send
+`buy.mjs` sends at most one payment (it may rebuild a tx it has not sent yet if its inputs are not confirmed) and writes its tx hash to `payments.log.json` before the first paid send
 (`status: 'sent'`). Each call has its own entry (`id`), and calls in one process run one after the other, so the budget
 count and the wallet's UTxOs are never shared by two calls in flight. A 2xx to the unpaid request is refused (no
 inspection without payment). When the answer says the payment may still settle (`settlement_pending`,
@@ -121,4 +122,5 @@ First payment: [5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9
 - Fixtures: `fixtures/xrechnung-ok.xml` is `01.01a-INVOICE_ubl.xml` from the official
   [itplr-kosit/xrechnung-testsuite](https://github.com/itplr-kosit/xrechnung-testsuite);
   `xrechnung-no-bt10.xml` is the same file without `cbc:BuyerReference` (BT-10). `placeholder.xml` is for stub mode only.
-  `tx-5820e591.b64` is the signed CBOR of the first paid inspection (public on chain), used by `buy.test.mjs`.
+  `paid-txs.json` holds the signed CBOR (base64) of five paid preprod inspections, keyed by tx hash (all public on chain),
+  used by `buy.test.mjs` and `seller.test.mjs`.

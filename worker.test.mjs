@@ -196,3 +196,29 @@ test('a journal is closed only on a terminal Core status, not on INPUT_REQUIRED 
  const {worker}=await setup(s);await polls(worker,2);
  assert.notEqual(journal('p1').phase,'closed');
 });
+// G1: an escrow run that ends FAILED with its journal still open is resumed by the worker, once per journal.
+const failedOpen=async()=>({status:'FAILED',protocolDe:'ALARM: Abnahme j1 hängt nach 12 Fehlern',xml:null,kositReport:null,txs:[],purchaseId:'purchase-1',journalId:'j1'});
+const escrowJournal=stage=>{mkdirSync('.local/abnahme-journal',{recursive:true});writeFileSync('.local/abnahme-journal/j1.json',JSON.stringify({id:'j1',stage}));};
+const pauseOver=id=>writeFileSync(`.local/${id}.json`,JSON.stringify({...journal(id),resumeAt:0}));
+test('G1: a FAILED PRÜFEN whose escrow journal is still open is resumed once after a pause and completes',async()=>{
+ sandbox();escrowJournal('notify');let n=0;
+ const s=fakeSokosumi([task('p1',pruefenInput)]);const {worker,runs}=await setup(s,undefined,{runAbnahme:()=>++n===1?failedOpen():accepted()});
+ await polls(worker,3);
+ assert.equal(runs.length,1);assert.equal(s.task('p1').status,'RUNNING');
+ assert.equal(journal('p1').resumedJournal,'j1');assert.ok(journal('p1').resumeAt>Date.now());
+ assert.equal(s.posted.filter(e=>e.taskId==='p1'&&/automatisch fortgesetzt/.test(e.comment??'')).length,1);
+ pauseOver('p1');await polls(worker,3);
+ assert.equal(runs.length,2);assert.equal(s.task('p1').status,'COMPLETED');assert.match(s.task('p1').result,/ABGENOMMEN/);
+});
+test('G1: the automatic resume is bounded: a second FAILED for the same journal fails the Task',async()=>{
+ sandbox();escrowJournal('notify');
+ const s=fakeSokosumi([task('p1',pruefenInput)]);const {worker,runs}=await setup(s,undefined,{runAbnahme:failedOpen});
+ await polls(worker,2);pauseOver('p1');await polls(worker,4);
+ assert.equal(runs.length,2);assert.equal(s.task('p1').status,'FAILED');assert.match(s.failText('p1'),/hängt nach 12 Fehlern/);
+});
+test('G1: a FAILED PRÜFEN whose escrow journal is closed is not resumed (a rerun would buy again)',async()=>{
+ sandbox();escrowJournal('done');
+ const s=fakeSokosumi([task('p1',pruefenInput)]);const {worker,runs}=await setup(s,undefined,{runAbnahme:failedOpen});
+ await polls(worker,3);
+ assert.equal(runs.length,1);assert.equal(s.task('p1').status,'FAILED');
+});

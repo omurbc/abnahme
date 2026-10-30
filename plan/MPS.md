@@ -23,7 +23,7 @@ curl -s http://127.0.0.1:38127/api/v1/health      # {"status":"success","data":{
 
 ## Env files per process (audit SECRETS-1)
 
-No process loads the whole `.env`. `node scripts/env-split.mjs` (rerun after every change to `.env` or a key file) writes
+No long-running process and no root `npm` script loads the whole `.env` (only `npm run wallet` in `gutachter/` reads it, to append the new wallets). `node scripts/env-split.mjs` (rerun after every change to `.env` or a key file) writes
 `.local/env/<profile>.env` (dir 700, files 600): every non-secret setting of `.env` plus only the secrets of that profile.
 It prints names, never values. Long-running processes add the guard `--import=./scripts/env-guard.mjs`, which refuses to start
 when a project secret outside the profile is present (for example when `.env` is loaded too); the Gutachter seller has the check built in.
@@ -78,13 +78,13 @@ Metadata goes into the on-chain NFT, so it is final once registered (a change ne
 
 | Agent | Script | Name / tags | apiBaseUrl | Status |
 |---|---|---|---|---|
-| Büro-Agent | `payment-registration.mjs` (template, edited: name, description, tags, port) | `Abnahme-Büro`, `e-rechnung, xrechnung, handwerk` | `http://127.0.0.1:21951` (`BUERO_API_PORT`, default 21951) | runtime key created; **not registered** |
-| RechnungsMeister | `mps/rechnungsmeister-registration.mjs` (copy of the template script with its own state files) | `RechnungsMeister`, same tags, Capability `claude` | `http://127.0.0.1:${AGENT_API_PORT}` = 21950 | runtime key created; **not registered** |
+| Büro-Agent | `payment-registration.mjs` (template, edited: name, description, tags, port) | `Abnahme-Büro`, `e-rechnung, xrechnung, handwerk` | `http://127.0.0.1:21951` (`BUERO_API_PORT`, default 21951) | **registered** (`RegistrationConfirmed`), NFT mint [`f63a51dc…`](https://preprod.cardanoscan.io/transaction/f63a51dc57282b2a680ce12ef25f4d80d74f65ed12a19330af1986d00bc0fc22), state in `docs/registration-state.json` |
+| RechnungsMeister | `mps/rechnungsmeister-registration.mjs` (copy of the template script with its own state files) | `RechnungsMeister`, same tags, Capability `claude` | `http://127.0.0.1:${AGENT_API_PORT}` = 21950 | **registered** (`RegistrationConfirmed`), NFT mint [`8548d4f7…`](https://preprod.cardanoscan.io/transaction/8548d4f7a4a8667a91ccbd068d41ad6070062bc5794d1e6fe72159b625836333), state in `docs/rechnungsmeister-registration-state.json` |
 
-Blocked on: (1) `AGENT_AUTHOR` is empty in `.env` (the template refuses to register without it), (2) both selling wallets hold 0 tADA,
-(3) Büro only: `ZAI_MODEL` is empty, so its NFT would carry an empty `Capability.name`. Set it before registering the Büro-Agent.
+Both NFTs were minted on 30 Oct at 09:04:57Z (block 5352641). The earlier blockers (empty `AGENT_AUTHOR`, unfunded selling wallets,
+empty `ZAI_MODEL`) were cleared first. Both `apiBaseUrl` values point to `127.0.0.1`, so the registry entries are not reachable from outside.
 
-Once those are done:
+The commands used (the same commands poll the state):
 
 ```sh
 export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
@@ -95,7 +95,7 @@ node --env-file=.local/env/mps-admin.env mps/rechnungsmeister-registration.mjs
 node --env-file=.local/env/mps-admin.env payment-registration.mjs
 ```
 
-After confirmation, add to `docs/registration-state.json` (and to the RM file) the `supportedPaymentSourceIndex` (expected 0; read it from the confirmed registry entry) and `sellerVkey` (the vkey in the table above), as template README step 5 says.
+After confirmation, both state files got `supportedPaymentSourceIndex` 0 (read from the confirmed registry entry) and `sellerVkey` (the vkey in the wallet table above), as template README step 5 says.
 
 ## Can one payment service buy from its own registered agent? Yes.
 
@@ -106,7 +106,7 @@ Evidence:
 - `POST /purchase` (0.29.0 `src/routes/api/purchases/index.ts`) only needs a V2 source for the `smartContractAddress` and at least one Purchasing hot wallet. It does not check whether the seller is local.
   The one seller check: the agent NFT holder must be a verification-key address. Ours is, since the selling hot wallet receives the NFT.
 - Buyer and seller key hashes differ (purchasing `6d5c…` vs sellers `9007…`, `5a4d…`). The ideation spec says the contract needs that.
-- Not yet run by us on preprod. `GET /api/v1/rail-readiness?network=Preprod` reports CardanoV2 `isReady: true`, `isPurchaseReady: true`.
+- Run by us on preprod since 30 Oct: every Büro-Agent escrow run in `plan/EVIDENCE.md` buys from our own registered RechnungsMeister on this one MPS (first FundsLocked [`a57c43ee…`](https://preprod.cardanoscan.io/transaction/a57c43ee103097f67b6650b2db896682ef254fef0c3dcf0f8e03d82cce9d1cab), 09:08:47Z). Before that, `GET /api/v1/rail-readiness?network=Preprod` reported CardanoV2 `isReady: true`, `isPurchaseReady: true`.
 
 Caveat for stream D: the buyer key is wallet-scoped. MPS assigns the purchasing wallet to a purchase only at funds lock, so before FundsLocked, `purchase/resolve-blockchain-identifier` with `MPS_BUYER_TOKEN` returns 404
 (0.29.0 filters every purchase read on `smartContractWalletId`, which is null until the lock). Poll with `MPS_READ_TOKEN` until then (`node --env-file=.local/env/mps-admin.env mps/read-key.mjs`, once):
@@ -119,6 +119,34 @@ N purchases, PATCH `/api/v1/api-key` with the admin profile: `{id: <runtimeKeyId
 UsageCreditsToAddOrRemove: [{unit: '16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde0014df10745553444d', amount: '<N>000000'}]}`
 (the unit MPS stores in `PaidFunds`); a purchase past the credits fails with 400 `Insufficient funds`; `usageLimited: false` lifts the cap.
 Side note: the V2 CI job runs only `tests/e2e/v2/flows/` (batch-verification, source-isolation). `cancel-refund-request-flow.test.ts` runs in the V1 job, so V2 cancel-refund-request is still not covered by CI (matches BUILD_PLAN).
+
+## Refunds stuck in RefundAuthorized (upstream #1327): `mps/refund-repair.mjs`
+
+MPS 0.29.0 does not collect the refund of a refused PRÜFEN by itself (masumi-payment-service #1327; our fix PR #1328 is open).
+After the seller's AuthorizeRefund, tx-sync keeps the purchase's old `resultHash` (`decodedNewContract?.resultHash ?? decodedOldContract.resultHash`),
+although the datum's `result_hash` is now empty. The V2 auto-refund job selects only `resultHash: null`, so the purchase stays
+`RefundAuthorized` / `WaitingForExternalAction` with 1 tUSDM in the escrow ("Found V2 auto withdraw refund requests count 0").
+Campaign 1 hit it on all 5 refusals. The workaround runs with the admin profile:
+
+```sh
+export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
+node --env-file=.local/env/mps-admin.env mps/refund-repair.mjs          # one pass; exit 1 if a purchase failed
+node --env-file=.local/env/mps-admin.env mps/refund-repair.mjs --loop   # a pass every 60 s, next to the worker
+```
+
+Each pass:
+1. Lists `GET /purchase?network=Preprod&filterPaymentSourceType=Web3CardanoV2&filterOnChainState=RefundAuthorized&limit=100`, paging with `cursorId`.
+   Without `filterPaymentSourceType` (or a contract filter), 0.29.0 lists V1 purchases only. That is why a plain `GET /purchase?network=Preprod` came back empty.
+2. Keeps only purchases with a non-null `resultHash`, `NextAction` `WaitingForExternalAction` without an error, and a confirmed AuthorizeRefund as `CurrentTransaction`.
+3. Checks on chain (Blockfrost) that this tx's own escrow output (datum `input_hash` = the purchase's) is unspent, has state `RefundAuthorized` (field 18, constructor 5) and an empty `result_hash` (field 11).
+4. Calls `POST /request-repair/preview {kind: Purchase, network, blockchainIdentifier, txHash}`. Only if MPS derives `RefundAuthorized` with `resultHash: null`
+   does it call `POST /request-repair` with the preview's `requestVersion`, never with `force`. MPS then sends WithdrawRefund by itself (45 s to 3:23 in the campaign).
+
+It is idempotent: a repaired purchase has `resultHash: null` and is not picked again. It prints one line per action (`repaired`, `skip`, `error`)
+plus a pass summary, and never prints a key. The Büro's REFUSED protocol still names the operator step ("Hinweis für den Betreiber … #1327").
+Done by hand before the script existed: A8, B5 and B3 (campaign 1), then A4 and A9b (both refunded in one WithdrawRefund,
+[`3278fb11…`](https://preprod.cardanoscan.io/transaction/3278fb112d2c43858294e1a2cf43abe876bd30585ca7e158078e0367c506540b), 30 Oct 15:37:20Z).
+The first live run (30 Oct 15:52Z) found 0 stuck purchases. Remove the script once MPS ships the #1328 fix.
 
 ## Ports (stream D, Fri 30 Oct)
 

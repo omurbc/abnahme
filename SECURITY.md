@@ -1,6 +1,6 @@
 # Security
 
-Abnahme is a hackathon build. It runs on Cardano **preprod** only: every wallet holds test ADA and test USDM, and no mainnet key exists. Report a vulnerability privately through GitHub's private vulnerability reporting on this repository (Security tab, "Report a vulnerability"), not in a public issue.
+Abnahme is a hackathon build. It runs on Cardano **preprod** only: every wallet holds test ADA and test USDM, and no mainnet key exists. Report a vulnerability privately, not in a public issue: use GitHub private vulnerability reporting on this repository (Security tab, "Report a vulnerability"; enabled when the repository becomes public on 31 Oct 2026). Until then, or if the form is not available, e-mail altunbeyomur36@gmail.com.
 
 This file lists what is pinned, the risks we accept for the demo, and how each one gets fixed afterwards. Findings come from the internal security review of 30 Oct 2026 (not a third-party audit).
 

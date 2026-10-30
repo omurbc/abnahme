@@ -25,6 +25,11 @@ const DONE=new Set(['completed','failed','closed']),PAID_DONE=new Set(['settled'
 const CLOSABLE=new Set(['starting','started','result-saved','gate-failed','complete-pending','fail-pending']);
 const TERMINAL=new Set(['COMPLETED','FAILED','CANCELED','CANCELLED']);
 const MAX_PRUEFEN=2;  // each free PRÜFEN costs a Claude call or an escrow purchase
+// An escrow run that ends FAILED with its journal still open (stage not 'done', the money not settled) is run once
+// more after a pause, so an outage longer than the engine's error budget does not wait for the user to re-PRÜFEN.
+// The engine resumes that journal and buys nothing; a closed journal is never rerun (that would buy again).
+const RESUME_AFTER=5*60000;
+const escrowJournalOpen=id=>{const path=`.local/abnahme-journal/${id}.json`;return existsSync(path)&&JSON.parse(readFileSync(path,'utf8')).stage!=='done';};
 export function createWorker({target,cli,buero,paid,events,paidReady=isPaidReady}){
  const id=target.coworkerId,inflight=new Map(),lastWithdrawalPoll=new Map();let stopping=false;
  // A crash or a failed call can leave a phase whose next step never ran; the Core status in the listing decides.
@@ -68,7 +73,7 @@ export function createWorker({target,cli,buero,paid,events,paidReady=isPaidReady
    return;
   }
   if(state.phase==='started'){
-   if(stopping)return;
+   if(stopping||state.resumeAt>Date.now())return;
    if(inflight.size>=MAX_PRUEFEN){
     if(!state.queued){writeJournal(t.id,{...state,queued:true});await events.comment(t.id,`Warteschlange: Es laufen bereits ${MAX_PRUEFEN} Prüfungen. Diese Prüfung startet automatisch, sobald eine fertig ist.`).catch(e=>console.error('Queue comment failed',t.id,e.message.slice(0,200)));}
     return;
@@ -77,7 +82,12 @@ export function createWorker({target,cli,buero,paid,events,paidReady=isPaidReady
    writeJournal(t.id,{...state,phase:'model-pending'});
    const started=state;
    inflight.set(t.id,buero.pruefen({taskId:t.id,userId:t.userId??null,input:state.input,onProgress:text=>events.comment(t.id,text)})
-    .then(result=>{writeFileSync(resultFile,result,{mode:0o600});return {...started,phase:'result-saved'};},e=>({...started,phase:'gate-failed',error:e.message}))
+    .then(result=>{writeFileSync(resultFile,result,{mode:0o600});return {...started,phase:'result-saved'};},e=>{
+     if(!e.journalId||e.journalId===started.resumedJournal||!escrowJournalOpen(e.journalId))return {...started,phase:'gate-failed',error:e.message};
+     console.log('Resuming',t.id,'escrow journal',e.journalId,'in',RESUME_AFTER/60000,'min');
+     events.comment(t.id,`Die Prüfung wird in ${RESUME_AFTER/60000} Minuten einmal automatisch fortgesetzt: Escrow-Auftrag ${e.journalId} ist noch offen. Es wird nicht erneut gekauft.`).catch(c=>console.error('Resume comment failed',t.id,c.message.slice(0,200)));
+     return {...started,resumedJournal:e.journalId,resumeAt:Date.now()+RESUME_AFTER};
+    })
     .then(next=>writeJournal(t.id,next)).catch(e=>console.error('Journal write failed',t.id,e.message.slice(0,200))).finally(()=>inflight.delete(t.id)));
    return;
   }
