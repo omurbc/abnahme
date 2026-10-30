@@ -85,3 +85,18 @@ Evidence:
 Caveat for stream D: the buyer key is wallet-scoped. MPS assigns the purchasing wallet to a purchase only at funds lock, so before FundsLocked, `purchase/resolve-blockchain-identifier` with `MPS_BUYER_TOKEN` returns 404. Poll with `ADMIN_KEY` until then.
 A scoped key still limits which purchasing wallets MPS uses (`HotWalletLimit`).
 Side note: the V2 CI job runs only `tests/e2e/v2/flows/` (batch-verification, source-isolation). `cancel-refund-request-flow.test.ts` runs in the V1 job, so V2 cancel-refund-request is still not covered by CI (matches BUILD_PLAN).
+
+## Ports (stream D, Fri 30 Oct)
+
+| Process | Listens on | Env var (default) | Registered apiBaseUrl |
+|---|---|---|---|
+| RechnungsMeister `rechnungsmeister/server.mjs` (seller MIP-003) | `127.0.0.1:21950` | `AGENT_API_PORT` (21950, set in `.env`) | `mps/rechnungsmeister-registration.mjs` → `http://127.0.0.1:21950` |
+| Abnahme-Büro, template `agent-api.mjs` (`npm run api`) | `127.0.0.1:21951` | `BUERO_API_PORT` (21951, not set in `.env`, default applies) | `payment-registration.mjs` → `http://127.0.0.1:21951` |
+| Eve (template agent) | `127.0.0.1:21949` | `EVE_PORT` | none |
+| x402 Gutachter `gutachter/seller.mjs` | `*:4021` | `GUTACHTER_PORT` | none |
+| KoSIT daemon | `127.0.0.1:8090` | `KOSIT_URL` | none |
+| MPS | `127.0.0.1:38127` | `MPS_PORT` | none |
+
+Change made: `agent-api.mjs` line 18 now reads `BUERO_API_PORT||21951` (was `AGENT_API_PORT||21950`), so the template Büro API
+no longer collides with RechnungsMeister and matches what `payment-registration.mjs` mints. Both registration scripts were already correct and
+are unchanged. Checked with `registrationUrl()` under `--env-file=.env`: RM → `:21950`, Büro → `:21951`.

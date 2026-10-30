@@ -15,7 +15,7 @@ export async function mps(path,body){
 }
 const schema={input_data:[{id:'prompt',type:'string',name:'Team brief',data:{description:'Describe your hackathon project and preferred name style.'},validations:[{validation:'min',value:'1'},{validation:'max',value:'16000'}]}]};
 const respond=(res,status,data)=>{res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify(data))};
-const port=Number(process.env.AGENT_API_PORT||21950);
+const port=Number(process.env.BUERO_API_PORT||21951);
 createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,'http://127.0.0.1');
