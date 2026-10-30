@@ -491,7 +491,7 @@ Two limits, from the Gutachter README:
 | Scenario pin blocks the CustomizationID downgrade | **real**, tested against the live validator ([`verifier/kosit.test.mjs`](verifier/kosit.test.mjs)) |
 | Profile hash is canonical, order-independent and stable | **real**, tested ([`verifier/profile.test.mjs`](verifier/profile.test.mjs)) |
 | Claude extraction from free text | **built**. One opt-in test compares it with the fixed-layout parse (`RUN_LLM_TESTS=1`). It is skipped by default and was not run for this README. |
-| x402 inspection, 1 tADA | **built and unit-tested**. First preprod payment **TBD**: the buyer wallet is waiting for faucet funds. |
+| x402 inspection, 1 tADA | **works on preprod**. First paid inspection: [`5820e591b57f…`](https://preprod.cardanoscan.io/transaction/5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9) (verdict ACCEPTABLE). |
 | Masumi V2 refuse → cure → accept on preprod | **in progress**. It has not been run end to end. MPS's own CI does not cover V2 `cancel-refund-request` (see [Reality check](#reality-check)). |
 | Profile hash inside the escrow `input_hash` | **in progress**: needs the RechnungsMeister `/start_job` fork |
 | Sokosumi Coworker *Abnahme-Büro*, paid Task | **in progress** |
@@ -611,7 +611,7 @@ The RechnungsMeister MIP-003 fork, the Büro-Agent escrow loop, the Sokosumi Cow
 | [`verifier/profiles/`](verifier/profiles) | `acceptance-v1.json` and the recipient profiles `empfaenger/bau-isar.json` and `empfaenger/hv-giesing.json` | built, hashes pinned in tests |
 | [`kosit/start.sh`](kosit/start.sh) | Downloads, sha256-checks and starts the KoSIT daemon in Docker | built |
 | [`fixtures/`](fixtures) | Four invoices from Toni, each as free text and in fixed layout | built |
-| [`gutachter/`](gutachter) | x402 seller (`seller.mjs`), buyer (`buy.mjs`), verdict mapping (`inspect.mjs`), wallet and balance helpers | built, unit-tested; on-chain payment TBD |
+| [`gutachter/`](gutachter) | x402 seller (`seller.mjs`), buyer (`buy.mjs`), verdict mapping (`inspect.mjs`), wallet and balance helpers | built, unit-tested, paid on preprod |
 | [`mps/`](mps) | Docker Compose for MPS 0.29.0, `mps.sh` wrapper, wallet listing, RechnungsMeister registration, buyer runtime key | running locally; registration in progress |
 | [`plan/`](plan) | `BUILD_PLAN.md` (scope, gates), `MPS.md` (payment service notes), `FUNDING.md` (wallets), `ideation-result.json` (full design spec) | |
 | Root `*.mjs`, [`agent/`](agent) | Masumi TUM quickstart template: `worker.mjs`, `paid-task.mjs`, `agent-api.mjs`, `settlement.mjs`, `payment-registration.mjs` (its name and tags already say *Abnahme-Büro*), Eve agent | template. The Büro-Agent and RechnungsMeister forks are in progress. |
@@ -639,11 +639,11 @@ The RechnungsMeister MIP-003 fork, the Büro-Agent escrow loop, the Sokosumi Cow
 
 ## On-chain evidence
 
-Every hash below is **TBD**. We fill them in from preprod as each run lands. None is invented, and the table stays TBD until a real transaction exists.
+Hashes are filled in from preprod as each run lands; rows still marked TBD have no transaction yet. None is invented, and the table stays TBD until a real transaction exists.
 
 | # | Transaction | Rail | What it shows | Tx hash |
 |---|---|---|---|---|
-| 1 | x402 inspection payment, 1 tADA | x402 | Gutachter paid per call (track requirement) | TBD |
+| 1 | x402 inspection payment, 1 tADA | x402 | Gutachter paid per call (track requirement) | [`5820e591b57f…`](https://preprod.cardanoscan.io/transaction/5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9) |
 | 2 | RechnungsMeister registration (agent NFT mint) | Masumi registry | Seller agent on the registry | TBD |
 | 3 | Abnahme-Büro registration (agent NFT mint) | Masumi registry | Buyer / Coworker agent on the registry | TBD |
 | 4 | `FundsLocked` | Masumi V2 escrow | Büro-Agent buys from RechnungsMeister, `input_hash` pins the profile | TBD |

@@ -74,7 +74,7 @@ nothing is settled on chain. Every response carries `Cache-Control: no-store`. `
 
 Every settled payment is appended to `payments.log.json` as `{time, txHash, verdict}`.
 
-First payment: _pending (buyer wallet awaiting faucet funding)_
+First payment: [5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9](https://preprod.cardanoscan.io/transaction/5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9) (30 Oct 2026, 1 tADA, verdict ACCEPTABLE)
 
 ## Limits
 
