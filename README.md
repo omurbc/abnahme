@@ -316,15 +316,15 @@ What each piece does, and where it lives:
 
 | Step | File | Detail |
 |---|---|---|
-| Profile hash | [`verifier/profile.mjs`](verifier/profile.mjs) | `profileHash = sha256(canonicalJson({acceptance, recipient}))`. JCS sorts keys by UTF-16 code units, so key order cannot change the hash. A test pins both hashes, so any change to a profile file is deliberate. The hashes changed in `0cff46a`, when six checks were added (bau-isar `0d799b13…` → `64a8294c…`, hv-giesing → `a9c6f943…`), while the profile id stayed `abnahme-xrechnung-v1`. The hash, not the id, says which test graded an invoice. |
+| Profile hash | [`verifier/profile.mjs`](verifier/profile.mjs) | `profileHash = sha256(canonicalJson({acceptance, recipient}))`. JCS sorts keys by UTF-16 code units, so key order cannot change the hash. A test pins both hashes, so any change to a profile file is deliberate. The hashes changed in `0cff46a`, when six checks were added (bau-isar `0d799b13…` → `64a8294c…`, hv-giesing → `a9c6f943…`), and again in `30ec44c`, when each recipient profile pinned its VAT category and rate and two checks were added (bau-isar → `e9a2831b…`, hv-giesing → `e7f7ba8e…`), while the profile id stayed `abnahme-xrechnung-v1`. The hash, not the id, says which test graded an invoice. |
 | Extraction | [`einvoice/extract.mjs`](einvoice/extract.mjs) | Claude with a strict JSON schema of flat fields (`invoiceNumber`, `buyerVatId`, `buyerReference`, `lines`, `reverseCharge`, ...). The prompt says to copy values as printed and return `null` for missing ones. Text over 16,000 characters is refused before any model call. The call times out after 120 s and is retried once. `EXTRACT_MODE=fixed` uses a deterministic parser for our own fixed-layout format instead ([`parse-fixed.mjs`](einvoice/parse-fixed.mjs)). |
 | Build | [`einvoice/build.mjs`](einvoice/build.mjs) | Computes line, tax and total amounts in cents. Sets VAT category `AE` with exemption code `VATEX-EU-AE` for §13b. Leaves `cbc:CustomizationID` out so the library writes the XRechnung 3.0 ID. A plain EN 16931 ID would skip every BR-DE rule. |
 | KoSIT client | [`verifier/kosit.mjs`](verifier/kosit.mjs) | `accepted` needs HTTP 200, a KoSIT `accept` assessment **and** the matched scenario `EN16931 XRechnung (UBL Invoice)`. A report from another engine or XRechnung release counts as "not inspected". A 5xx means the invoice was not inspected, never that it is defective. XML over 5 MB is a `KOSIT-SIZE` defect and is never posted. |
 | XML reader | [`verifier/xml.mjs`](verifier/xml.mjs) | A strict, namespace-aware parser. The checks read each fact by exact path from the `Invoice` root, so comments, processing instructions, CDATA, other prefixes or copies inside UBL extensions cannot show the checks a different IBAN, total or VAT ID than the one KoSIT and the ERP read. DOCTYPE and encodings other than UTF-8 are refused. |
-| Semantic checks | [`verifier/checks.mjs`](verifier/checks.mjs) | Eleven checks, named in the acceptance profile and run against the recipient profile. An unknown check id in a profile throws an error. |
+| Semantic checks | [`verifier/checks.mjs`](verifier/checks.mjs) | Thirteen checks, named in the acceptance profile and run against the recipient profile. An unknown check id in a profile throws an error. |
 | German texts | [`verifier/messages-de.mjs`](verifier/messages-de.mjs) | KoSIT reports BR-DE-* in German but EN 16931 rules (BR-AE-02 and others) in English. A lookup table gives Frau Berger a German defect list. |
 
-Codes the semantic checks emit: `ABN-BETRAG` (payable amount vs the expected total), `ABN-USTID` (seller VAT ID not in master data), `ABN-IBAN` (IBAN differs from master data), `ABN-13B` (wrong VAT category for the recipient), `ABN-BT48` (buyer VAT ID missing or wrong under §13b), `ABN-BT10` (buyer reference missing or wrong pattern), `ABN-WAEHRUNG` (not EUR), `ABN-RECHNUNGSART` (type not 380 or 875), `ABN-13B-HINWEIS` (§14a Abs. 5 wording missing), `ABN-UST` (VAT arithmetic), `ABN-KAEUFER` (buyer name or postcode), `ABN-DATUM` (invoice or due date), `ABN-XML` (XML cannot be read safely). The Büro-Agent adds `ABN-HASH` (delivered bytes vs the on-chain `result_hash`), `ABN-MANIFEST` (malformed delivery), `ABN-BT1` (invoice number it could not send), and `ABN-LIEFERUNG`, `ABN-PRUEFUNG` and `ABN-FRIST` for a delivery it could not inspect or that came too late.
+Codes the semantic checks emit: `ABN-BETRAG` (payable amount vs the expected total), `ABN-USTID` (seller VAT ID not in master data), `ABN-IBAN` (IBAN differs from master data), `ABN-13B` (wrong VAT category for the recipient), `ABN-BT48` (buyer VAT ID missing or wrong under §13b), `ABN-BT10` (buyer reference missing or wrong pattern), `ABN-WAEHRUNG` (not EUR), `ABN-RECHNUNGSART` (type not 380 or 875), `ABN-13B-HINWEIS` (§14a Abs. 5 wording missing or contradicted), `ABN-STEUERSATZ` (VAT category or rate other than the recipient profile pins), `ABN-VORAUSZAHLUNG` (a prepaid amount, BT-113, the order does not name), `ABN-UST` (VAT arithmetic), `ABN-KAEUFER` (buyer name or postcode), `ABN-DATUM` (invoice or due date), `ABN-XML` (XML cannot be read safely). The Büro-Agent adds `ABN-HASH` (delivered bytes vs the on-chain `result_hash`), `ABN-MANIFEST` (malformed delivery), `ABN-BT1` (invoice number it could not send), and `ABN-LIEFERUNG`, `ABN-PRUEFUNG` and `ABN-FRIST` for a delivery it could not inspect or that came too late.
 
 ---
 
@@ -346,7 +346,7 @@ Abnahme: ABGELEHNT
 Rechnung AR-2026-0087 vom 2026-10-28 – Toni Huber Elektrotechnik GmbH an Bau Isar Generalunternehmer GmbH
 Zahlbetrag laut XRechnung: 18.400,00 € (erwartet: 18.400,00 €)
 KoSIT 1.6.3 / Konfiguration 2026-08-31: HTTP 406, Szenario „EN16931 XRechnung (UBL Invoice)“
-Prüfprofil: abnahme-xrechnung-v1 + bau-isar, Hash 64a8294cadfaca2383bd7f944cdf016cb7683e904e99b938b39c4001c6cedc10
+Prüfprofil: abnahme-xrechnung-v1 + bau-isar, Hash e9a2831b3eb0944265c5d55c0fd1dc81481505b883d7710e96efacfe73759bf0
 Mängel:
  - [BR-AE-02] Bei Steuerschuldnerschaft des Leistungsempfängers (Kategorie „AE“) müssen beim Verkäufer die USt-IdNr. (BT-31), die Steuernummer (BT-32) oder die USt-IdNr. des Steuervertreters (BT-63) und beim Käufer die USt-IdNr. (BT-48) oder die Registernummer (BT-47) angegeben sein.
  - [ABN-BT48] Die USt-IdNr. des Käufers (BT-48) fehlt; bei § 13b muss DE287654321 angegeben sein.
@@ -419,7 +419,7 @@ The protections, in plain words (each landed with a regression test, see [Securi
 
 What the demo does not prove, stated plainly:
 
-- **KoSIT checks format and rules, not truth.** A well-formed invoice for work that was never done passes KoSIT. Our semantic checks catch only what the recipient profile pins: payable amount, seller VAT ID, IBAN, §13b category and BT-48, the BT-10 pattern, currency, invoice type, the §14a wording, VAT arithmetic, buyer name and postcode, and dates. A pass does not prove that the GC's ERP will book the invoice, that the measured work is reviewable, or that the GC received the e-mail.
+- **KoSIT checks format and rules, not truth.** A well-formed invoice for work that was never done passes KoSIT. Our semantic checks catch only what the recipient profile pins: payable amount, seller VAT ID, IBAN, §13b category and BT-48, the BT-10 pattern, the VAT category and rate, no undeclared prepaid amount, currency, invoice type, the §14a wording, VAT arithmetic, buyer name and postcode, and dates. A pass does not prove that the GC's ERP will book the invoice, that the measured work is reviewable, or that the GC received the e-mail.
 - **Sokosumi credits are not on-chain refunds.** When an escrow refunds on chain, Sokosumi does not give the credits back. "Pay only after acceptance" is enforced on the **agent-to-agent** hop (Büro-Agent → RechnungsMeister), not on Frau Berger's credits.
 - **The team runs every agent.** Büro-Agent, RechnungsMeister, the Gutachter, KoSIT and one Masumi Payment Service run on one machine. Buyer and seller are different wallets on the same MPS, both registry entries point to `127.0.0.1`, and the x402 payer and payee are both team wallets. One paid hop crosses an ownership boundary: Sokosumi's own preprod wallet locked 1 tUSDM for the Abnahme-Büro (`d9c69f50…`), which withdrew it after `unlock_time` (`5d61bf3f…`, deemed acceptance).
 - **The first-pass defect is seeded.** The demo runs RechnungsMeister with `DEMO_SEED_DEFECT=1`: its first delivery drops the buyer VAT ID (BT-48). Only a §13b recipient (bau-isar) rejects that; a hv-giesing invoice passes on the first try even in demo mode. The cure restores the VAT ID from RechnungsMeister's own first extraction, where it appears verbatim in the invoice text. The refusal demo uses `CHEAT=1`, which submits a result hash that does not match the delivered bytes. `/status` reports both switches as `demo`.
@@ -704,10 +704,10 @@ gantt
 flowchart LR
     subgraph PIN["1. Pinned before any money moves"]
         direction TB
-        A["acceptance-v1.json<br/>KoSIT 1.6.3 + jar sha256<br/>XRechnung config 2026-08-31<br/>+ zip sha256<br/>pinned KoSIT scenario<br/>error/warning levels,<br/>4 escalated rules<br/>11 semantic checks"]
+        A["acceptance-v1.json<br/>KoSIT 1.6.3 + jar sha256<br/>XRechnung config 2026-08-31<br/>+ zip sha256<br/>pinned KoSIT scenario<br/>error/warning levels,<br/>4 escalated rules<br/>13 semantic checks"]
         E["empfaenger/bau-isar.json<br/>name, postcode, VAT ID,<br/>§13b status, BT-10 pattern<br/>supplier VAT ID + IBAN"]
         J["canonicalJson<br/>RFC 8785 JCS<br/>sorted keys, no whitespace"]
-        H["sha256 = profileHash<br/>bau-isar: 64a8294c…c6cedc10"]
+        H["sha256 = profileHash<br/>bau-isar: e9a2831b…73759bf0"]
         IH["MIP-004 input_hash<br/>in the V2 escrow datum<br/>(field 10, checked on chain)"]
         A --> J
         E --> J
@@ -725,7 +725,7 @@ flowchart LR
         S -->|"no"| R1["failure<br/>KOSIT-SCENARIO"]
         S -->|"yes"| M["KoSIT messages<br/>error = failure<br/>warning, information = minor<br/>except the 4 escalated rules"]
         M --> XR["strict XML reader<br/>facts by exact namespace path"]
-        XR --> C["11 semantic checks vs Empfängerprofil<br/>BT-115 amount, BT-31 seller VAT ID,<br/>BT-84 IBAN, §13b AE + BT-48, BT-10,<br/>currency, type, §14a wording,<br/>VAT arithmetic, buyer, dates"]
+        XR --> C["13 semantic checks vs Empfängerprofil<br/>BT-115 amount, BT-31 seller VAT ID,<br/>BT-84 IBAN, §13b AE + BT-48, BT-10,<br/>VAT category and rate, no prepaid amount,<br/>currency, type, §14a wording,<br/>VAT arithmetic, buyer, dates"]
         R1 --> V
         C --> V{"any failure?"}
         V -->|"no"| OK["ABGENOMMEN, exit 0"]
@@ -994,7 +994,7 @@ It listens on 127.0.0.1 only, checks the Host header, returns no keys, tokens or
 
 ## On-chain evidence
 
-Every row is a confirmed preprod transaction. The audit's forensics and claims auditors checked each one on Blockfrost: all are `valid_contract: true` and move what the row says. Rows 4-11 were graded under the earlier profile `0d799b13…` (commit `8bd1f9a`). The `input_hash` pins whichever profile was current at lock time. The run under the current profile `64a8294c…` is listed under [Recorded runs](#recorded-runs).
+Every row is a confirmed preprod transaction. The audit's forensics and claims auditors checked each one on Blockfrost: all are `valid_contract: true` and move what the row says. Rows 4-11 were graded under the earlier profile `0d799b13…` (commit `8bd1f9a`). The `input_hash` pins whichever profile was current at lock time. The runs under the profile `64a8294c…` (current until fix round 5) are listed under [Recorded runs](#recorded-runs).
 
 | # | Transaction | Rail | What it shows | Tx hash |
 |---|---|---|---|---|
@@ -1084,7 +1084,7 @@ Hackathon build, Cardano preprod only. Build window Fri 30 Oct 09:00 → Sat 31 
 
 **Done, and run on preprod:**
 
-- [x] Acceptance test: Claude extraction, fixed-layout parser, XRechnung UBL build, KoSIT with pinned validator and scenario, strict XML reader, 11 semantic checks, German defect texts, JCS profile hash
+- [x] Acceptance test: Claude extraction, fixed-layout parser, XRechnung UBL build, KoSIT with pinned validator and scenario, strict XML reader, 13 semantic checks, German defect texts, JCS profile hash
 - [x] Gutachter: x402 seller and buyer with replay ledger and payment budget, paid on preprod
 - [x] Masumi Payment Service 0.29.0 with three hot wallets and wallet-scoped runtime keys; RechnungsMeister and Abnahme-Büro registered
 - [x] RechnungsMeister: MIP-003 seller with the profile hash inside `input_hash`, job tokens, provenance-checked cure, self-refund of a stuck dispute
