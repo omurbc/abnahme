@@ -60,7 +60,7 @@ function stubClient(){
 function setup(answers){
  plan=answers; paidHeaders=[]; logAtFirstPaid=null; logAtPaid=[]; unpaidAnswer=null; hangUnpaid=0; signs=0; signDelayMs=0; builds=[TX_B64];
  logPath=join(mkdtempSync(join(tmpdir(),'gutachter-buy-')),'payments.log.json');
- return {client:stubClient(),logPath,retryDelayMs:5,budgetMs:500,inputState:async()=>'unspent'};
+ return {client:stubClient(),logPath,retryDelayMs:5,budgetMs:500,inputState:async()=>'unspent',paysOnChain:async()=>true};
 }
 const settled={status:200,receipt:{success:true,transaction:TX},body:{verdict:'ACCEPTABLE',httpStatus:200,report:'<r/>'}};
 const log=()=>JSON.parse(readFileSync(logPath,'utf8'));
@@ -191,7 +191,7 @@ test('LANE-A2-1: right after a settled payment Blockfrost still lists its input 
 });
 test('LANE-A2-1: the spent inputs persist in the payment log, so another process or a restart does not re-spend them for 15 min; after the bounded wait nothing is sent',{timeout:5000},async()=>{
  const prior=(minutesAgo,status)=>({time:new Date(Date.now()-minutesAgo*60_000).toISOString(),id:'other',txHash:TX,inputs:[TX_INPUT],verdict:null,status});
- for(const status of ['sent','unknown','settled']){
+ for(const status of ['sent','unknown','unconfirmed','settled']){
   const opts={...setup([settled]),confirmPollMs:5,confirmWaitMs:50};
   writeFileSync(logPath,JSON.stringify([prior(1,status)]));
   await assert.rejects(buyInspection('<Invoice/>',opts),e=>/not sent/.test(e.message)&&/spent by an earlier payment/.test(e.message),status);
@@ -203,6 +203,45 @@ test('LANE-A2-1: the spent inputs persist in the payment log, so another process
   const r=await buyInspection('<Invoice/>',opts);
   assert.equal(r.txHash,TX,entry.status); assert.equal(paidHeaders.length,1,entry.status);
  }
+});
+// DELTA-X402-2: the Gutachter's own "no inspection" 502 was resent for 3 min, logged unknown and blocked its input.
+test('a 502 that says charged:false is final: one send, not-charged, and the next payment may use the same input',async()=>{
+ const opts=setup([{status:502,body:{error:'KoSIT answered HTTP 422',httpStatus:422,charged:false}},settled]);
+ const r=await buyInspection('<Invoice/>',opts);
+ assert.equal(r.httpStatus,502); assert.equal(r.txHash,null); assert.equal(paidHeaders.length,1);
+ assert.deepEqual(log().map(e=>[e.txHash,e.status]),[[TX,'not-charged']]);
+ const next=await buyInspection('<Invoice/>',{...opts,confirmPollMs:5,confirmWaitMs:50});
+ assert.equal(next.verdict,'ACCEPTABLE'); assert.equal(next.txHash,TX); assert.equal(paidHeaders.length,2);
+});
+test('a 502 without that marker (a gateway, or the facilitator failing during settle) may still settle: same header resent, unknown',async()=>{
+ const opts=setup([{status:502,body:{error:'Facilitator did not answer'}}]);
+ const r=await buyInspection('<Invoice/>',opts);
+ assert.equal(r.txHash,TX); assert.equal(signs,1); assert.ok(paidHeaders.length>1); assert.ok(paidHeaders.every(h=>h===paidHeaders[0]));
+ assert.equal(log()[0].status,'unknown');
+});
+// DELTA-X402-4: a receipt is the answering party's statement; the payment counts once the chain shows it.
+test('a success receipt counts only when the chain shows the signed tx paying the Gutachter; otherwise the answer is not used',{timeout:5000},async()=>{
+ let asked=[];
+ const seen=answers=>async(...args)=>{ asked.push(args); return answers.length>1?answers.shift():answers[0]; };
+ let opts={...setup([settled]),paysOnChain:seen([false,false,true]),confirmPollMs:5,confirmWaitMs:1000};
+ const ok=await buyInspection('<Invoice/>',opts);
+ assert.equal(ok.verdict,'ACCEPTABLE'); assert.deepEqual(asked,Array(3).fill([TX,PAY_TO,'1000000']));
+ assert.equal(log()[0].status,'settled');
+ // Not counted, but the tx is kept (it may have been paid): no receipt, so buero/abnahme.mjs refuses the report
+ // ("Antwort ohne bezahlte Quittung" -> "x402: Zahlung nicht bestätigt") and records the payment as unknown.
+ opts={...setup([settled]),paysOnChain:seen([false]),confirmPollMs:5,confirmWaitMs:50};
+ const late=await buyInspection('<Invoice/>',opts);
+ assert.equal(late.txHash,TX); assert.equal(late.receipt,null); assert.equal(late.verdict,null); assert.match(late.unconfirmed,/not on chain/);
+ assert.deepEqual(log().map(e=>[e.txHash,e.status,e.verdict]),[[TX,'unconfirmed',null]]);
+ asked=[]; opts={...setup([{...settled,receipt:{success:true,transaction:'ee'.repeat(32)}}]),paysOnChain:seen([true])};
+ const other=await buyInspection('<Invoice/>',opts);
+ assert.equal(other.receipt,null); assert.match(other.unconfirmed,/the receipt names tx eeeeeeeeeeee…, not the signed tx 5820e591b57f…/);
+ assert.deepEqual(asked,[]); assert.equal(log()[0].status,'unconfirmed');
+});
+test('an answer over the size limit is not read: the call ends without a result',async()=>{
+ const opts={...setup([{...settled,body:{verdict:'ACCEPTABLE',httpStatus:200,report:'x'.repeat(5000)}}]),maxAnswerBytes:1000};
+ const r=await buyInspection('<Invoice/>',opts);
+ assert.equal(r.httpStatus,200); assert.equal(r.result,null); assert.equal(r.verdict,null);
 });
 test('the CLI prints its usage and exits 2 without a file (also on Node without import.meta.main)',()=>{
  const r=spawnSync(process.execPath,[fileURLToPath(new URL('./buy.mjs',import.meta.url))],{encoding:'utf8',env:{PATH:process.env.PATH}});

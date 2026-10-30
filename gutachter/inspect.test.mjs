@@ -57,6 +57,29 @@ test('unreachable KoSIT is 503, so the middleware does not settle; the internal 
  assert.equal(r.status,503); assert.match(r.body.error,/unreachable/);
  assert.doesNotMatch(JSON.stringify(r.body),/127\.0\.0\.1/);
 });
+// DELTA-X402-1: res.text() rejected outside the try, and the unhandled rejection ended the seller process.
+test('KoSIT breaking off or stalling in the middle of its answer is 503 (not charged), never an exception',async()=>{
+ for(const mode of ['drop','stall']){
+  const server=createServer((req,res)=>{ req.resume(); req.on('end',()=>{ res.writeHead(200,{'content-type':'application/xml'}); res.write('<rep:report>'); if(mode==='drop') setTimeout(()=>res.socket.destroy(),50); }); });
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));
+  try{
+   const r=await inspect('<Invoice/>',{url:`http://127.0.0.1:${server.address().port}/`,timeoutMs:300});
+   assert.equal(r.status,503,mode); assert.equal(r.body.verdict,undefined,mode); assert.equal(r.body.charged,false,mode);
+  }finally{ server.closeAllConnections(); server.close(); }
+ }
+});
+// DELTA-X402-2: the buyer resends a 502/504 that may still settle; these answers say they never will.
+test('every answer without an inspection says charged:false; a completed inspection does not',async()=>{
+ for(const [status,body] of [[200,report({engine:'KoSIT Validator 1.4.2'})],[200,report({about:'<Invoice>other</Invoice>'})],[422,'error while processing the xml file'],[500,'<html>boom</html>']]){
+  const k=await kosit(status,body);
+  const r=await inspect('<Invoice/>',{url:k.url}); k.close();
+  assert.equal(r.status,502,`${status}`); assert.equal(r.body.charged,false,`${status}`);
+ }
+ const k=await kosit(200); const url=k.url; k.close();
+ assert.equal((await inspect('<Invoice/>',{url})).body.charged,false);
+ const ok=await kosit(200,report());
+ assert.equal('charged' in (await inspect('<Invoice/>',{url:ok.url})).body,false); ok.close();
+});
 test('stub mode answers ACCEPTABLE without calling KoSIT',async()=>{
  const r=await inspect('<Invoice/>',{url:'http://127.0.0.1:1/',stub:true});
  assert.equal(r.status,200); assert.equal(r.body.verdict,'ACCEPTABLE');

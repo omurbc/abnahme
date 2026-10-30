@@ -37,7 +37,10 @@ const paymentTx=paymentPayload=>decodeCardanoTransaction(String(paymentPayload.p
 resourceServer.onBeforeSettle(({paymentPayload,requirements})=>ledger.remember(paymentTx(paymentPayload),{payload:paymentPayload,requirements}));
 resourceServer.onAfterSettle(({paymentPayload,result})=>ledger.settled(paymentTx(paymentPayload),result));
 
-const text=express.text({type:()=>true,limit:'5mb'});
+// The exact bytes the buyer sent go to KoSIT, the ledger and the documentHash check: express.text decoded the body and
+// stripped a leading BOM, so the report named other bytes than the buyer's (DELTA-X402-5).
+const raw=express.raw({type:()=>true,limit:'5mb'});
+const bodyBytes=req=>Buffer.isBuffer(req.body)?req.body:Buffer.alloc(0);
 const app=express();
 app.disable('x-powered-by');
 app.use((_req,res,next)=>{ res.set('Cache-Control','no-store'); next(); });
@@ -47,10 +50,10 @@ app.use((_req,res,next)=>{ res.set('Cache-Control','no-store'); next(); });
 app.post('/inspect',(req,res,next)=>{
  let tx; try{ tx=paymentTx(decodePaymentSignatureHeader(req.get('payment-signature'))); }catch{ return next(); }
  if(!ledger.knows(tx)) return next();
- text(req,res,async err=>{
+ raw(req,res,async err=>{
   if(err) return next(err);
   try{
-   const {status,body,receipt,cached}=await ledger.resend(tx,sha256(String(req.body)),payment=>facilitator.settle(payment.payload,payment.requirements));
+   const {status,body,receipt,cached}=await ledger.resend(tx,sha256(bodyBytes(req)),payment=>facilitator.settle(payment.payload,payment.requirements));
    console.log(`${new Date().toISOString()} resend -> ${status} ${body.verdict??body.error??receipt?.errorReason}${cached?' (cached)':''} tx ${tx}`);
    if(receipt) res.set('PAYMENT-RESPONSE',encodePaymentResponseHeader(receipt));
    res.status(status).json(body);
@@ -64,15 +67,22 @@ app.use(paymentMiddleware({
   mimeType:'application/json',
  },
 },resourceServer));
-app.post('/inspect',text,async(req,res)=>{
- const xml=typeof req.body==='string'?req.body:'';
- if(!xml.trim().startsWith('<')) return res.status(400).json({error:'Body must be raw XRechnung UBL XML'});
- const tx=paymentTx(decodePaymentSignatureHeader(req.get('payment-signature'))); // verified by the middleware
- const {status,body,cached}=await ledger.inspectOnce(tx,sha256(xml),()=>inspect(xml,{url:kositUrl,stub}));
- console.log(`${new Date().toISOString()} inspect -> ${status} ${body.verdict??body.error}${cached?' (cached)':''} tx ${tx}`);
- res.status(status).json(body);
+// Express 4 does not catch a rejected async handler: the process ended (DELTA-X402-1). A failure here is no inspection,
+// and a status >= 400 makes the middleware skip settlement.
+app.post('/inspect',raw,async(req,res)=>{
+ try{
+  const xml=bodyBytes(req);
+  if(!xml.toString('utf8').trim().startsWith('<')) return res.status(400).json({error:'Body must be raw XRechnung UBL XML',charged:false});
+  const tx=paymentTx(decodePaymentSignatureHeader(req.get('payment-signature'))); // verified by the middleware
+  const {status,body,cached}=await ledger.inspectOnce(tx,sha256(xml),()=>inspect(xml,{url:kositUrl,stub}));
+  console.log(`${new Date().toISOString()} inspect -> ${status} ${body.verdict??body.error}${cached?' (cached)':''} tx ${tx}`);
+  res.status(status).json(body);
+ }catch(e){ console.error(`${new Date().toISOString()} inspect failed: ${e.message}`); res.status(502).json({error:'Inspection failed, nothing was charged',charged:false}); }
 });
 app.get('/health',(_req,res)=>res.json({ok:true})); // config is in the startup log, not on the wire
+// Body parser errors (413, 415, 400) and anything else: a fixed JSON message. Express's own error page carries the stack
+// trace and absolute paths outside production (DELTA-X402-6); npm run seller also sets NODE_ENV=production.
+app.use((err,_req,res,_next)=>{ const status=err.status>=400&&err.status<500?err.status:500; res.status(status).json({error:status===413?'Body larger than 5 MB':status<500?'Bad request body':'Internal error'}); });
 
 app.listen(port,host,()=>{
  console.log(`Gutachter listening on http://${host}:${port}`);

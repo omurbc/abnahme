@@ -46,14 +46,16 @@ From code (Büro-Agent): `import {buyInspection} from './gutachter/buy.mjs'`, th
 | --- | --- | --- |
 | 200 `{verdict:'ACCEPTABLE', httpStatus:200, …}` | KoSIT accepted | yes |
 | 200 `{verdict:'REJECT', httpStatus:406, …}` | KoSIT rejected; the inspection is complete | yes |
-| 400 | body is not XML | no |
-| 503 | KoSIT unreachable | no |
-| 502 | KoSIT answered something other than 200/406, or its report is not from the pinned validator (`KoSIT Validator 1.6.3`, XRechnung 3.0.2) or not about this body (`rep:documentHash`); on a resend, the facilitator did not answer `/settle` | no |
+| 400 `{charged:false}` | body is not XML | no |
+| 503 `{charged:false}` | KoSIT unreachable, or it broke off or stalled in the middle of its answer | no |
+| 502 `{charged:false}` | KoSIT answered something other than 200/406, or its report is not from the pinned validator (`KoSIT Validator 1.6.3`, XRechnung 3.0.2) or not about this body (`rep:documentHash`), or the handler failed | no |
+| 502 without `charged` | on a resend, the facilitator did not answer `/settle`; or `@x402/express` got a facilitator error during `/settle` | may still settle: resend the same payment |
 | 409 | this payment was already used for a different body | no |
+| 413, 415, 400 `{error}` | body over 5 MB, or a body the parser refuses (e.g. an unknown `Content-Encoding`): a fixed JSON message, never a stack trace or a path | no |
 
 A 200 body also carries what the buyer needs to bind the verdict to the bytes it sent: `scenario`, `engine` and
-`xrechnungVersion` as the report names them, `xmlSha256` (hex SHA-256 of the UTF-8 body the Gutachter sent to KoSIT, the
-same value its ledger binds) and `documentHash` (KoSIT's `rep:documentHash`, base64 SHA-256 of the same bytes; the
+`xrechnungVersion` as the report names them, `xmlSha256` (hex SHA-256 of the exact body bytes the Gutachter sent to KoSIT,
+a leading BOM included, the same value its ledger binds) and `documentHash` (KoSIT's `rep:documentHash`, base64 SHA-256 of the same bytes; the
 Gutachter checked that it matches). These are statements of the Gutachter: a buyer re-parses `report` and checks it
 against its own bytes (`assertPinnedValidator`, `assertDocumentHash` in `../verifier/kosit.mjs`).
 
@@ -61,7 +63,7 @@ against its own bytes (`assertPinnedValidator`, `assertDocumentHash` in `../veri
 cancels settlement when the handler status is 400 or higher. So a KoSIT outage returns 503 and
 nothing is settled on chain. Every response carries `Cache-Control: no-store` and no `X-Powered-By`. `GET /health` answers `{ok:true}` only; the
 config (stub mode, KoSIT and facilitator URLs, payTo) is in the startup log. A 502/503 names the cause only: the KoSIT
-URL and KoSIT's raw error page go to the seller log, not to the buyer.
+URL and KoSIT's raw error page go to the seller log, not to the buyer. `npm run seller` sets `NODE_ENV=production`.
 
 One payment buys one inspection. `ledger.mjs` keeps a file ledger (`.local/ledger.json`, gitignored) keyed by the
 payment's canonical tx hash (the nonce may name any input of the tx, in any letter case, so it is not used as the key).
@@ -100,10 +102,14 @@ stored payment, which the facilitator resumes without broadcasting again. Differ
 (`status: 'sent'`). Each call has its own entry (`id`), and calls in one process run one after the other, so the budget
 count and the wallet's UTxOs are never shared by two calls in flight. A 2xx to the unpaid request is refused (no
 inspection without payment). When the answer says the payment may still settle (`settlement_pending`,
-`duplicate_settlement`, a receipt without a tx such as a 504 on the facilitator's `/settle`, a 502/504 or a dropped
-connection), it resends the SAME signed header with backoff (5 s, x1.5, up to 30 s) for up to 3 minutes and never
-signs a new payment. The entry then ends as `settled` (with the verdict), `not-charged` or `unknown`
-(check the tx on cardanoscan before paying again).
+`duplicate_settlement`, a receipt without a tx such as a 504 on the facilitator's `/settle`, a 502/504 without
+`charged:false`, or a dropped connection), it resends the SAME signed header with backoff (5 s, x1.5, up to 30 s) for up
+to 3 minutes and never signs a new payment. An answer with `charged:false` is final and logged `not-charged`. The entry
+then ends as `settled` (with the verdict), `not-charged`, `unknown` (check the tx on cardanoscan before paying again) or
+`unconfirmed`. A success receipt counts only when it names the signed tx and Blockfrost shows that tx paying at least
+the price to `GUTACHTER_SELLER_ADDRESS` within 90 s. Otherwise `buyInspection` returns the tx hash with `receipt: null`
+and `unconfirmed: 'x402 payment not confirmed: …'`, so the answer is not used. An `unconfirmed` payment may still have been paid, so it counts for the budget and its inputs stay
+blocked. Answers are read up to 32 MiB.
 
 First payment: [5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9](https://preprod.cardanoscan.io/transaction/5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9) (30 Oct 2026, 1 tADA, verdict ACCEPTABLE)
 

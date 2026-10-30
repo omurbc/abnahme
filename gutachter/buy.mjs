@@ -19,6 +19,8 @@ const cap=process.env.GUTACHTER_MAX_PAYMENTS_PER_DAY||'20';
 if(!/^\d+$/.test(cap)) throw new Error(`GUTACHTER_MAX_PAYMENTS_PER_DAY must be a whole number of payments, got ${JSON.stringify(cap)}: refusing to pay without a daily budget`);
 const MAX_PAYMENTS_PER_DAY=Number(cap);
 const RETRY_DELAY_MS=5000,RESEND_BUDGET_MS=180_000,MAX_DELAY_MS=30_000,OFFER_TIMEOUT_MS=30_000,CONFIRM_WAIT_MS=90_000,CONFIRM_POLL_MS=5000,SPENT_WINDOW_MS=15*60_000;
+// KoSIT reports for our invoices are about 30 KiB; whoever answers on the port could otherwise send any amount.
+const MAX_ANSWER_BYTES=32*1024*1024;
 const LOG=fileURLToPath(new URL('./payments.log.json',import.meta.url));
 // 127.0.0.1, not localhost: Node tries ::1 first, and any local process can bind [::1]:4021 next to the seller.
 const sellerUrl=process.env.GUTACHTER_URL??`http://127.0.0.1:${process.env.GUTACHTER_PORT??4021}`;
@@ -39,7 +41,24 @@ function buyer(){
   const o=(await r.json()).outputs.find(o=>o.output_index===Number(index)&&!o.collateral);
   return o?.consumed_by_tx===null?'unspent':o?.consumed_by_tx?'spent':'unknown';
  };
- return {client,address:signer.getAddress(),inputState};
+ // true once the tx is in a block with outputs of at least `amount` lovelace to `payTo`; false while Blockfrost does not list it.
+ const paysOnChain=async(txHash,payTo,amount)=>{
+  const r=await fetch(`${BLOCKFROST}/txs/${txHash}/utxos`,{headers:{project_id:projectId},signal:AbortSignal.timeout(20_000)});
+  if(r.status===404) return false;
+  if(!r.ok) throw new Error(`Blockfrost /txs/${txHash.slice(0,12)}…/utxos HTTP ${r.status}`);
+  const paid=(await r.json()).outputs.filter(o=>o.address===payTo&&!o.collateral).flatMap(o=>o.amount).filter(a=>a.unit==='lovelace').reduce((sum,a)=>sum+BigInt(a.quantity),0n);
+  return paid>=BigInt(amount);
+ };
+ return {client,address:signer.getAddress(),inputState,paysOnChain};
+}
+
+// The answer as JSON, read up to maxBytes; larger, or not JSON: null.
+async function readJson(res,maxBytes){
+ const chunks=[];let size=0;
+ try{
+  for await (const chunk of res.body??[]){ size+=chunk.length; if(size>maxBytes) return null; chunks.push(chunk); }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+ }catch{ return null; }
 }
 
 const readLog=logPath=>existsSync(logPath)?JSON.parse(readFileSync(logPath,'utf8')):[];
@@ -54,14 +73,30 @@ function writeLog(logPath,id,fields){
 // True while the same signed payment may still settle: the facilitator is still confirming (settlement_pending,
 // duplicate_settlement), the seller lost the facilitator's answer (receipt without tx, e.g. a 504 on /settle),
 // a settled receipt came with a failed response, or the connection or a gateway failed.
-function mayStillSettle({status,receipt,error}){
+// The Gutachter's own "no inspection" answers say charged:false: the middleware never settles a status >= 400, and a
+// payment the Gutachter already charged is answered from its ledger, never with that marker. So such an answer is final.
+const notCharged=({status,receipt,result})=>!receipt&&status>=400&&result?.charged===false;
+function mayStillSettle(last){
+ const {status,receipt,error}=last;
  if(error) return true;
  if(receipt?.success) return status!==200;
  if(receipt) return !receipt.transaction||['settlement_pending','duplicate_settlement'].includes(receipt.errorReason)||(receipt.errorReason==='exact_cardano_settlement_failed'&&receipt.extra?.status!=='expired');
- return status===502||status===504;
+ return (status===502||status===504)&&!notCharged(last);
 }
 
-// Returns {httpStatus, payer, txHash, verdict, receipt, result}. txHash is null only when nothing was charged.
+// A success receipt is the answering party's statement (anyone holding the port can write one). The payment counts only
+// once the chain shows the signed tx paying the Gutachter, within a bounded wait (DELTA-X402-4).
+async function seenOnChain(paysOnChain,txHash,payTo,amount,{confirmWaitMs,confirmPollMs}){
+ const deadline=Date.now()+confirmWaitMs;
+ for(;;){
+  if(await paysOnChain(txHash,payTo,amount).catch(()=>false)) return true;
+  if(Date.now()+confirmPollMs>deadline) return false;
+  await new Promise(r=>setTimeout(r,confirmPollMs));
+ }
+}
+
+// Returns {httpStatus, payer, txHash, verdict, receipt, result}. txHash is null only when nothing was charged. A success
+// receipt the chain does not confirm comes back as receipt null plus `unconfirmed` (the reason).
 // Calls run one after the other: a concurrent call would count the budget before this call's entry exists, and could
 // spend the same UTxO into the same tx before this payment's change output is visible.
 let queue=Promise.resolve();
@@ -93,16 +128,16 @@ async function signOnConfirmedInputs(client,required,{inputState,confirmWaitMs,c
  }
 }
 
-async function buyOnce(xml,{client,inputState,logPath=LOG,retryDelayMs=RETRY_DELAY_MS,budgetMs=RESEND_BUDGET_MS,offerTimeoutMs=OFFER_TIMEOUT_MS,confirmWaitMs=CONFIRM_WAIT_MS,confirmPollMs=CONFIRM_POLL_MS}={}){
+async function buyOnce(xml,{client,inputState,paysOnChain,logPath=LOG,retryDelayMs=RETRY_DELAY_MS,budgetMs=RESEND_BUDGET_MS,offerTimeoutMs=OFFER_TIMEOUT_MS,confirmWaitMs=CONFIRM_WAIT_MS,confirmPollMs=CONFIRM_POLL_MS,maxAnswerBytes=MAX_ANSWER_BYTES}={}){
  let address=null;
- if(!client) ({client,address,inputState}=buyer());
+ if(!client) ({client,address,inputState,paysOnChain}=buyer());
  const http=new x402HTTPClient(client);
  const url=`${sellerUrl}/inspect`,init={method:'POST',headers:{'content-type':'application/xml'},body:xml};
  const offer=await fetch(url,{...init,signal:AbortSignal.timeout(offerTimeoutMs)}); // bounded: later calls wait for this one
  if(offer.ok) throw new Error(`The Gutachter answered HTTP ${offer.status} without asking for payment: that is no inspection`);
- if(offer.status!==402) return {httpStatus:offer.status,payer:address,txHash:null,verdict:null,result:await offer.json().catch(()=>null)};
+ if(offer.status!==402) return {httpStatus:offer.status,payer:address,txHash:null,verdict:null,result:await readJson(offer,maxAnswerBytes)};
  if(!PAY_TO) throw new Error('Set GUTACHTER_SELLER_ADDRESS: the buyer pays only the Gutachter\'s own address');
- const required=http.getPaymentRequiredResponse(name=>offer.headers.get(name),await offer.json().catch(()=>undefined));
+ const required=http.getPaymentRequiredResponse(name=>offer.headers.get(name),(await readJson(offer,maxAnswerBytes))??undefined);
  const accepts=required.accepts.filter(a=>a.payTo===PAY_TO);
  if(!accepts.length) throw new Error(`The offer pays ${[...new Set(required.accepts.map(a=>a.payTo))].join(', ')}, not GUTACHTER_SELLER_ADDRESS: nothing signed`);
  const charged=readLog(logPath).filter(e=>e.status!=='not-charged'&&Date.now()-Date.parse(e.time)<86_400_000).length; // sent and unknown may have been paid
@@ -118,16 +153,24 @@ async function buyOnce(xml,{client,inputState,logPath=LOG,retryDelayMs=RETRY_DEL
   try{
    const res=await fetch(url,{...init,headers,signal:AbortSignal.timeout(240_000)});
    let receipt; try{ receipt=http.getPaymentSettleResponse(name=>res.headers.get(name)); }catch{}
-   last={status:res.status,receipt,result:await res.json().catch(()=>null)};
+   last={status:res.status,receipt,result:await readJson(res,maxAnswerBytes)};
   }catch(error){ last={status:null,error}; }
   if(!mayStillSettle(last)||Date.now()+delay>deadline) break;
   await new Promise(r=>setTimeout(r,delay));
   delay=Math.min(delay*1.5,MAX_DELAY_MS);
  }
  const {status,receipt,result,error}=last;
- const outcome=status===200&&receipt?.success?'settled':mayStillSettle(last)||sends>1?'unknown':'not-charged'; // after a resend only cardanoscan can say
+ let outcome=status===200&&receipt?.success?'settled':notCharged(last)?'not-charged':mayStillSettle(last)||sends>1?'unknown':'not-charged'; // after a resend only cardanoscan can say
+ let unconfirmed=null;
+ if(outcome==='settled'&&paysOnChain){
+  if(receipt.transaction!==txHash) unconfirmed=`the receipt names tx ${String(receipt.transaction).slice(0,12)}…, not the signed tx ${txHash.slice(0,12)}…`;
+  else if(!await seenOnChain(paysOnChain,txHash,PAY_TO,payload.accepted.amount,{confirmWaitMs,confirmPollMs})) unconfirmed=`tx ${txHash.slice(0,12)}… is not on chain with ${payload.accepted.amount} lovelace to the Gutachter after ${confirmWaitMs/1000} s`;
+  if(unconfirmed) outcome='unconfirmed'; // may still have been paid: it counts for the budget and its inputs stay blocked
+ }
  const verdict=outcome==='settled'?result?.verdict??null:null;
- writeLog(logPath,id,{verdict,status:outcome,...outcome==='settled'?{}:{httpStatus:status,sends,error:receipt?.errorReason??result?.error??error?.message??null}});
+ writeLog(logPath,id,{verdict,status:outcome,...outcome==='settled'?{}:{httpStatus:status,sends,error:unconfirmed??receipt?.errorReason??result?.error??error?.message??null}});
+ // Not counted, but the tx is kept: receipt null means no receipt the chain confirms, so a caller does not use the answer.
+ if(unconfirmed) return {httpStatus:status,payer:address,txHash,verdict:null,receipt:null,result,unconfirmed:`x402 payment not confirmed: ${unconfirmed}`};
  return {httpStatus:status,payer:address,txHash:outcome==='not-charged'?null:txHash,verdict,receipt,result};
 }
 
@@ -140,6 +183,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(realpathSync(process.argv[1]
  console.log(`payer ${r.payer}`);
  console.log(`HTTP ${r.httpStatus} after ${((Date.now()-started)/1000).toFixed(1)} s`);
  if(r.txHash) console.log(`tx ${r.txHash}\nhttps://preprod.cardanoscan.io/transaction/${r.txHash}`);
+ if(r.unconfirmed){ console.error(`FAILED: ${r.unconfirmed}; the answer is not used. Check the tx on preprod.cardanoscan.io before paying again.`); process.exit(1); }
  if(r.httpStatus!==200){
   console.error(`FAILED: ${JSON.stringify(r.result)} receipt=${JSON.stringify(r.receipt??null)}`);
   if(r.txHash) console.error('The payment may still settle: check the tx on preprod.cardanoscan.io before paying again.');

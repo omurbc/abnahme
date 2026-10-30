@@ -7,7 +7,7 @@
   },
   "scripts": {
     "wallet": "touch ../.env && chmod 600 ../.env && node --env-file-if-exists=../.env wallet.mjs && node ../scripts/env-split.mjs",
-    "seller": "node --env-file=../.local/env/gutachter-seller.env seller.mjs",
+    "seller": "NODE_ENV=production node --env-file=../.local/env/gutachter-seller.env seller.mjs",
     "buy": "node --env-file=../.local/env/gutachter-buyer.env buy.mjs",
     "balance": "node --env-file=../.local/env/gutachter-buyer.env balance.mjs",
     "test": "node --test *.test.mjs"

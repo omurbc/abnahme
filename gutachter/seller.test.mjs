@@ -10,7 +10,7 @@ import {fileURLToPath} from 'node:url';
 import {encodePaymentSignatureHeader,decodePaymentRequiredHeader,decodePaymentResponseHeader} from '@x402/core/http';
 import {x402Facilitator} from '@x402/core/facilitator';
 import {ExactCardanoScheme} from '@x402/cardano/exact/facilitator';
-import {documentHashOf} from '../verifier/kosit.mjs';
+import {documentHashOf,parseReport,assertDocumentHash} from '../verifier/kosit.mjs';
 import {sha256} from './ledger.mjs';
 
 const TX='ab'.repeat(32);
@@ -32,9 +32,13 @@ const facServer=await listen(async(req,res)=>{
  if(plan==='504'){ res.writeHead(504,{'content-type':'text/html'}); return res.end('<html>504 Gateway Time-out</html>'); }
  json(res,200,{success:true,transaction:TX,network:paymentRequirements.network,payer:'addr_test1_fake_payer'});
 });
-// Fake KoSIT 1.6.3: always acceptable under the XRechnung UBL scenario, names the bytes it got, counts calls.
-const kosit={calls:0};
-const kositServer=await listen(async(req,res)=>{ kosit.calls++; const body=await readBody(req); res.writeHead(200,{'content-type':'application/xml'});
+// Fake KoSIT 1.6.3: acceptable under the XRechnung UBL scenario, names the bytes it got, counts calls; `mode` 'drop' breaks
+// off after the status line, 422 is KoSIT's answer to XML it cannot read.
+const kosit={calls:0,mode:null};
+const kositServer=await listen(async(req,res)=>{ kosit.calls++; const body=await readBody(req);
+ if(kosit.mode==='drop'){ res.writeHead(200,{'content-type':'application/xml'}); res.write('<rep:report>'); return setTimeout(()=>res.socket.destroy(),50); }
+ if(kosit.mode===422){ res.writeHead(422); return res.end('error while processing the xml file'); }
+ res.writeHead(200,{'content-type':'application/xml'});
  res.end(`<rep:report><rep:engine><rep:name>KoSIT Validator 1.6.3</rep:name></rep:engine><rep:documentIdentification><rep:documentHash><rep:hashAlgorithm>SHA-256</rep:hashAlgorithm><rep:hashValue>${documentHashOf(body)}</rep:hashValue></rep:documentHash></rep:documentIdentification><rep:scenarioMatched><s:scenario><s:name>EN16931 XRechnung (UBL Invoice)</s:name><s:description><s:p>Schematron rules from EN16931:2017, and XRechnung 3.0.2 </s:p></s:description></s:scenario></rep:scenarioMatched><rep:assessment><rep:accept/></rep:assessment></rep:report>`); });
 
 const ledger=join(mkdtempSync(join(tmpdir(),'gutachter-test-')),'ledger.json');
@@ -50,7 +54,7 @@ async function startSeller(){
  for(let i=0;i<100;i++){ try{ if((await fetch(`${base}/health`)).ok) return; }catch{} await new Promise(r=>setTimeout(r,50)); }
  throw new Error('seller did not start');
 }
-async function stopSeller(){ seller.kill(); await new Promise(r=>seller.once('exit',r)); }
+async function stopSeller(){ if(seller.exitCode!==null||seller.signalCode!==null) return; seller.kill(); await new Promise(r=>seller.once('exit',r)); }
 after(async()=>{ await stopSeller(); facServer.close(); kositServer.close(); });
 await startSeller();
 
@@ -61,7 +65,7 @@ async function paid(sig,xml){
  const pr=res.headers.get('payment-response');
  return {status:res.status,body:await res.json().catch(()=>null),receipt:pr?decodePaymentResponseHeader(pr):null};
 }
-const reset=()=>{ kosit.calls=0; fac.settle=0; fac.verify=0; fac.settlePlan=[]; fac.onChain=false; };
+const reset=()=>{ kosit.calls=0; kosit.mode=null; fac.settle=0; fac.verify=0; fac.settlePlan=[]; fac.onChain=false; };
 
 test('a resend of the same payment and body returns the cached report: KoSIT and settle run once',async()=>{
  reset(); const sig=header(PAID[0]);
@@ -132,4 +136,46 @@ test('binds 127.0.0.1 by default, so a non-loopback address is refused',async t=
  if(!lan) return t.skip('no non-loopback IPv4 interface');
  const err=await new Promise(r=>request({host:lan,port,path:'/health',timeout:2000},()=>r(null)).on('error',r).on('timeout',function(){ this.destroy(new Error('timeout')); }).end());
  assert.equal(err?.code,'ECONNREFUSED');
+});
+
+// PAID[4] is fresh here: the answers below store nothing in the ledger (status >= 400) until the BOM test, which uses it last.
+// DELTA-X402-6: Express's default error page carries the stack trace and absolute paths outside production; on the
+// resend path a public past tx is enough to reach the body parser.
+test('a body the parser refuses gets a short JSON error without stack trace or path, on the resend and the paid path',async()=>{
+ reset();
+ const send=(sig,body,headers={})=>fetch(`${base}/inspect`,{method:'POST',headers:{'payment-signature':sig,'content-type':'application/xml',...headers},body});
+ for(const [name,res] of [
+  ['resend 415',await send(header(PAID[0]),'<Invoice>A</Invoice>',{'content-encoding':'x-unknown'})],
+  ['resend 413',await send(header(PAID[0]),'x'.repeat(5*1024*1024+1))],
+  ['paid 413',await send(header(PAID[4]),'x'.repeat(5*1024*1024+1))],
+ ]){
+  const text=await res.text();
+  assert.ok([413,415].includes(res.status),`${name}: ${res.status}`);
+  assert.match(res.headers.get('content-type'),/application\/json/,name);
+  assert.doesNotMatch(text,/\sat\s|\/Users\/|\/home\/|node_modules|Error:/,name);
+  assert.ok(JSON.parse(text).error,name);
+ }
+ assert.equal(fac.settle,0); assert.equal(kosit.calls,0);
+ assert.match(JSON.parse(readFileSync(new URL('./package.json',import.meta.url),'utf8')).scripts.seller,/^NODE_ENV=production /);
+});
+// DELTA-X402-1: an unhandled rejection in the paid handler ended the seller.
+test('KoSIT breaking off in the middle of its answer is 503, not charged, and the seller stays up',async()=>{
+ reset(); kosit.mode='drop';
+ const r=await paid(header(PAID[4]),'<Invoice>A</Invoice>');
+ assert.equal(r.status,503); assert.equal(r.body.charged,false); assert.equal(fac.settle,0);
+ assert.deepEqual(await (await fetch(`${base}/health`)).json(),{ok:true});
+});
+// DELTA-X402-2: the buyer must not take this 502 for one that may still settle.
+test('KoSIT 422 is no inspection: 502 with charged:false, not settled',async()=>{
+ reset(); kosit.mode=422;
+ const r=await paid(header(PAID[4]),'<Invoice>A</Invoice>');
+ assert.equal(r.status,502); assert.deepEqual(r.body,{error:'KoSIT answered HTTP 422',httpStatus:422,charged:false}); assert.equal(fac.settle,0);
+});
+// DELTA-X402-5: express.text stripped a leading BOM, so the paid report named other bytes than the buyer sent.
+test('the exact bytes sent are inspected: a leading BOM reaches KoSIT, and the report binds to the buyer\'s own string',async()=>{
+ reset(); const xml='\uFEFF<Invoice>bom</Invoice>';
+ const r=await paid(header(PAID[4]),xml);
+ assert.equal(r.status,200); assert.equal(r.body.verdict,'ACCEPTABLE');
+ assert.equal(r.body.documentHash,documentHashOf(xml)); assert.equal(r.body.xmlSha256,sha256(xml));
+ assertDocumentHash(parseReport(r.body.report),xml);
 });
