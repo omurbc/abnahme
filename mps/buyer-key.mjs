@@ -1,7 +1,7 @@
 // Runtime API key for the Büro-Agent BUYER side (MPS /purchase, request-refund,
 // cancel-refund-request), scoped to the Büro purchasing hot wallet. Same pattern as the
 // template's `payment-registration.mjs key`. Run from the repo root:
-//   node --env-file=.env --env-file=.local/mps.env mps/buyer-key.mjs
+//   node --env-file=.local/env/mps-admin.env mps/buyer-key.mjs
 // Note: a wallet-scoped key cannot read a purchase before FundsLocked, because MPS assigns
 // the purchasing wallet to the purchase only when it locks the funds (resolve returns 404).
 import fs from 'node:fs';
@@ -16,6 +16,6 @@ const r=await fetch(process.env.MPS_URL+'/api/v1/api-key',{method:'POST',headers
 const j=await r.json();if(!r.ok||j.status!=='success')throw Error(`${r.status}: ${JSON.stringify(j.error??j.message??{})}`);
 const key=j.data;state.runtimeKeyId=key.id;state.keyWritePending=false;save();
 if(typeof key.token!=='string'||key.token.startsWith('*****'))throw Error('Created key token was not revealed; key ID preserved');
-fs.writeFileSync(runtimePath,`MPS_BUYER_TOKEN=${key.token}\n`,{mode:0o600});
+fs.writeFileSync(runtimePath,`MPS_BUYER_TOKEN=${key.token}\n`,{mode:0o600});fs.chmodSync(runtimePath,0o600);
 state.keyEvidence={canRead:key.canRead,canPay:key.canPay,canAdmin:key.canAdmin,NetworkLimit:key.NetworkLimit,walletScopeEnabled:key.walletScopeEnabled};save();
 console.log('Buyer key created',key.id,JSON.stringify(state.keyEvidence));

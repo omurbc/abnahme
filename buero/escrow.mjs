@@ -1,14 +1,15 @@
 // Thin buyer-side client for the local Masumi Payment Service (0.29.0, Web3CardanoV2, Preprod).
 // Writes use the Büro purchasing runtime key (MPS_BUYER_TOKEN, .local/buero-buyer-runtime.env).
-// Reads fall back to ADMIN_KEY (.local/mps.env): MPS binds the purchasing wallet to a purchase only at
-// funds lock, so the wallet-scoped key gets 404 before FundsLocked. Request shapes follow the MPS e2e
+// Reads fall back to a read-only key without wallet scope (MPS_READ_TOKEN, .local/buero-read-runtime.env, mps/read-key.mjs):
+// MPS binds the purchasing wallet to a purchase only at funds lock, so the wallet-scoped key gets 404 before
+// FundsLocked. The buyer never holds ADMIN_KEY, which would bypass every wallet scope. Request shapes follow the MPS e2e
 // helpers (tests/e2e/helperFunctions.ts @0.29.0: createPurchase, requestRefund, cancelRefundRequest).
 const NETWORK='Preprod';
 const BLOCKFROST='https://cardano-preprod.blockfrost.io/api/v0';
 
 export class MpsError extends Error{constructor(path,status,detail){super(`MPS ${path} HTTP ${status}: ${detail}`);this.status=status;}}
 
-export function createEscrow({url=process.env.MPS_URL,buyerToken=process.env.MPS_BUYER_TOKEN,adminKey=process.env.ADMIN_KEY,blockfrostKey=process.env.BLOCKFROST_API_KEY_PREPROD,fetchImpl=fetch}={}){
+export function createEscrow({url=process.env.MPS_URL,buyerToken=process.env.MPS_BUYER_TOKEN,readToken=process.env.MPS_READ_TOKEN,blockfrostKey=process.env.BLOCKFROST_API_KEY_PREPROD,fetchImpl=fetch}={}){
  async function call(path,body,token){
   if(!token)throw new Error(`No MPS key for ${path}`);
   const response=await fetchImpl(`${url}/api/v1${path}`,{method:body?'POST':'GET',redirect:'error',signal:AbortSignal.timeout(30000),headers:{token,'content-type':'application/json'},body:body?JSON.stringify(body):undefined});
@@ -28,14 +29,14 @@ export function createEscrow({url=process.env.MPS_URL,buyerToken=process.env.MPS
   // null when MPS does not know the purchase (yet).
   async getPurchase(blockchainIdentifier){
    try{return await resolve('/purchase/resolve-blockchain-identifier',blockchainIdentifier,buyerToken);}
-   catch(e){if(e.status!==404&&e.status!==403||!adminKey)throw e;}
-   try{return await resolve('/purchase/resolve-blockchain-identifier',blockchainIdentifier,adminKey);}
+   catch(e){if(e.status!==404&&e.status!==403||!readToken)throw e;}
+   try{return await resolve('/purchase/resolve-blockchain-identifier',blockchainIdentifier,readToken);}
    catch(e){if(e.status===404)return null;throw e;}
   },
-  // Seller-side record on the same MPS, read with the admin key for the transaction history only.
+  // Seller-side record on the same MPS, read with the read-only key for the transaction history only.
   async getPayment(blockchainIdentifier){
-   if(!adminKey)return null;
-   try{return await resolve('/payment/resolve-blockchain-identifier',blockchainIdentifier,adminKey);}catch(e){if(e.status===404)return null;throw e;}
+   if(!readToken)return null;
+   try{return await resolve('/payment/resolve-blockchain-identifier',blockchainIdentifier,readToken);}catch(e){if(e.status===404)return null;throw e;}
   },
   requestRefund:blockchainIdentifier=>call('/purchase/request-refund',{blockchainIdentifier,network:NETWORK},buyerToken),
   // On V2 this queues AuthorizeWithdrawal (only from Disputed).

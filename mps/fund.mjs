@@ -1,6 +1,6 @@
 // Send tADA from one of our MPS hot wallets to another address (MPS POST /wallet/transfer-funds, admin key).
 // Run from the repo root:
-//   node --env-file=.env --env-file=.local/mps.env mps/fund.mjs <fromHotWalletAddress> <toAddress> <ada>
+//   node --env-file=.local/env/mps-admin.env mps/fund.mjs <fromHotWalletAddress> <toAddress> <ada>
 const [from,to,ada]=process.argv.slice(2);
 if(!from||!to||!(Number(ada)>=2))throw Error('usage: mps/fund.mjs <fromHotWalletAddress> <toAddress> <ada >= 2>');
 const base=(process.env.MPS_URL||'http://127.0.0.1:38127')+'/api/v1';

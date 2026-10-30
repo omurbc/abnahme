@@ -7,7 +7,7 @@ the Cardano Foundation hosted preprod facilitator, `https://x402.preprod.dev.eco
 
 ```text
 buy.mjs ── POST /inspect (XML) ──────────► seller.mjs                 (no payment: 402 + requirements)
-buy.mjs:   signs a 1 tADA preprod tx (spend cap 1.5 tADA per payment)
+buy.mjs:   signs a 1 tADA preprod tx (spend cap 1 tADA per payment, 20 charged payments per rolling 24 h)
 buy.mjs ── POST /inspect + PAYMENT-SIGNATURE ► seller.mjs ─ /verify ─► facilitator
                                               seller.mjs ─ XML ─────► KoSIT daemon (200 accept / 406 reject)
                                               seller.mjs ─ /settle ─► facilitator ─► chain
@@ -16,12 +16,15 @@ buy.mjs ◄─ 200 {verdict, httpStatus, report} + PAYMENT-RESPONSE (tx hash)
 
 ## Run
 
-Node 24 (`export PATH="/opt/homebrew/opt/node@24/bin:$PATH"`). All scripts read `../.env`.
+Node 24 (`export PATH="/opt/homebrew/opt/node@24/bin:$PATH"`). No script loads the whole `../.env`: `npm run seller` loads
+`../.local/env/gutachter-seller.env` (no secrets; the seller refuses to start if it holds one of the project's secrets),
+`npm run buy` and `npm run balance` load `../.local/env/gutachter-buyer.env` (buyer mnemonic and Blockfrost only).
+Generate both from the repo root with `node scripts/env-split.mjs`, and rerun it after every change to `.env`.
 
 ```sh
 cd gutachter
 npm install
-npm run wallet                    # once: appends GUTACHTER_* wallets to ../.env, prints addresses only
+npm run wallet                    # once: appends GUTACHTER_* wallets to ../.env, prints addresses only, then regenerates ../.local/env/
 npm run balance                   # buyer balance via Blockfrost (needs about 1.2 tADA per call)
 ../kosit/start.sh                 # KoSIT daemon on 127.0.0.1:8090 (stream C)
 npm run seller                    # terminal 1: Gutachter on 127.0.0.1:4021
@@ -50,7 +53,9 @@ From code (Büro-Agent): `import {buyInspection} from './gutachter/buy.mjs'`, th
 
 `@x402/express` runs the handler after `/verify` and before `/settle`, buffers the response, and
 cancels settlement when the handler status is 400 or higher. So a KoSIT outage returns 503 and
-nothing is settled on chain. Every response carries `Cache-Control: no-store`. `GET /health` shows the config.
+nothing is settled on chain. Every response carries `Cache-Control: no-store` and no `X-Powered-By`. `GET /health` answers `{ok:true}` only; the
+config (stub mode, KoSIT and facilitator URLs, payTo) is in the startup log. A 502/503 names the cause only: the KoSIT
+URL and KoSIT's raw error page go to the seller log, not to the buyer.
 
 One payment buys one inspection. `ledger.mjs` keeps a file ledger (`.local/ledger.json`, gitignored) keyed by the
 payment's canonical tx hash (the nonce may name any input of the tx, in any letter case, so it is not used as the key).
@@ -60,7 +65,7 @@ A resend of a known payment is answered before the x402 middleware, because the 
 stored settle receipt; if the first settle answer was lost (e.g. a 504), the seller calls `/settle` once more for the
 stored payment, which the facilitator resumes without broadcasting again. Different body: 409.
 
-## Env (`../.env`)
+## Env (set in `../.env`, delivered through `../.local/env/gutachter-*.env`)
 
 | Var | Default | Used by |
 | --- | --- | --- |
@@ -72,9 +77,10 @@ stored payment, which the facilitator resumes without broadcasting again. Differ
 | `GUTACHTER_STUB` | unset (`1` = fixed ACCEPTABLE) | seller |
 | `FACILITATOR_URL` | CF hosted preprod facilitator | seller |
 | `GUTACHTER_SELLER_ADDRESS` | from `npm run wallet` | seller (payTo, keyless) |
-| `GUTACHTER_SELLER_MNEMONIC` | from `npm run wallet` | nobody at runtime (spends the seller's income) |
+| `GUTACHTER_SELLER_MNEMONIC` | from `npm run wallet` | nobody at runtime (spends the seller's income); in no generated env file, keep it offline |
 | `GUTACHTER_BUYER_MNEMONIC`, `GUTACHTER_BUYER_ADDRESS` | from `npm run wallet` | buyer |
 | `BLOCKFROST_API_KEY_PREPROD` | required | buyer, balance |
+| `GUTACHTER_MAX_PAYMENTS_PER_DAY` | `20` | buyer (refuses to sign more charged payments per rolling 24 h, counted in `payments.log.json`) |
 
 ## Wallets (preprod)
 
@@ -99,6 +105,10 @@ First payment: [5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9
   had no tx, although both payments landed. The hosted facilitator sits behind nginx (default proxy timeout 60 s), so
   this is most likely a gateway timeout on `/settle`. The resend loop above covers it; a buyer that gives up after
   the 3 minutes leaves the entry at `unknown`.
+- Budget: `buy.mjs` refuses an offer above 1 tADA and refuses to sign once `payments.log.json` holds 20 payments of the last
+  24 h that may have been charged (`sent`, `unknown`, `settled`). The Büro loop then falls back to the local KoSIT daemon.
+- `payTo` must be a dedicated receive address: the facilitator accepts any output of at least the price to `payTo`,
+  including change, so a `payTo` that also receives the buyer's change would accept a payment that pays nothing.
 - The ledger has no expiry. Delete `.local/ledger.json` only when no payment can still be resent.
 - Fixtures: `fixtures/xrechnung-ok.xml` is `01.01a-INVOICE_ubl.xml` from the official
   [itplr-kosit/xrechnung-testsuite](https://github.com/itplr-kosit/xrechnung-testsuite);

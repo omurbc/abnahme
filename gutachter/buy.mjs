@@ -2,15 +2,18 @@
 // node buy.mjs <file.xml>   prints the verdict and the settlement tx, appends to payments.log.json.
 // It signs ONE payment. While the answer says that payment may still settle, it resends the same signed header
 // (backoff, up to 3 min); it never signs a second payment. The tx hash is logged before the first paid send.
-import {readFileSync,writeFileSync,existsSync} from 'node:fs';
-import {fileURLToPath} from 'node:url';
+import {readFileSync,writeFileSync,existsSync,realpathSync} from 'node:fs';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 import {x402Client,x402HTTPClient} from '@x402/fetch';
 import {toClientCardanoSigner,decodeCardanoTransaction} from '@x402/cardano';
 import {ExactCardanoScheme} from '@x402/cardano/exact/client';
 
 const NETWORK='cardano:preprod';
 const BLOCKFROST='https://cardano-preprod.blockfrost.io/api/v0';
-const MAX_LOVELACE_PER_PAYMENT='1500000';
+// lovelace is not USD-pegged, so the default spend controls reject it: allow it, capped at the 1 tADA price, so an
+// inflated offer is refused. Across runs, at most MAX_PAYMENTS_PER_DAY charged payments per rolling 24 h (payments.log.json).
+export const SPEND_CONTROLS={allowedAssets:[{network:'cardano:*',asset:'lovelace',maxAmountPerPayment:'1000000'}]};
+const MAX_PAYMENTS_PER_DAY=Number(process.env.GUTACHTER_MAX_PAYMENTS_PER_DAY||20);
 const RETRY_DELAY_MS=5000,RESEND_BUDGET_MS=180_000,MAX_DELAY_MS=30_000;
 const LOG=fileURLToPath(new URL('./payments.log.json',import.meta.url));
 const sellerUrl=process.env.GUTACHTER_URL??`http://localhost:${process.env.GUTACHTER_PORT??4021}`;
@@ -18,15 +21,15 @@ const sellerUrl=process.env.GUTACHTER_URL??`http://localhost:${process.env.GUTAC
 function buyer(){
  const mnemonic=process.env.GUTACHTER_BUYER_MNEMONIC,projectId=process.env.BLOCKFROST_API_KEY_PREPROD;
  if(!mnemonic||!projectId) throw new Error('Set GUTACHTER_BUYER_MNEMONIC (npm run wallet) and BLOCKFROST_API_KEY_PREPROD in .env');
- // lovelace is not USD-pegged, so the default spend controls reject it: allow it, capped at 1.5 tADA per payment.
- const client=new x402Client().setSpendControls({allowedAssets:[{network:'cardano:*',asset:'lovelace',maxAmountPerPayment:MAX_LOVELACE_PER_PAYMENT}]});
+ const client=new x402Client().setSpendControls(SPEND_CONTROLS);
  const signer=toClientCardanoSigner({mnemonic,network:NETWORK,provider:{blockfrost:{baseUrl:BLOCKFROST,projectId}}});
  client.register('cardano:*',new ExactCardanoScheme(signer));
  return {client,address:signer.getAddress()};
 }
 
+const readLog=logPath=>existsSync(logPath)?JSON.parse(readFileSync(logPath,'utf8')):[];
 function writeLog(logPath,txHash,fields){
- const log=existsSync(logPath)?JSON.parse(readFileSync(logPath,'utf8')):[];
+ const log=readLog(logPath);
  const entry=log.findLast(e=>e.txHash===txHash);
  if(entry) Object.assign(entry,fields); else log.push({time:new Date().toISOString(),txHash,...fields});
  writeFileSync(logPath,JSON.stringify(log,null,1)+'\n');
@@ -50,6 +53,8 @@ export async function buyInspection(xml,{client,logPath=LOG,retryDelayMs=RETRY_D
  const url=`${sellerUrl}/inspect`,init={method:'POST',headers:{'content-type':'application/xml'},body:xml};
  const offer=await fetch(url,init);
  if(offer.status!==402) return {httpStatus:offer.status,payer:address,txHash:null,verdict:null,result:await offer.json().catch(()=>null)};
+ const charged=readLog(logPath).filter(e=>e.status!=='not-charged'&&Date.now()-Date.parse(e.time)<86_400_000).length; // sent and unknown may have been paid
+ if(charged>=MAX_PAYMENTS_PER_DAY) throw new Error(`x402 budget reached: ${charged} payments in the last 24 h (max ${MAX_PAYMENTS_PER_DAY}, GUTACHTER_MAX_PAYMENTS_PER_DAY), see ${logPath}`);
  const payload=await client.createPaymentPayload(http.getPaymentRequiredResponse(name=>offer.headers.get(name),await offer.json().catch(()=>undefined)));
  const txHash=decodeCardanoTransaction(String(payload.payload.transaction)).txHash;
  const headers={...init.headers,...http.encodePaymentSignatureHeader(payload)};
@@ -74,7 +79,7 @@ export async function buyInspection(xml,{client,logPath=LOG,retryDelayMs=RETRY_D
  return {httpStatus:status,payer:address,txHash:outcome==='not-charged'?null:txHash,verdict,receipt,result};
 }
 
-if(import.meta.main){
+if(process.argv[1]&&import.meta.url===pathToFileURL(realpathSync(process.argv[1])).href){ // import.meta.main needs Node 24.2
  const file=process.argv[2];
  if(!file) { console.error('usage: node buy.mjs <file.xml>'); process.exit(2); }
  const started=Date.now();

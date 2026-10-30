@@ -2,9 +2,11 @@
 import {test,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
-import {readFileSync,mkdtempSync,existsSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdtempSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import {x402Client} from '@x402/fetch';
 import {encodePaymentRequiredHeader,encodePaymentResponseHeader} from '@x402/core/http';
 
@@ -30,11 +32,11 @@ const server=createServer((req,res)=>{
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 after(()=>server.close());
 process.env.GUTACHTER_URL=`http://127.0.0.1:${server.address().port}`;
-const {buyInspection}=await import('./buy.mjs');
+const {buyInspection,SPEND_CONTROLS}=await import('./buy.mjs');
 
 let signs=0;
 function stubClient(){
- const c=new x402Client().setSpendControls({allowedAssets:[{network:'cardano:*',asset:'lovelace',maxAmountPerPayment:'1500000'}]});
+ const c=new x402Client().setSpendControls(SPEND_CONTROLS);
  c.register('cardano:*',{scheme:'exact',createPaymentPayload:async()=>{ signs++; return {x402Version:2,payload:{transaction:TX_B64,nonce:'db265614ca'.padEnd(64,'0')+'#0'}}; }});
  return c;
 }
@@ -72,4 +74,25 @@ test('gives up after the budget, never signs again, and keeps the tx hash in the
  assert.equal(r.httpStatus,402); assert.equal(r.txHash,TX); assert.equal(signs,1); assert.ok(paidHeaders.length>1);
  assert.ok(paidHeaders.every(h=>h===paidHeaders[0]));
  assert.deepEqual(log().map(e=>[e.txHash,e.status]),[[TX,'unknown']]);
+});
+test('an offer above the 1 tADA price is refused before signing',async()=>{
+ const opts=setup([settled]); accepts[0].amount='1000001';
+ try{ await assert.rejects(buyInspection('<Invoice/>',opts)); }finally{ accepts[0].amount='1000000'; }
+ assert.equal(signs,0); assert.equal(paidHeaders.length,0);
+});
+test('daily budget: refuses to sign once 20 payments were charged in the last 24 h; not-charged and older ones do not count',async()=>{
+ const entry=(hoursAgo,status,i)=>({time:new Date(Date.now()-hoursAgo*3_600_000).toISOString(),txHash:`${status}-${hoursAgo}-${i}`,status});
+ const fill=entries=>writeFileSync(logPath,JSON.stringify(entries));
+ let opts=setup([settled]);
+ fill(Array.from({length:20},(_,i)=>entry(1,i%2?'settled':'unknown',i)));
+ await assert.rejects(buyInspection('<Invoice/>',opts),/budget/);
+ assert.equal(signs,0); assert.equal(paidHeaders.length,0);
+ opts=setup([settled]);
+ fill([...Array.from({length:19},(_,i)=>entry(1,'settled',i)),...Array.from({length:5},(_,i)=>entry(1,'not-charged',i)),...Array.from({length:5},(_,i)=>entry(25,'settled',i))]);
+ const r=await buyInspection('<Invoice/>',opts);
+ assert.equal(r.httpStatus,200); assert.equal(signs,1);
+});
+test('the CLI prints its usage and exits 2 without a file (also on Node without import.meta.main)',()=>{
+ const r=spawnSync(process.execPath,[fileURLToPath(new URL('./buy.mjs',import.meta.url))],{encoding:'utf8',env:{PATH:process.env.PATH}});
+ assert.equal(r.status,2); assert.match(r.stderr,/usage: node buy\.mjs/);
 });

@@ -1,8 +1,8 @@
 // Abnahme MPS wallets: list roles, addresses and Preprod balances; optionally add the
 // RechnungsMeister selling wallet; save the identifiers the registration scripts read.
 // Never prints mnemonics or keys. Run from the repo root:
-//   node --env-file=.env --env-file=.local/mps.env mps/wallets.mjs            # status + balances
-//   node --env-file=.env --env-file=.local/mps.env --env-file=.local/mps-secrets.env mps/wallets.mjs add-rm
+//   node --env-file=.local/env/mps-admin.env mps/wallets.mjs            # status + balances
+//   node --env-file=.local/env/mps-admin.env --env-file=.local/mps-secrets.env mps/wallets.mjs add-rm
 import fs from 'node:fs';
 const USDM='16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde0014df10745553444d';
 const RM_NOTE='RechnungsMeister selling';

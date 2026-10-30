@@ -22,7 +22,7 @@ Why these amounts:
 ## Check balances
 
 ```sh
-PATH="/opt/homebrew/opt/node@24/bin:$PATH" node --env-file=.env --env-file=.local/mps.env mps/wallets.mjs
+PATH="/opt/homebrew/opt/node@24/bin:$PATH" node --env-file=.local/env/mps-admin.env mps/wallets.mjs
 ```
 
 Status is tracked in `plan/MPS.md`.

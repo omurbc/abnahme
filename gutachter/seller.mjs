@@ -12,12 +12,17 @@ import {ExactCardanoScheme} from '@x402/cardano/exact/server';
 import {decodeCardanoTransaction} from '@x402/cardano';
 import {inspect} from './inspect.mjs';
 import {openLedger,sha256} from './ledger.mjs';
+import {checkEnv} from '../scripts/env-split.mjs';
+
+// The seller holds no key (payTo is an address), so it refuses to run next to the project's secrets.
+const unneeded=checkEnv(process.env,'gutachter-seller');
+if(unneeded.length) throw new Error(`The Gutachter needs no secrets but holds ${unneeded.join(', ')}: start it with npm run seller (../.local/env/gutachter-seller.env)`);
 
 const NETWORK='cardano:preprod';
 const PRICE={amount:'1000000',asset:'lovelace'};
 const payTo=process.env.GUTACHTER_SELLER_ADDRESS;
 const facilitatorUrl=process.env.FACILITATOR_URL??'https://x402.preprod.dev.ecosyseng.cf-deployments.org';
-const kositUrl=process.env.KOSIT_URL??'http://127.0.0.1:8090/';
+const kositUrl=process.env.KOSIT_URL||`http://127.0.0.1:${process.env.KOSIT_PORT||8090}/`;
 const stub=process.env.GUTACHTER_STUB==='1';
 const port=Number(process.env.GUTACHTER_PORT??4021);
 const host=process.env.GUTACHTER_HOST||'127.0.0.1';
@@ -34,6 +39,7 @@ resourceServer.onAfterSettle(({paymentPayload,result})=>ledger.settled(paymentTx
 
 const text=express.text({type:()=>true,limit:'5mb'});
 const app=express();
+app.disable('x-powered-by');
 app.use((_req,res,next)=>{ res.set('Cache-Control','no-store'); next(); });
 // A resend of a payment the ledger already knows does not go through /verify again: the hosted facilitator rejects
 // /verify (nonce_not_on_chain) once the tx is in a block. Same body: the stored answer with the stored receipt, or
@@ -66,7 +72,7 @@ app.post('/inspect',text,async(req,res)=>{
  console.log(`${new Date().toISOString()} inspect -> ${status} ${body.verdict??body.error}${cached?' (cached)':''} tx ${tx}`);
  res.status(status).json(body);
 });
-app.get('/health',(_req,res)=>res.json({ok:true,stub,kositUrl,facilitatorUrl,payTo}));
+app.get('/health',(_req,res)=>res.json({ok:true})); // config is in the startup log, not on the wire
 
 app.listen(port,host,()=>{
  console.log(`Gutachter listening on http://${host}:${port}`);

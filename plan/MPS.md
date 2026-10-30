@@ -9,6 +9,8 @@ The compose file is `mps/docker-compose.yml`, taken from that quickstart. It run
 ```sh
 mps/mps.sh up -d                    # start (setup container seeds only an empty DB, then exits 0)
 mps/mps.sh ps -a                    # abnahme-mps-setup "Exited (0)", service "healthy"
+mps/mps.sh rm -f payment-setup      # then: the exited setup container keeps ADMIN_KEY, ENCRYPTION_KEY, Blockfrost and both
+                                    # seed mnemonics in its config (docker inspect); the next up recreates it from the image
 mps/mps.sh logs -f payment-service
 mps/mps.sh down                     # stop, data stays in volume abnahme_mps_pgdata
 # NEVER `down -v`: it deletes the encrypted wallets (mnemonics are also in .local/mps-secrets.env)
@@ -19,15 +21,38 @@ curl -s http://127.0.0.1:38127/api/v1/health      # {"status":"success","data":{
 - Postgres `abnahme-mps-postgres` is not published on the host. To inspect it: `docker exec -it abnahme-mps-postgres psql -U postgres`.
 - The service image is amd64-only and runs under OrbStack/Rosetta. The setup image `masumi-payment-setup:0.29.0` is built locally from the 0.29.0 source.
 
+## Env files per process (audit SECRETS-1)
+
+No process loads the whole `.env`. `node scripts/env-split.mjs` (rerun after every change to `.env` or a key file) writes
+`.local/env/<profile>.env` (dir 700, files 600): every non-secret setting of `.env` plus only the secrets of that profile.
+It prints names, never values. Long-running processes add the guard `--import=./scripts/env-guard.mjs`, which refuses to start
+when a project secret outside the profile is present (for example when `.env` is loaded too); the Gutachter seller has the check built in.
+
+| Profile | Secrets | Processes |
+|---|---|---|
+| `gutachter-seller` | none | `gutachter/seller.mjs` (`npm run seller` in `gutachter/`) |
+| `gutachter-buyer` | buyer mnemonic, Blockfrost | `npm run buy`, `npm run balance` in `gutachter/` |
+| `rechnungsmeister` | Anthropic, RM `MPS_RUNTIME_TOKEN` | `rechnungsmeister/server.mjs` |
+| `buero` | `MPS_BUYER_TOKEN`, `MPS_READ_TOKEN`, Blockfrost, Gutachter buyer mnemonic | `worker.mjs`, `buero/run.mjs` |
+| `buero-local` | Anthropic, Blockfrost | `worker.mjs` with `ABNAHME_IMPL=local` |
+| `mps-admin` | `ADMIN_KEY`, Blockfrost | one-shot operator scripts (`mps/*.mjs`, registration scripts) |
+| `buero-api` | Büro selling `MPS_RUNTIME_TOKEN` | template `agent-api.mjs` |
+| `eve` | `ZAI_API_KEY` | template `start.mjs` |
+
+`GUTACHTER_SELLER_MNEMONIC` and the MPS secrets (`ENCRYPTION_KEY`, the hot-wallet mnemonics) are in no profile.
+Compose still reads `.local/mps.env` and `.local/mps-secrets.env` through `mps/mps.sh`.
+
 ## Private files (gitignored, mode 600)
 
 | File | Contents | Used by |
 |---|---|---|
-| `.local/mps.env` | `ADMIN_KEY` | `--env-file` for the registration and admin scripts, compose |
-| `.local/mps-secrets.env` (+ `.backup`) | `ENCRYPTION_KEY`, 3 wallet mnemonics | compose and `mps/wallets.mjs add-rm` only |
+| `.local/mps.env` | `ADMIN_KEY` | `.local/env/mps-admin.env` (operator scripts), compose. Never the buyer loop |
+| `.local/mps-secrets.env` (+ `.backup`) | `ENCRYPTION_KEY`, 3 wallet mnemonics | compose and `mps/wallets.mjs add-rm` only. Before real money: keep the mnemonics and the backup off this machine, only `ENCRYPTION_KEY` on the host |
 | `.local/mps-runtime.env` | `MPS_RUNTIME_TOKEN`: ReadAndPay key scoped to the Büro selling wallet | template `paid-task.mjs`, `agent-api.mjs` |
 | `.local/rechnungsmeister-runtime.env` | `MPS_RUNTIME_TOKEN`: ReadAndPay key scoped to the RM selling wallet | RechnungsMeister's agent-api fork |
 | `.local/buero-buyer-runtime.env` | `MPS_BUYER_TOKEN`: ReadAndPay key scoped to the Büro purchasing wallet | Büro-Agent buyer loop (`/purchase`, refunds) |
+| `.local/buero-read-runtime.env` | `MPS_READ_TOKEN`: Read key (canRead only, no wallet scope, Preprod), `mps/read-key.mjs`, key `cmvuvjeyq005h01pguqn7xnxh` | Büro-Agent buyer loop (purchase reads before FundsLocked, seller-side payment history) |
+| `.local/env/*.env` | generated per-process files, see above | every process |
 
 ## Wallets (payment source `cmvupe9jg00044gnyq53exk4m`, Web3CardanoV2, contract `addr_test1wzs4e6wc95hkwezlccjw9mdvq0r0rsgx6zk34avptga3ftgn37w4g`)
 
@@ -41,7 +66,7 @@ How wallets were made: the seed creates one Purchasing and one Selling hot walle
 `PURCHASE_WALLET_PREPROD_MNEMONIC` / `SELLING_WALLET_PREPROD_MNEMONIC`. We generated these ourselves (MeshWallet.brew in the setup image), so they never appear in docker logs.
 The RM selling wallet was added with `PATCH /api/v1/payment-source-extended {id, AddSellingWallets:[{walletMnemonic, note, collectionAddress:null}]}`.
 For more wallets, `POST /api/v1/wallet {network}` returns a fresh mnemonic, which you then add with the same PATCH.
-To list: `GET /api/v1/wallet/list?paymentSourceId=…` (admin), or run `node --env-file=.env --env-file=.local/mps.env mps/wallets.mjs` (adds balances).
+To list: `GET /api/v1/wallet/list?paymentSourceId=…` (admin), or run `node --env-file=.local/env/mps-admin.env mps/wallets.mjs` (adds balances).
 No collection address is set, so payouts stay in each selling wallet.
 
 Funding needs: `plan/FUNDING.md`.
@@ -62,11 +87,11 @@ Once those are done:
 
 ```sh
 export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
-node --env-file=.env --env-file=.local/mps.env mps/rechnungsmeister-registration.mjs register
-node --env-file=.env --env-file=.local/mps.env payment-registration.mjs register
+node --env-file=.local/env/mps-admin.env mps/rechnungsmeister-registration.mjs register
+node --env-file=.local/env/mps-admin.env payment-registration.mjs register
 # poll each (every ~30 s) until state is RegistrationConfirmed:
-node --env-file=.env --env-file=.local/mps.env mps/rechnungsmeister-registration.mjs
-node --env-file=.env --env-file=.local/mps.env payment-registration.mjs
+node --env-file=.local/env/mps-admin.env mps/rechnungsmeister-registration.mjs
+node --env-file=.local/env/mps-admin.env payment-registration.mjs
 ```
 
 After confirmation, add to `docs/registration-state.json` (and to the RM file) the `supportedPaymentSourceIndex` (expected 0; read it from the confirmed registry entry) and `sellerVkey` (the vkey in the table above), as template README step 5 says.
@@ -82,8 +107,16 @@ Evidence:
 - Buyer and seller key hashes differ (purchasing `6d5c…` vs sellers `9007…`, `5a4d…`). The ideation spec says the contract needs that.
 - Not yet run by us on preprod. `GET /api/v1/rail-readiness?network=Preprod` reports CardanoV2 `isReady: true`, `isPurchaseReady: true`.
 
-Caveat for stream D: the buyer key is wallet-scoped. MPS assigns the purchasing wallet to a purchase only at funds lock, so before FundsLocked, `purchase/resolve-blockchain-identifier` with `MPS_BUYER_TOKEN` returns 404. Poll with `ADMIN_KEY` until then.
+Caveat for stream D: the buyer key is wallet-scoped. MPS assigns the purchasing wallet to a purchase only at funds lock, so before FundsLocked, `purchase/resolve-blockchain-identifier` with `MPS_BUYER_TOKEN` returns 404
+(0.29.0 filters every purchase read on `smartContractWalletId`, which is null until the lock). Poll with `MPS_READ_TOKEN` until then (`node --env-file=.local/env/mps-admin.env mps/read-key.mjs`, once):
+canRead only, no wallet scope, Preprod. It reads every purchase and payment on this MPS, but cannot pay, refund, transfer funds, reveal a mnemonic or mint keys
+(live check 30 Oct: 401 on `GET /wallet?includeSecret=true`, `/api-key`, `/wallet/transfer-funds`, `/purchase`, `/purchase/request-refund`, `/payment`).
+The buyer process never holds `ADMIN_KEY`: an admin key skips every wallet scope (`auth-middleware.ts`), so it would give the buyer the sellers' wallets too.
 A scoped key still limits which purchasing wallets MPS uses (`HotWalletLimit`).
+The runtime keys are not usage-limited (audit SECRETS-8, not applied: it changes the live purchase path). To cap the buyer key at
+N purchases, PATCH `/api/v1/api-key` with the admin profile: `{id: <runtimeKeyId in docs/buero-purchasing-state.json>, usageLimited: true,
+UsageCreditsToAddOrRemove: [{unit: '16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde0014df10745553444d', amount: '<N>000000'}]}`
+(the unit MPS stores in `PaidFunds`); a purchase past the credits fails with 400 `Insufficient funds`; `usageLimited: false` lifts the cap.
 Side note: the V2 CI job runs only `tests/e2e/v2/flows/` (batch-verification, source-isolation). `cancel-refund-request-flow.test.ts` runs in the V1 job, so V2 cancel-refund-request is still not covered by CI (matches BUILD_PLAN).
 
 ## Ports (stream D, Fri 30 Oct)

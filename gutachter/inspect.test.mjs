@@ -26,15 +26,17 @@ test('KoSIT 406 is a paid REJECT inspection, still HTTP 200 to the buyer',async(
  const r=await inspect('<Invoice/>',{url:k.url}); k.close();
  assert.equal(r.status,200); assert.equal(r.body.verdict,'REJECT'); assert.equal(r.body.httpStatus,406);
 });
-test('other KoSIT status is 502, so the middleware does not settle',async()=>{
- const k=await kosit(500);
+test('other KoSIT status is 502, so the middleware does not settle; the raw KoSIT body stays server-side',async()=>{
+ const k=await kosit(500,'<html>java.lang.OutOfMemoryError at de.kosit.validationtool.daemon.Handler</html>');
  const r=await inspect('<Invoice/>',{url:k.url}); k.close();
  assert.equal(r.status,502); assert.equal(r.body.verdict,undefined);
+ assert.doesNotMatch(JSON.stringify(r.body),/OutOfMemoryError|validationtool/);
 });
-test('unreachable KoSIT is 503, so the middleware does not settle',async()=>{
+test('unreachable KoSIT is 503, so the middleware does not settle; the internal KoSIT URL is not sent',async()=>{
  const k=await kosit(200); const url=k.url; k.close();
  const r=await inspect('<Invoice/>',{url});
  assert.equal(r.status,503); assert.match(r.body.error,/unreachable/);
+ assert.doesNotMatch(JSON.stringify(r.body),/127\.0\.0\.1/);
 });
 test('stub mode answers ACCEPTABLE without calling KoSIT',async()=>{
  const r=await inspect('<Invoice/>',{url:'http://127.0.0.1:1/',stub:true});

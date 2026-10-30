@@ -38,12 +38,12 @@ const ledger=join(mkdtempSync(join(tmpdir(),'gutachter-test-')),'ledger.json');
 const port=await (async()=>{ const s=await listen(()=>{}); const p=s.address().port; s.close(); return p; })();
 const base=`http://127.0.0.1:${port}`;
 let seller;
+// Only what the seller reads: the test process may hold the operator's secrets, the child must not.
+const sellerEnv=()=>({PATH:process.env.PATH,GUTACHTER_PORT:String(port),GUTACHTER_LEDGER:ledger,
+ GUTACHTER_SELLER_ADDRESS:'addr_test1qzmzrgq7ux2zmn2gn8g7ddwnewu2cuwpluxf9aatn6yjeyfv68x94frsck5pt7hgq5pjk7edjxshy5ep46aw09cuex4qg6x5ce',
+ FACILITATOR_URL:`http://127.0.0.1:${facServer.address().port}`,KOSIT_URL:`http://127.0.0.1:${kositServer.address().port}/`});
 async function startSeller(){
- const env={...process.env,GUTACHTER_PORT:String(port),GUTACHTER_STUB:'',GUTACHTER_LEDGER:ledger,
-  GUTACHTER_SELLER_ADDRESS:'addr_test1qzmzrgq7ux2zmn2gn8g7ddwnewu2cuwpluxf9aatn6yjeyfv68x94frsck5pt7hgq5pjk7edjxshy5ep46aw09cuex4qg6x5ce',
-  FACILITATOR_URL:`http://127.0.0.1:${facServer.address().port}`,KOSIT_URL:`http://127.0.0.1:${kositServer.address().port}/`};
- delete env.GUTACHTER_HOST;
- seller=spawn(process.execPath,['seller.mjs'],{cwd:fileURLToPath(new URL('.',import.meta.url)),stdio:'ignore',env});
+ seller=spawn(process.execPath,['seller.mjs'],{cwd:fileURLToPath(new URL('.',import.meta.url)),stdio:'ignore',env:sellerEnv()});
  for(let i=0;i<100;i++){ try{ if((await fetch(`${base}/health`)).ok) return; }catch{} await new Promise(r=>setTimeout(r,50)); }
  throw new Error('seller did not start');
 }
@@ -96,6 +96,32 @@ test('the ledger survives a seller restart',async()=>{
  const again=await paid(header(PAID[0]),'<Invoice>A</Invoice>');
  assert.equal(again.status,200); assert.equal(again.receipt.transaction,TX);
  assert.equal(kosit.calls,0); assert.equal(fac.settle,0);
+});
+test('/health answers only {ok:true}, and no response advertises X-Powered-By',async()=>{
+ const health=await fetch(`${base}/health`);
+ assert.deepEqual(await health.json(),{ok:true});
+ const unpaid=await fetch(`${base}/inspect`,{method:'POST',body:'<Invoice/>'});
+ assert.equal(unpaid.status,402);
+ for(const res of [health,unpaid]) assert.equal(res.headers.get('x-powered-by'),null);
+});
+test('refuses to start when it holds a project secret it does not need',async()=>{
+ const free=await (async()=>{ const s=await listen(()=>{}); const p=s.address().port; s.close(); return p; })();
+ const child=spawn(process.execPath,['seller.mjs'],{cwd:fileURLToPath(new URL('.',import.meta.url)),stdio:['ignore','ignore','pipe'],
+  env:{...sellerEnv(),GUTACHTER_PORT:String(free),ANTHROPIC_API_KEY:'sentinel-anthropic',GUTACHTER_BUYER_MNEMONIC:'sentinel-mnemonic'}});
+ let stderr=''; child.stderr.on('data',c=>stderr+=c);
+ const [code,signal]=await new Promise(r=>{ const t=setTimeout(()=>child.kill(),5000); child.once('exit',(c,s)=>{ clearTimeout(t); r([c,s]); }); });
+ assert.equal(signal,null,'the seller started instead of refusing'); assert.notEqual(code,0);
+ assert.match(stderr,/ANTHROPIC_API_KEY/); assert.match(stderr,/GUTACHTER_BUYER_MNEMONIC/);
+ assert.doesNotMatch(stderr,/sentinel-/);
+});
+test('without KOSIT_URL the seller uses KOSIT_PORT on 127.0.0.1',async()=>{
+ const free=await (async()=>{ const s=await listen(()=>{}); const p=s.address().port; s.close(); return p; })();
+ const env={...sellerEnv(),GUTACHTER_PORT:String(free),KOSIT_PORT:'18090'}; delete env.KOSIT_URL;
+ const child=spawn(process.execPath,['seller.mjs'],{cwd:fileURLToPath(new URL('.',import.meta.url)),stdio:['ignore','pipe','ignore'],env});
+ let out='';
+ await new Promise((resolve,reject)=>{ const t=setTimeout(()=>reject(new Error(`no KoSIT line in: ${out}`)),5000); child.stdout.on('data',c=>{ out+=c; if(/KoSIT: .*\n/.test(out)){ clearTimeout(t); resolve(); } }); });
+ child.kill(); await new Promise(r=>child.once('exit',r));
+ assert.match(out,/KoSIT: http:\/\/127\.0\.0\.1:18090\/\n/);
 });
 test('binds 127.0.0.1 by default, so a non-loopback address is refused',async t=>{
  const lan=Object.values(networkInterfaces()).flat().find(i=>i.family==='IPv4'&&!i.internal)?.address;

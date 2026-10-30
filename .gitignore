@@ -10,3 +10,10 @@ dist/
 docs/*.json
 .DS_Store
 .claude/
+# secret files outside .local/ (env files, backups, mnemonics, keys)
+*.env
+*.backup
+env.backup*
+*.mnemonic
+*.pem
+*.key

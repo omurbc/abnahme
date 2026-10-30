@@ -19,7 +19,7 @@ sokosumi --version                                   # 1.0.4, installed globally
 | Vendor | `Abnahme`, slug `abnahme-tum26`, ID `01a18c0c-2ef6-71f9-ab8d-3f75e9b431bb`, role admin |
 | Coworker | `Abnahme-Büro`, ID `01a18c0c-c2b5-72ea-93e6-a678359b9cc2`, capability `tasks` |
 | TUM workspace access | access ID `01a18c0c-c3e9-71e8-b420-23fab975cab3`, **PENDING** until a TUM workspace owner/admin approves |
-| Runtime key | in the OS vault (`runtime key-import` → `{"stored":true}`), never in `.env` |
+| Runtime key | in the OS vault (`runtime key-import` → `{"stored":true}`), never in `.env`. The Keychain item trusts the `node@24` binary, not the worker: any Node 24 script run by this macOS user reads it (and the CLI's OAuth token) without a prompt. For real use, run the worker under its own macOS account |
 | `.env` | `COWORKER_ID`, `SOKOSUMI_ORGANIZATION_ID`, `SOKOSUMI_ORGANIZATION_SLUG` set |
 
 **The Personal Workspace path does not work on preprod with CLI 1.0.4.** `coworkers register --personal` and
@@ -58,13 +58,15 @@ Do not rerun `api-key | key-import` after the successful import: it mints a new 
 | MPS 0.29.0 | `mps/mps.sh up -d` | SENDEN (paid), and the escrow inside PRÜFEN with stream D's `runAbnahme` |
 | KoSIT 1.6.3 | `kosit/start.sh` | PRÜFEN |
 | Mailpit | `mail/start.sh` (container `abnahme-mailpit`, SMTP 127.0.0.1:1025, UI http://127.0.0.1:8025) | SENDEN |
-| Gutachter, RechnungsMeister | stream B / D commands | PRÜFEN with stream D's `runAbnahme` only |
-| Worker (exactly one) | `node --env-file=.env --env-file=.local/mps.env --env-file=.local/buero-buyer-runtime.env worker.mjs` | everything |
+| Gutachter | `cd gutachter && npm run seller` (loads `../.local/env/gutachter-seller.env`, no secrets) | PRÜFEN with stream D's `runAbnahme` only |
+| RechnungsMeister | `node --env-file=.local/env/rechnungsmeister.env --import=./scripts/env-guard.mjs rechnungsmeister/server.mjs` | PRÜFEN with stream D's `runAbnahme` only |
+| Worker (exactly one) | `node --env-file=.local/env/buero.env --import=./scripts/env-guard.mjs worker.mjs` | everything |
 | Eve (`npm start`) | **not needed**, see F | |
 
-The worker needs the two extra env files because stream D's `buero/abnahme.mjs` buys with `MPS_BUYER_TOKEN` and reads with
-`ADMIN_KEY`; `npm run worker` loads only `.env` and is enough only with `ABNAHME_IMPL=local`.
-`ABNAHME_IMPL=local npm run worker` uses `buero/abnahme-local.mjs` instead of stream D's `buero/abnahme.mjs`:
+Generate the `.local/env/*.env` files first with `node scripts/env-split.mjs` (see `plan/MPS.md`, "Env files per process"); rerun it
+after every change to `.env`. The `buero` profile holds `MPS_BUYER_TOKEN` (writes), `MPS_READ_TOKEN` (reads before FundsLocked),
+Blockfrost and the Gutachter buyer mnemonic. It holds no `ADMIN_KEY` and no Anthropic key; the guard refuses to start if either is present.
+`ABNAHME_IMPL=local node --env-file=.local/env/buero-local.env --import=./scripts/env-guard.mjs worker.mjs` uses `buero/abnahme-local.mjs` instead of stream D's `buero/abnahme.mjs`:
 the real extraction, XRechnung build, KoSIT validation and semantic checks, but **no escrow purchase and no tx hashes**.
 Extraction follows `EXTRACT_MODE` (`llm` by default, uses `ANTHROPIC_API_KEY`; `fixed` only for the `*.fixed.txt` layout).
 
@@ -96,7 +98,7 @@ sokosumi --preprod runtime receipt TASK_ID --coworker-id $CW --json     # seller
 
 `isPaidReady()` needs `docs/registration-state.json` at `RegistrationConfirmed` plus `.local/mps-runtime.env` (present).
 The coordinator fills `supportedPaymentSourceIndex` and `sellerVkey` after the Abnahme-Büro registration confirms
-(template README step 5). Only then: `PAID_TASKS_ENABLED=true` in `.env` and restart the worker. The template's `npm run api`
+(template README step 5). Only then: `PAID_TASKS_ENABLED=true` in `.env`, `node scripts/env-split.mjs`, and restart the worker. The template's `npm run api`
 is **not** needed for Sokosumi paid tasks: Sokosumi buys from the `masumiPayment` event and never calls the agent API.
 
 ## F. Eve is not needed
