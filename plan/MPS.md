@@ -93,7 +93,7 @@ Side note: the V2 CI job runs only `tests/e2e/v2/flows/` (batch-verification, so
 | RechnungsMeister `rechnungsmeister/server.mjs` (seller MIP-003) | `127.0.0.1:21950` | `AGENT_API_PORT` (21950, set in `.env`) | `mps/rechnungsmeister-registration.mjs` → `http://127.0.0.1:21950` |
 | Abnahme-Büro, template `agent-api.mjs` (`npm run api`) | `127.0.0.1:21951` | `BUERO_API_PORT` (21951, not set in `.env`, default applies) | `payment-registration.mjs` → `http://127.0.0.1:21951` |
 | Eve (template agent) | `127.0.0.1:21949` | `EVE_PORT` | none |
-| x402 Gutachter `gutachter/seller.mjs` | `*:4021` | `GUTACHTER_PORT` | none |
+| x402 Gutachter `gutachter/seller.mjs` | `127.0.0.1:4021` (`GUTACHTER_HOST`) | `GUTACHTER_PORT` | none |
 | KoSIT daemon | `127.0.0.1:8090` | `KOSIT_URL` | none |
 | MPS | `127.0.0.1:38127` | `MPS_PORT` | none |
 

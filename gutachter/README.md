@@ -24,10 +24,10 @@ npm install
 npm run wallet                    # once: appends GUTACHTER_* wallets to ../.env, prints addresses only
 npm run balance                   # buyer balance via Blockfrost (needs about 1.2 tADA per call)
 ../kosit/start.sh                 # KoSIT daemon on 127.0.0.1:8090 (stream C)
-npm run seller                    # terminal 1: Gutachter on :4021
+npm run seller                    # terminal 1: Gutachter on 127.0.0.1:4021
 npm run buy -- fixtures/xrechnung-ok.xml       # terminal 2: pays 1 tADA, prints ACCEPTABLE + tx hash
 npm run buy -- fixtures/xrechnung-no-bt10.xml  # pays 1 tADA, prints REJECT (BR-DE-15)
-npm test                          # verdict mapping tests (no chain, no KoSIT)
+npm test                          # verdicts, replay ledger, resend, bind host (no chain, no KoSIT, no wallet)
 ```
 
 Without KoSIT: `GUTACHTER_STUB=1 npm run seller` answers every paid inspection with a fixed ACCEPTABLE.
@@ -46,16 +46,27 @@ From code (Büro-Agent): `import {buyInspection} from './gutachter/buy.mjs'`, th
 | 400 | body is not XML | no |
 | 503 | KoSIT unreachable | no |
 | 502 | KoSIT answered something other than 200/406 | no |
+| 409 | this payment was already used for a different body | no |
 
 `@x402/express` runs the handler after `/verify` and before `/settle`, buffers the response, and
 cancels settlement when the handler status is 400 or higher. So a KoSIT outage returns 503 and
 nothing is settled on chain. Every response carries `Cache-Control: no-store`. `GET /health` shows the config.
+
+One payment buys one inspection. `ledger.mjs` keeps a file ledger (`.local/ledger.json`, gitignored) keyed by the
+payment's canonical tx hash (the nonce may name any input of the tx, in any letter case, so it is not used as the key).
+The first paid request binds tx, sha256 of the body and the answer.
+A resend of a known payment is answered before the x402 middleware, because the hosted facilitator rejects `/verify`
+(`nonce_not_on_chain`) once the tx is in a block. Same body: the stored answer, KoSIT is not called again, with the
+stored settle receipt; if the first settle answer was lost (e.g. a 504), the seller calls `/settle` once more for the
+stored payment, which the facilitator resumes without broadcasting again. Different body: 409.
 
 ## Env (`../.env`)
 
 | Var | Default | Used by |
 | --- | --- | --- |
 | `GUTACHTER_PORT` | `4021` | seller, buyer |
+| `GUTACHTER_HOST` | `127.0.0.1` | seller (bind address) |
+| `GUTACHTER_LEDGER` | `gutachter/.local/ledger.json` | seller (replay ledger) |
 | `GUTACHTER_URL` | `http://localhost:$GUTACHTER_PORT` | buyer |
 | `KOSIT_URL` | `http://127.0.0.1:8090/` | seller |
 | `GUTACHTER_STUB` | unset (`1` = fixed ACCEPTABLE) | seller |
@@ -72,15 +83,24 @@ nothing is settled on chain. Every response carries `Cache-Control: no-store`. `
 
 ## Payments
 
-Every settled payment is appended to `payments.log.json` as `{time, txHash, verdict}`.
+`buy.mjs` signs one payment and writes its tx hash to `payments.log.json` before the first paid send
+(`status: 'sent'`). When the answer says the payment may still settle (`settlement_pending`,
+`duplicate_settlement`, a receipt without a tx such as a 504 on the facilitator's `/settle`, a 502/504 or a dropped
+connection), it resends the SAME signed header with backoff (5 s, x1.5, up to 30 s) for up to 3 minutes and never
+signs a new payment. The entry then ends as `settled` (with the verdict), `not-charged` or `unknown`
+(check the tx on cardanoscan before paying again).
 
 First payment: [5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9](https://preprod.cardanoscan.io/transaction/5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9) (30 Oct 2026, 1 tADA, verdict ACCEPTABLE)
 
 ## Limits
 
-- If the facilitator stops waiting before the block lands (`settlement_pending`), the buyer gets a 402
-  although the tx may be on chain. Check the payer on preprod.cardanoscan.io before retrying, or it pays twice.
-- A paid retry re-runs the handler (KoSIT is side-effect free, so this is safe).
+- Settlement needs 1 confirmation (the block after the payment's block). In the 30 Oct escrow runs (10:16 and 10:20 UTC)
+  that block came 58-121 s after `/settle` started, and the seller answered after about 61 s with a 402 whose receipt
+  had no tx, although both payments landed. The hosted facilitator sits behind nginx (default proxy timeout 60 s), so
+  this is most likely a gateway timeout on `/settle`. The resend loop above covers it; a buyer that gives up after
+  the 3 minutes leaves the entry at `unknown`.
+- The ledger has no expiry. Delete `.local/ledger.json` only when no payment can still be resent.
 - Fixtures: `fixtures/xrechnung-ok.xml` is `01.01a-INVOICE_ubl.xml` from the official
   [itplr-kosit/xrechnung-testsuite](https://github.com/itplr-kosit/xrechnung-testsuite);
   `xrechnung-no-bt10.xml` is the same file without `cbc:BuyerReference` (BT-10). `placeholder.xml` is for stub mode only.
+  `tx-5820e591.b64` is the signed CBOR of the first paid inspection (public on chain), used by `buy.test.mjs`.

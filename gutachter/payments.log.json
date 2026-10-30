@@ -13,5 +13,11 @@
   "time": "2026-10-30T09:12:31.249Z",
   "txHash": "f846f7980834260f46e297643936ab5f07b2ad27ed4b182f564b1cccdc5c6d9b",
   "verdict": "ACCEPTABLE"
+ },
+ {
+  "time": "2026-10-30T10:41:13.476Z",
+  "txHash": "91be4fe96927613ac918ba7cae199f1f97b7703712208205cbb147da29ad8a83",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
  }
 ]

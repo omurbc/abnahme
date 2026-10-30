@@ -1,15 +1,18 @@
 // Buyer: pays the Gutachter 1 tADA over x402 (Cardano preprod) for one KoSIT inspection.
 // node buy.mjs <file.xml>   prints the verdict and the settlement tx, appends to payments.log.json.
+// It signs ONE payment. While the answer says that payment may still settle, it resends the same signed header
+// (backoff, up to 3 min); it never signs a second payment. The tx hash is logged before the first paid send.
 import {readFileSync,writeFileSync,existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import {x402Client,wrapFetchWithPayment,x402HTTPClient} from '@x402/fetch';
-import {toClientCardanoSigner} from '@x402/cardano';
+import {x402Client,x402HTTPClient} from '@x402/fetch';
+import {toClientCardanoSigner,decodeCardanoTransaction} from '@x402/cardano';
 import {ExactCardanoScheme} from '@x402/cardano/exact/client';
 
 const NETWORK='cardano:preprod';
 const BLOCKFROST='https://cardano-preprod.blockfrost.io/api/v0';
 const MAX_LOVELACE_PER_PAYMENT='1500000';
-const logPath=fileURLToPath(new URL('./payments.log.json',import.meta.url));
+const RETRY_DELAY_MS=5000,RESEND_BUDGET_MS=180_000,MAX_DELAY_MS=30_000;
+const LOG=fileURLToPath(new URL('./payments.log.json',import.meta.url));
 const sellerUrl=process.env.GUTACHTER_URL??`http://localhost:${process.env.GUTACHTER_PORT??4021}`;
 
 function buyer(){
@@ -22,23 +25,53 @@ function buyer(){
  return {client,address:signer.getAddress()};
 }
 
-function appendLog(entry){
+function writeLog(logPath,txHash,fields){
  const log=existsSync(logPath)?JSON.parse(readFileSync(logPath,'utf8')):[];
- log.push(entry);
+ const entry=log.findLast(e=>e.txHash===txHash);
+ if(entry) Object.assign(entry,fields); else log.push({time:new Date().toISOString(),txHash,...fields});
  writeFileSync(logPath,JSON.stringify(log,null,1)+'\n');
 }
 
-// Returns {httpStatus, txHash, verdict, result}. Throws only if no payment could be attempted.
-export async function buyInspection(xml){
- const {client,address}=buyer();
- const res=await wrapFetchWithPayment(fetch,client)(`${sellerUrl}/inspect`,{method:'POST',headers:{'content-type':'application/xml'},body:xml});
- let receipt;
- try{ receipt=new x402HTTPClient(client).getPaymentSettleResponse(name=>res.headers.get(name)); }catch{}
- const result=await res.json().catch(()=>null);
- const txHash=receipt?.transaction||null;
- const verdict=res.ok?result?.verdict??null:null;
- if(txHash) appendLog({time:new Date().toISOString(),txHash,verdict,...(res.ok?{}:{httpStatus:res.status,error:receipt?.errorReason??result?.error??null})});
- return {httpStatus:res.status,payer:address,txHash,verdict,receipt,result};
+// True while the same signed payment may still settle: the facilitator is still confirming (settlement_pending,
+// duplicate_settlement), the seller lost the facilitator's answer (receipt without tx, e.g. a 504 on /settle),
+// a settled receipt came with a failed response, or the connection or a gateway failed.
+function mayStillSettle({status,receipt,error}){
+ if(error) return true;
+ if(receipt?.success) return status!==200;
+ if(receipt) return !receipt.transaction||['settlement_pending','duplicate_settlement'].includes(receipt.errorReason)||(receipt.errorReason==='exact_cardano_settlement_failed'&&receipt.extra?.status!=='expired');
+ return status===502||status===504;
+}
+
+// Returns {httpStatus, payer, txHash, verdict, receipt, result}. txHash is null only when nothing was charged.
+export async function buyInspection(xml,{client,logPath=LOG,retryDelayMs=RETRY_DELAY_MS,budgetMs=RESEND_BUDGET_MS}={}){
+ let address=null;
+ if(!client) ({client,address}=buyer());
+ const http=new x402HTTPClient(client);
+ const url=`${sellerUrl}/inspect`,init={method:'POST',headers:{'content-type':'application/xml'},body:xml};
+ const offer=await fetch(url,init);
+ if(offer.status!==402) return {httpStatus:offer.status,payer:address,txHash:null,verdict:null,result:await offer.json().catch(()=>null)};
+ const payload=await client.createPaymentPayload(http.getPaymentRequiredResponse(name=>offer.headers.get(name),await offer.json().catch(()=>undefined)));
+ const txHash=decodeCardanoTransaction(String(payload.payload.transaction)).txHash;
+ const headers={...init.headers,...http.encodePaymentSignatureHeader(payload)};
+ writeLog(logPath,txHash,{verdict:null,status:'sent'});
+ const deadline=Date.now()+budgetMs;
+ let last,sends=0,delay=retryDelayMs;
+ for(;;){
+  sends++;
+  try{
+   const res=await fetch(url,{...init,headers,signal:AbortSignal.timeout(240_000)});
+   let receipt; try{ receipt=http.getPaymentSettleResponse(name=>res.headers.get(name)); }catch{}
+   last={status:res.status,receipt,result:await res.json().catch(()=>null)};
+  }catch(error){ last={status:null,error}; }
+  if(!mayStillSettle(last)||Date.now()+delay>deadline) break;
+  await new Promise(r=>setTimeout(r,delay));
+  delay=Math.min(delay*1.5,MAX_DELAY_MS);
+ }
+ const {status,receipt,result,error}=last;
+ const outcome=status===200&&receipt?.success?'settled':mayStillSettle(last)||sends>1?'unknown':'not-charged'; // after a resend only cardanoscan can say
+ const verdict=outcome==='settled'?result?.verdict??null:null;
+ writeLog(logPath,txHash,{verdict,status:outcome,...outcome==='settled'?{}:{httpStatus:status,sends,error:receipt?.errorReason??result?.error??error?.message??null}});
+ return {httpStatus:status,payer:address,txHash:outcome==='not-charged'?null:txHash,verdict,receipt,result};
 }
 
 if(import.meta.main){
@@ -52,7 +85,7 @@ if(import.meta.main){
  if(r.txHash) console.log(`tx ${r.txHash}\nhttps://preprod.cardanoscan.io/transaction/${r.txHash}`);
  if(r.httpStatus!==200){
   console.error(`FAILED: ${JSON.stringify(r.result)} receipt=${JSON.stringify(r.receipt??null)}`);
-  console.error('A 402 after about a minute can mean settlement_pending: check the payer on preprod.cardanoscan.io before retrying, or it pays twice.');
+  if(r.txHash) console.error('The payment may still settle: check the tx on preprod.cardanoscan.io before paying again.');
   process.exit(1);
  }
  console.log(`verdict ${r.verdict} (KoSIT HTTP ${r.result.httpStatus})`);
