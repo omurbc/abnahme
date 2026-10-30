@@ -8,3 +8,5 @@ node_modules/
 .output/
 dist/
 docs/*.json
+.DS_Store
+.claude/
