@@ -670,6 +670,14 @@ Addresses to watch on [preprod.cardanoscan.io](https://preprod.cardanoscan.io) (
 
 ---
 
+## Upstream contribution: a bug in the Masumi Payment Service
+
+Building the refund path, we found that MPS 0.26.0 to 0.30.0 never auto-refunds a V2 purchase after the seller authorizes the refund on a dispute. tx-sync writes the old `resultHash` back after `AuthorizeRefund` empties it on chain (`decodedNewContract?.resultHash ?? decodedOldContract.resultHash`), and the refund jobs only select `resultHash: null`. Funds are not lost, but the escrow sits in `RefundAuthorized` until an operator steps in.
+
+- Issue with on-chain and API evidence: [masumi-network/masumi-payment-service#1327](https://github.com/masumi-network/masumi-payment-service/issues/1327)
+- Fix with a regression test (fails before, passes after; full suite, lint and typecheck clean): [masumi-network/masumi-payment-service#1328](https://github.com/masumi-network/masumi-payment-service/pull/1328)
+- Workaround verified on our instance: `POST /request-repair`, then MPS refunded the buyer by itself in [`becff7ad…`](https://preprod.cardanoscan.io/transaction/becff7ad2aa0d3efeb1f8b46e4a5e8a41f35995885a6a991f33b5a6bccb6df04).
+
 ## Status
 
 Hackathon build, Cardano preprod only. Build window Fri 30 Oct 09:00 → Sat 31 Oct 15:00 (Munich time).
