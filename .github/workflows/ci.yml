@@ -56,16 +56,16 @@ jobs:
           fi
       - name: CLI verdicts and exit codes on all four fixtures
         run: |
-          check() { # fixture, recipient, expected exit, expected first line
-            set +e; out=$(node einvoice/cli.mjs "fixtures/$1.fixed.txt" "$2"); got=$?; set -e
+          check() { # fixture, recipient, expected gross total, expected exit, expected first line
+            set +e; out=$(node einvoice/cli.mjs "fixtures/$1.fixed.txt" "$2" "$3"); got=$?; set -e
             printf '%s\n' "$out"
-            [ "$got" = "$3" ] || { echo "::error::$1: exit $got, expected $3"; exit 1; }
-            [ "$(printf '%s\n' "$out" | head -n1)" = "$4" ] || { echo "::error::$1: first line is not '$4'"; exit 1; }
+            [ "$got" = "$4" ] || { echo "::error::$1: exit $got, expected $4"; exit 1; }
+            [ "$(printf '%s\n' "$out" | head -n1)" = "$5" ] || { echo "::error::$1: first line is not '$5'"; exit 1; }
           }
-          check a-reparatur-hv-giesing    hv-giesing 0 'Abnahme: ABGENOMMEN'
-          check b-abschlag-13b-bau-isar   bau-isar   0 'Abnahme: ABGENOMMEN'
-          check c-abschlag-13b-ohne-ustid bau-isar   1 'Abnahme: ABGELEHNT'
-          check d-reparatur-ohne-bt10     hv-giesing 1 'Abnahme: ABGELEHNT'
+          check a-reparatur-hv-giesing    hv-giesing 527.17   0 'Abnahme: ABGENOMMEN'
+          check b-abschlag-13b-bau-isar   bau-isar   18400.00 0 'Abnahme: ABGENOMMEN'
+          check c-abschlag-13b-ohne-ustid bau-isar   18400.00 1 'Abnahme: ABGELEHNT'
+          check d-reparatur-ohne-bt10     hv-giesing 527.17   1 'Abnahme: ABGELEHNT'
           set +e; node einvoice/cli.mjs; got=$?; set -e
           [ "$got" = 2 ] || { echo "::error::CLI without arguments: exit $got, expected 2"; exit 1; }
       - name: Tests leave the checkout clean
