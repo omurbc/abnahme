@@ -1,0 +1,66 @@
+{
+ "AR-2026-0087": {
+  "taskId": "01a18c4b-3a89-717e-905d-6fd3d92b67c5",
+  "recipientProfileId": "bau-isar",
+  "xmlSha256": "8dff81ba2681f5adbec685f38b4925daaffd8e3bfde3a66ef479000407dd7ab3",
+  "xmlFile": ".local/abnahmen/8dff81ba2681f5adbec685f38b4925daaffd8e3bfde3a66ef479000407dd7ab3.xml",
+  "acceptedAt": "2026-10-30T10:24:23.371Z",
+  "purchaseId": "cmvutbwxs003w01pgjkkb2zeu"
+ },
+ "AR-2026-1103": {
+  "taskId": "01a18d10-f338-72bc-a3f0-c6ef8b727616",
+  "recipientProfileId": "bau-isar",
+  "xmlSha256": "06b5900b734e09aa9deea7a07045ef26899f88c87f60435064b701a59c7f2b81",
+  "xmlFile": ".local/abnahmen/06b5900b734e09aa9deea7a07045ef26899f88c87f60435064b701a59c7f2b81.xml",
+  "acceptedAt": "2026-10-30T13:57:35.108Z",
+  "purchaseId": "cmvv11l6o00fk01pgho2m3dw9"
+ },
+ "AR-2026-1101": {
+  "taskId": "01a18d10-ee72-75f4-9c95-e26eaaa5eb60",
+  "recipientProfileId": "bau-isar",
+  "xmlSha256": "ee2041da6f91ac697cae64118f63ae71805e25d8f97899bd0b66f238145a0d51",
+  "xmlFile": ".local/abnahmen/ee2041da6f91ac697cae64118f63ae71805e25d8f97899bd0b66f238145a0d51.xml",
+  "acceptedAt": "2026-10-30T13:59:58.656Z",
+  "purchaseId": "cmvv11lb400fq01pg5lgtxo5y"
+ },
+ "2026-1412": {
+  "taskId": "01a18d1a-29f2-74ea-b07b-e9263f16a9f8",
+  "recipientProfileId": "hv-giesing",
+  "xmlSha256": "694cfb28b3f6d5a8071a932152085bbe33c4774820c97248f20b0edeb9222681",
+  "xmlFile": ".local/abnahmen/694cfb28b3f6d5a8071a932152085bbe33c4774820c97248f20b0edeb9222681.xml",
+  "acceptedAt": "2026-10-30T14:04:00.456Z",
+  "purchaseId": "cmvv1eja200m901pghmuh72a7"
+ },
+ "2026-1409": {
+  "taskId": "01a18d28-2611-7129-826a-e79347e7799f",
+  "recipientProfileId": "hv-giesing",
+  "xmlSha256": "99de1c0b35ec09fe17cadc246c4c1e8991b7613b473f30097e35acd4f3a44749",
+  "xmlFile": ".local/abnahmen/99de1c0b35ec09fe17cadc246c4c1e8991b7613b473f30097e35acd4f3a44749.xml",
+  "acceptedAt": "2026-10-30T14:17:45.620Z",
+  "purchaseId": "cmvv1y5tg00tb01pg35gsdw7b"
+ },
+ "2026-1410": {
+  "taskId": "01a18d2c-f2c8-711f-8eb9-809b8bdf6ef6",
+  "recipientProfileId": "hv-giesing",
+  "xmlSha256": "1e6c5f3cbc87ec676e19ee99989edb5456973d78e6f0f47d4f7949176321eed3",
+  "xmlFile": ".local/abnahmen/1e6c5f3cbc87ec676e19ee99989edb5456973d78e6f0f47d4f7949176321eed3.xml",
+  "acceptedAt": "2026-10-30T14:22:33.093Z",
+  "purchaseId": "cmvv24ysf00vm01pg861309jc"
+ },
+ "AR-2026-1110": {
+  "taskId": "01a18d2c-f2e5-764c-853a-42c22f5f45b6",
+  "recipientProfileId": "bau-isar",
+  "xmlSha256": "b4a7eb5e034feba6beef8e9f93ebd7c7d4a13ca17fcd7aa44aedfa57ae111e6c",
+  "xmlFile": ".local/abnahmen/b4a7eb5e034feba6beef8e9f93ebd7c7d4a13ca17fcd7aa44aedfa57ae111e6c.xml",
+  "acceptedAt": "2026-10-30T14:25:38.356Z",
+  "purchaseId": "cmvv24y7d00vj01pgohrl6vt2"
+ },
+ "AR-2026-1113": {
+  "taskId": "01a18d33-e8b4-70fb-bc8f-3b2897c14db8",
+  "recipientProfileId": "bau-isar",
+  "xmlSha256": "9017e684091c09a9e179669e8349443e6b33dcfb1435a14205ea7054ba1d5331",
+  "xmlFile": ".local/abnahmen/9017e684091c09a9e179669e8349443e6b33dcfb1435a14205ea7054ba1d5331.xml",
+  "acceptedAt": "2026-10-30T14:32:41.538Z",
+  "purchaseId": "cmvv2eqnu00xi01pgtjxyln0u"
+ }
+}

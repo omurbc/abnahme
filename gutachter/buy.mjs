@@ -75,7 +75,7 @@ async function buyOnce(xml,{client,logPath=LOG,retryDelayMs=RETRY_DELAY_MS,budge
  const accepts=required.accepts.filter(a=>a.payTo===PAY_TO);
  if(!accepts.length) throw new Error(`The offer pays ${[...new Set(required.accepts.map(a=>a.payTo))].join(', ')}, not GUTACHTER_SELLER_ADDRESS: nothing signed`);
  const charged=readLog(logPath).filter(e=>e.status!=='not-charged'&&Date.now()-Date.parse(e.time)<86_400_000).length; // sent and unknown may have been paid
- if(charged>=MAX_PAYMENTS_PER_DAY) throw new Error(`x402 budget reached: ${charged} payments in the last 24 h (max ${MAX_PAYMENTS_PER_DAY}, GUTACHTER_MAX_PAYMENTS_PER_DAY), see ${logPath}`);
+ if(charged>=MAX_PAYMENTS_PER_DAY) throw new Error(`x402 budget reached: ${charged} payments in the last 24 h (max ${MAX_PAYMENTS_PER_DAY}, GUTACHTER_MAX_PAYMENTS_PER_DAY), see the Gutachter payment log`);
  const payload=await client.createPaymentPayload({...required,accepts});
  const txHash=decodeCardanoTransaction(String(payload.payload.transaction)).txHash;
  const headers={...init.headers,...http.encodePaymentSignatureHeader(payload)};

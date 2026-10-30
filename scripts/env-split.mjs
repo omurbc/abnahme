@@ -35,6 +35,8 @@ export const PROFILES={
  'buero-api':{secrets:['MPS_RUNTIME_TOKEN'],files:['.local/mps-runtime.env']},
  // Template Eve agent start.mjs (npm start): its OpenAI-compatible model key.
  eve:{secrets:['ZAI_API_KEY']},
+ // board/server.mjs, the read-only demo board: Blockfrost for confirmations, the read-only MPS key for live tx history.
+ board:{secrets:['BLOCKFROST_API_KEY_PREPROD','MPS_READ_TOKEN'],files:['.local/buero-read-runtime.env']},
 };
 
 // The project secrets in env that the profile does not use.

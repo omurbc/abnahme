@@ -1,0 +1,115 @@
+{
+ "id": "2026-10-30T11-46-39-564Z-4debad",
+ "inputKey": "974246f67be0f9a8e6ab80370b20b905d86efb08f4b64b1b38f83df003262bef",
+ "nonce": "4debadec73fa514e7a2a",
+ "inputHash": "75baae3562f58d2f04dc490360e0b2da484bf0e9da34860c3bcb0dfa635a4d36",
+ "profileHash": "a9c6f943c29dff31221fd6b18db4a4ea5391adcd9d4f5550e25da320a815189a",
+ "stage": "done",
+ "round": 0,
+ "disputes": 0,
+ "attempts": [
+  {
+   "round": 0,
+   "attempt": 1,
+   "onChainHash": "c4ee5a0496e0a1623c0998e8c262560f521aeeacc8d3444096d257987cb0599c",
+   "hashSource": "Datum (Blockfrost)",
+   "passed": true,
+   "failures": [],
+   "minor": [],
+   "inspection": {
+    "mode": "local",
+    "txHash": null,
+    "note": null,
+    "httpStatus": 200,
+    "scenario": "EN16931 XRechnung (UBL Invoice)"
+   }
+  }
+ ],
+ "inspectionTxs": [],
+ "log": [
+  {
+   "at": "2026-10-30T11:46:39.572Z",
+   "line": "Auftrag 2026-10-30T11-46-39-564Z-4debad: Rechnung für Hausverwaltung Giesing GmbH, erwarteter Betrag 527,17 €, Prüfprofil a9c6f943c29d…"
+  },
+  {
+   "at": "2026-10-30T11:46:40.460Z",
+   "line": "Angebot von RechnungsMeister (Auftrag 84f3bd78-70d7-4e88-ad75-4e4d241ff5c2): 1 tUSDM, Ergebnis bis 13:11, Freigabe ab 13:31. Eingabe-Hash geprüft."
+  },
+  {
+   "at": "2026-10-30T11:46:41.288Z",
+   "line": "Kauf an den Masumi Payment Service übergeben; 1 tUSDM wird in der Escrow auf Cardano gesperrt."
+  },
+  {
+   "at": "2026-10-30T11:48:52.933Z",
+   "line": "Geld gesperrt (FundsLocked). Warte auf das Ergebnis des RechnungsMeisters."
+  },
+  {
+   "at": "2026-10-30T11:49:43.408Z",
+   "line": "Ergebnis auf Cardano eingereicht (ResultSubmitted). Starte die Abnahmeprüfung."
+  },
+  {
+   "at": "2026-10-30T11:49:45.098Z",
+   "line": "Prüfung 1 (lokaler KoSIT-Prüfer): Ergebnis-Hash (Datum (Blockfrost)) stimmt, KoSIT akzeptiert."
+  },
+  {
+   "at": "2026-10-30T11:49:45.099Z",
+   "line": "ABGENOMMEN. Die Escrow zahlt den RechnungsMeister automatisch nach der Freigabezeit (13:31) aus."
+  },
+  {
+   "at": "2026-10-30T12:42:22.247Z",
+   "line": "Escrow abgeschlossen: Withdrawn."
+  }
+ ],
+ "createdAt": "2026-10-30T11:46:39.565Z",
+ "startJob": {
+  "id": "84f3bd78-70d7-4e88-ad75-4e4d241ff5c2",
+  "job_id": "84f3bd78-70d7-4e88-ad75-4e4d241ff5c2",
+  "status": "awaiting_payment",
+  "input_hash": "75baae3562f58d2f04dc490360e0b2da484bf0e9da34860c3bcb0dfa635a4d36",
+  "identifierFromPurchaser": "4debadec73fa514e7a2a",
+  "blockchainIdentifier": "230330ec0c602cc04c104e01b001890660ba04604306ec362b05180945001cd8402984b25c1120202b3be9477a74ad8a886c1dd0a58e9504f648c2e6289e145c118126028a87428893b3a75d8a79b862e21c1db01c9698a3013b0e0026023762238401940561a585c10605c3d105c5c6744503a0471196c3076581014c4e03a11102804095c582a1422e2803a28674cc886307470ab1e394092aa28762a24023138301456aa7f602a1ec858ba5c3a2a08553d5c493a4802101428a4c2d8430a0d04709454e4915858236c765a3a67284450b07524283b873d1a9ab6f4389476530a8a04166b11081205a2134039fa287405dc06425a3050f42405cf4513a1b101b8086d59c4b39960209c010542229183059c48446c17e483a37532723005d4c94042a3b018752102940f50d4793228364dafe6c33966604a1a2d8c3740a4406f1aa11b0a9671a976ce758a9e082101dde4ea49921d6c270b85c6b43694050b10824c04743202d82f831552f8bb68170a621738d1d8082a18904b243be5267c073b12e19673a10d546b115a98737a7c10605a7d8e0080405d7699190d292486c32b8a34109c084f07f669215d12a9848cdd94388a46cb38306c37a2b3c69369a7ce60b20b2c20ab7106c60be1d9ed6007238094ef40b95d1bce670009c00fa00173a0019d77c0003b800bc0f3c2409f10ec0005801ac4f7433c006ca6002b13c2000b6ce001b8008e2826e2041e00398001e4819e0fb70b83fe0003aeee06cc200a1001dba06009e50381400",
+  "agentIdentifier": "67ab0c92c4ac1610895a1c965ee50aba41a8f1513b15240723b3bd0b10b1b3bfee09a2062af1a65faadc91fe90256b752f2fb71eb9f4923a28000000",
+  "sellerVKey": "5a4de9491113b9c6841a06728203d4f747f0c20ce6d465dcef9c6a03",
+  "paymentSourceType": "Web3CardanoV2",
+  "supportedPaymentSourceIndex": 0,
+  "smartContractAddress": "addr_test1wzs4e6wc95hkwezlccjw9mdvq0r0rsgx6zk34avptga3ftgn37w4g",
+  "amounts": [
+   {
+    "amount": "1000000",
+    "unit": "16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde0014df10745553444d"
+   }
+  ],
+  "payByTime": 1793361399591,
+  "submitResultTime": 1793362299591,
+  "unlockTime": 1793363499591,
+  "externalDisputeUnlockTime": 1793364699591
+ },
+ "purchaseId": "cmvuwpud2006301pggjrwlw6q",
+ "lastXml": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Invoice xmlns=\"urn:oasis:names:specification:ubl:schema:xsd:Invoice-2\" xmlns:cac=\"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2\" xmlns:cbc=\"urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2\">\n\t<cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</cbc:CustomizationID>\n\t<cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>\n\t<cbc:ID>2026-0412</cbc:ID>\n\t<cbc:IssueDate>2026-10-28</cbc:IssueDate>\n\t<cbc:DueDate>2026-11-11</cbc:DueDate>\n\t<cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>\n\t<cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>\n\t<cbc:BuyerReference>OBJ-GIE-0417</cbc:BuyerReference>\n\t<cac:AccountingSupplierParty>\n\t\t<cac:Party>\n\t\t\t<cbc:EndpointID schemeID=\"EM\">rechnung@huber-elektrotechnik.example</cbc:EndpointID>\n\t\t\t<cac:PostalAddress>\n\t\t\t\t<cbc:StreetName>Lindwurmstraße 112</cbc:StreetName>\n\t\t\t\t<cbc:CityName>München</cbc:CityName>\n\t\t\t\t<cbc:PostalZone>80337</cbc:PostalZone>\n\t\t\t\t<cac:Country>\n\t\t\t\t\t<cbc:IdentificationCode>DE</cbc:IdentificationCode>\n\t\t\t\t</cac:Country>\n\t\t\t</cac:PostalAddress>\n\t\t\t<cac:PartyTaxScheme>\n\t\t\t\t<cbc:CompanyID>DE312456789</cbc:CompanyID>\n\t\t\t\t<cac:TaxScheme>\n\t\t\t\t\t<cbc:ID>VAT</cbc:ID>\n\t\t\t\t</cac:TaxScheme>\n\t\t\t</cac:PartyTaxScheme>\n\t\t\t<cac:PartyLegalEntity>\n\t\t\t\t<cbc:RegistrationName>Toni Huber Elektrotechnik GmbH</cbc:RegistrationName>\n\t\t\t</cac:PartyLegalEntity>\n\t\t\t<cac:Contact>\n\t\t\t\t<cbc:Name>Toni Huber</cbc:Name>\n\t\t\t\t<cbc:Telephone>+49 89 7654321</cbc:Telephone>\n\t\t\t\t<cbc:ElectronicMail>rechnung@huber-elektrotechnik.example</cbc:ElectronicMail>\n\t\t\t</cac:Contact>\n\t\t</cac:Party>\n\t</cac:AccountingSupplierParty>\n\t<cac:AccountingCustomerParty>\n\t\t<cac:Party>\n\t\t\t<cbc:EndpointID schemeID=\"EM\">eingangsrechnungen@hv-giesing.example</cbc:EndpointID>\n\t\t\t<cac:PostalAddress>\n\t\t\t\t<cbc:StreetName>Tegernseer Landstraße 75</cbc:StreetName>\n\t\t\t\t<cbc:CityName>München</cbc:CityName>\n\t\t\t\t<cbc:PostalZone>81539</cbc:PostalZone>\n\t\t\t\t<cac:Country>\n\t\t\t\t\t<cbc:IdentificationCode>DE</cbc:IdentificationCode>\n\t\t\t\t</cac:Country>\n\t\t\t</cac:PostalAddress>\n\t\t\t<cac:PartyLegalEntity>\n\t\t\t\t<cbc:RegistrationName>Hausverwaltung Giesing GmbH</cbc:RegistrationName>\n\t\t\t</cac:PartyLegalEntity>\n\t\t</cac:Party>\n\t</cac:AccountingCustomerParty>\n\t<cac:Delivery>\n\t\t<cbc:ActualDeliveryDate>2026-10-23</cbc:ActualDeliveryDate>\n\t</cac:Delivery>\n\t<cac:PaymentMeans>\n\t\t<cbc:PaymentMeansCode>58</cbc:PaymentMeansCode>\n\t\t<cac:PayeeFinancialAccount>\n\t\t\t<cbc:ID>DE20701500000012345678</cbc:ID>\n\t\t\t<cbc:Name>Toni Huber Elektrotechnik GmbH</cbc:Name>\n\t\t</cac:PayeeFinancialAccount>\n\t</cac:PaymentMeans>\n\t<cac:PaymentTerms>\n\t\t<cbc:Note>Zahlbar innerhalb von 14 Tagen ohne Abzug.</cbc:Note>\n\t</cac:PaymentTerms>\n\t<cac:TaxTotal>\n\t\t<cbc:TaxAmount currencyID=\"EUR\">84.17</cbc:TaxAmount>\n\t\t<cac:TaxSubtotal>\n\t\t\t<cbc:TaxableAmount currencyID=\"EUR\">443.00</cbc:TaxableAmount>\n\t\t\t<cbc:TaxAmount currencyID=\"EUR\">84.17</cbc:TaxAmount>\n\t\t\t<cac:TaxCategory>\n\t\t\t\t<cbc:ID>S</cbc:ID>\n\t\t\t\t<cbc:Percent>19</cbc:Percent>\n\t\t\t\t<cac:TaxScheme>\n\t\t\t\t\t<cbc:ID>VAT</cbc:ID>\n\t\t\t\t</cac:TaxScheme>\n\t\t\t</cac:TaxCategory>\n\t\t</cac:TaxSubtotal>\n\t</cac:TaxTotal>\n\t<cac:LegalMonetaryTotal>\n\t\t<cbc:LineExtensionAmount currencyID=\"EUR\">443.00</cbc:LineExtensionAmount>\n\t\t<cbc:TaxExclusiveAmount currencyID=\"EUR\">443.00</cbc:TaxExclusiveAmount>\n\t\t<cbc:TaxInclusiveAmount currencyID=\"EUR\">527.17</cbc:TaxInclusiveAmount>\n\t\t<cbc:PayableAmount currencyID=\"EUR\">527.17</cbc:PayableAmount>\n\t</cac:LegalMonetaryTotal>\n\t<cac:InvoiceLine>\n\t\t<cbc:ID>1</cbc:ID>\n\t\t<cbc:InvoicedQuantity unitCode=\"HUR\">3.5</cbc:InvoicedQuantity>\n\t\t<cbc:LineExtensionAmount currencyID=\"EUR\">238.00</cbc:LineExtensionAmount>\n\t\t<cac:Item>\n\t\t\t<cbc:Name>Fehlersuche und Reparatur Treppenhausbeleuchtung</cbc:Name>\n\t\t\t<cac:ClassifiedTaxCategory>\n\t\t\t\t<cbc:ID>S</cbc:ID>\n\t\t\t\t<cbc:Percent>19</cbc:Percent>\n\t\t\t\t<cac:TaxScheme>\n\t\t\t\t\t<cbc:ID>VAT</cbc:ID>\n\t\t\t\t</cac:TaxScheme>\n\t\t\t</cac:ClassifiedTaxCategory>\n\t\t</cac:Item>\n\t\t<cac:Price>\n\t\t\t<cbc:PriceAmount currencyID=\"EUR\">68</cbc:PriceAmount>\n\t\t</cac:Price>\n\t</cac:InvoiceLine>\n\t<cac:InvoiceLine>\n\t\t<cbc:ID>2</cbc:ID>\n\t\t<cbc:InvoicedQuantity unitCode=\"H87\">4</cbc:InvoicedQuantity>\n\t\t<cbc:LineExtensionAmount currencyID=\"EUR\">170.00</cbc:LineExtensionAmount>\n\t\t<cac:Item>\n\t\t\t<cbc:Name>LED-Panel 30x30 cm, 24 W, inkl. Montage</cbc:Name>\n\t\t\t<cac:ClassifiedTaxCategory>\n\t\t\t\t<cbc:ID>S</cbc:ID>\n\t\t\t\t<cbc:Percent>19</cbc:Percent>\n\t\t\t\t<cac:TaxScheme>\n\t\t\t\t\t<cbc:ID>VAT</cbc:ID>\n\t\t\t\t</cac:TaxScheme>\n\t\t\t</cac:ClassifiedTaxCategory>\n\t\t</cac:Item>\n\t\t<cac:Price>\n\t\t\t<cbc:PriceAmount currencyID=\"EUR\">42.5</cbc:PriceAmount>\n\t\t</cac:Price>\n\t</cac:InvoiceLine>\n\t<cac:InvoiceLine>\n\t\t<cbc:ID>3</cbc:ID>\n\t\t<cbc:InvoicedQuantity unitCode=\"LS\">1</cbc:InvoicedQuantity>\n\t\t<cbc:LineExtensionAmount currencyID=\"EUR\">35.00</cbc:LineExtensionAmount>\n\t\t<cac:Item>\n\t\t\t<cbc:Name>Anfahrtspauschale München</cbc:Name>\n\t\t\t<cac:ClassifiedTaxCategory>\n\t\t\t\t<cbc:ID>S</cbc:ID>\n\t\t\t\t<cbc:Percent>19</cbc:Percent>\n\t\t\t\t<cac:TaxScheme>\n\t\t\t\t\t<cbc:ID>VAT</cbc:ID>\n\t\t\t\t</cac:TaxScheme>\n\t\t\t</cac:ClassifiedTaxCategory>\n\t\t</cac:Item>\n\t\t<cac:Price>\n\t\t\t<cbc:PriceAmount currencyID=\"EUR\">35</cbc:PriceAmount>\n\t\t</cac:Price>\n\t</cac:InvoiceLine>\n</Invoice>",
+ "lastResultHash": "c4ee5a0496e0a1623c0998e8c262560f521aeeacc8d3444096d257987cb0599c",
+ "status": "ACCEPTED",
+ "followUntil": 1793364999591,
+ "txs": [
+  {
+   "label": "FundsLocked",
+   "txHash": "bdb84f45e8cf1720bf29cc0adf31d2bc12dbfd7bfd99fc27190aaed12971f253",
+   "status": "Confirmed",
+   "at": "2026-10-30T11:48:19.000Z",
+   "explorerUrl": "https://preprod.cardanoscan.io/transaction/bdb84f45e8cf1720bf29cc0adf31d2bc12dbfd7bfd99fc27190aaed12971f253"
+  },
+  {
+   "label": "ResultSubmitted",
+   "txHash": "d79cf09e69e5642f0950ddd1ee47a0171aa4ca8d724ec7e5783260b1c918eb61",
+   "status": "Confirmed",
+   "at": "2026-10-30T11:49:18.000Z",
+   "explorerUrl": "https://preprod.cardanoscan.io/transaction/d79cf09e69e5642f0950ddd1ee47a0171aa4ca8d724ec7e5783260b1c918eb61"
+  },
+  {
+   "label": "Withdrawn (deemed acceptance)",
+   "txHash": "1ec56faf0d1167beb8d7b3b2e6388bd5d3cea39ee86a3a7e5cc7a5d3fdbc3dd1",
+   "status": "Confirmed",
+   "at": "2026-10-30T12:42:00.000Z",
+   "explorerUrl": "https://preprod.cardanoscan.io/transaction/1ec56faf0d1167beb8d7b3b2e6388bd5d3cea39ee86a3a7e5cc7a5d3fdbc3dd1"
+  }
+ ]
+}

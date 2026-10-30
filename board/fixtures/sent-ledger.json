@@ -1,0 +1,40 @@
+{
+ "entries": [
+  {
+   "invoiceNumber": "AR-2026-0087",
+   "xmlSha256": "8dff81ba2681f5adbec685f38b4925daaffd8e3bfde3a66ef479000407dd7ab3",
+   "to": "eingangsrechnungen@bau-isar.example",
+   "status": "sent",
+   "reservedAt": "2026-10-30T09:38:24.140Z",
+   "sentAt": "2026-10-30T09:38:24.221Z",
+   "messageId": "<1bc07905-682d-4513-9f3c-2d2c541f90d8@abnahme.local>",
+   "smtpReply": "250 2.0.0 Ok: queued as 0vC5CRzIiDK69V1YJl57Qn"
+  },
+  {
+   "invoiceNumber": "AR-2026-1101",
+   "xmlSha256": "ee2041da6f91ac697cae64118f63ae71805e25d8f97899bd0b66f238145a0d51",
+   "supplyKey": "e9d89f386454d8e2c6b13976318fba3e3f87645d262002319d9b2bd6b00eaec0",
+   "taskId": "01a18d1c-67ff-7489-be7f-25e6b5495da1",
+   "to": "eingangsrechnungen@bau-isar.example",
+   "status": "sent",
+   "reservedAt": "2026-10-30T14:00:13.386Z",
+   "messageId": "<ad5d99a0-21e9-40eb-b5c5-f5f3ca11aee3@abnahme.local>",
+   "sendingAt": "2026-10-30T14:03:04.562Z",
+   "sentAt": "2026-10-30T14:03:04.579Z",
+   "smtpReply": "250 2.0.0 Ok: queued as 3J0kHiP93VNzHb3slB0yiA"
+  },
+  {
+   "invoiceNumber": "2026-1412",
+   "xmlSha256": "694cfb28b3f6d5a8071a932152085bbe33c4774820c97248f20b0edeb9222681",
+   "supplyKey": "1d0ae46531f99ea1670d4ca1fefa7f5d3bc36c1e546039ca68e61048072c0236",
+   "taskId": "01a18d21-d544-71fb-8704-5080f9933487",
+   "to": "eingangsrechnungen@hv-giesing.example",
+   "status": "sent",
+   "reservedAt": "2026-10-30T14:06:12.614Z",
+   "messageId": "<35081490-8e02-4b53-a430-921f42e21c3c@abnahme.local>",
+   "sendingAt": "2026-10-30T14:08:47.246Z",
+   "sentAt": "2026-10-30T14:08:47.256Z",
+   "smtpReply": "250 2.0.0 Ok: queued as 5OFEMKAO2IcYTQ1yGwCk4h"
+  }
+ ]
+}

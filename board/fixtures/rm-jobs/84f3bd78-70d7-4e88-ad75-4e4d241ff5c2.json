@@ -1,0 +1,148 @@
+{
+ "id": "84f3bd78-70d7-4e88-ad75-4e4d241ff5c2",
+ "input": {
+  "invoiceText": "Toni Huber Elektrotechnik GmbH\nLindwurmstraße 112 · 80337 München\nTel. +49 89 7654321 · rechnung@huber-elektrotechnik.example\n\nHausverwaltung Giesing GmbH\nTegernseer Landstraße 75\n81539 München\nE-Rechnung an: eingangsrechnungen@hv-giesing.example\n\nRECHNUNG\n\nRechnungs-Nr.: 2026-0412\nRechnungsdatum: 28.10.2026\nLeistungsdatum: 23.10.2026\nIhr Zeichen / Objekt-Nr.: OBJ-GIE-0417\nAnsprechpartner: Toni Huber\n\nObjekt: Tegernseer Landstraße 75, Treppenhaus Haus B\n\nPos.  Beschreibung                                         Menge      Einheit   Einzelpreis   Gesamt\n1     Fehlersuche und Reparatur Treppenhausbeleuchtung     3,5        Std.      68,00 €       238,00 €\n2     LED-Panel 30x30 cm, 24 W, inkl. Montage               4          Stk.      42,50 €       170,00 €\n3     Anfahrtspauschale München                            1          pauschal  35,00 €        35,00 €\n\n                                               Summe netto                     443,00 €\n                                               zzgl. 19 % USt.                  84,17 €\n                                               Rechnungsbetrag                 527,17 €\n\nZahlbar innerhalb von 14 Tagen ohne Abzug.\n\nBankverbindung: Stadtsparkasse München · IBAN DE20 7015 0000 0012 3456 78 · BIC SSKMDEMMXXX\nUSt-IdNr.: DE312456789 · Amtsgericht München HRB 234567 · Geschäftsführer: Anton Huber\n",
+  "recipientProfileId": "hv-giesing",
+  "expectedTotal": "527.17",
+  "acceptanceProfileHash": "a9c6f943c29dff31221fd6b18db4a4ea5391adcd9d4f5550e25da320a815189a"
+ },
+ "inputHash": "75baae3562f58d2f04dc490360e0b2da484bf0e9da34860c3bcb0dfa635a4d36",
+ "status": "completed",
+ "phase": "result-confirmed",
+ "demo": {
+  "seedDefect": true,
+  "cheat": false
+ },
+ "closed": "Withdrawn",
+ "fields0": {
+  "invoiceNumber": "2026-0412",
+  "invoiceDate": "2026-10-28",
+  "invoiceType": "380",
+  "serviceDate": "2026-10-23",
+  "sellerName": "Toni Huber Elektrotechnik GmbH",
+  "sellerStreet": "Lindwurmstraße 112",
+  "sellerPostcode": "80337",
+  "sellerCity": "München",
+  "sellerCountry": "DE",
+  "sellerVatId": "DE312456789",
+  "sellerIban": "DE20701500000012345678",
+  "sellerContactName": "Toni Huber",
+  "sellerPhone": "+49 89 7654321",
+  "sellerEmail": "rechnung@huber-elektrotechnik.example",
+  "buyerName": "Hausverwaltung Giesing GmbH",
+  "buyerStreet": "Tegernseer Landstraße 75",
+  "buyerPostcode": "81539",
+  "buyerCity": "München",
+  "buyerCountry": "DE",
+  "buyerVatId": null,
+  "buyerEmail": "eingangsrechnungen@hv-giesing.example",
+  "buyerReference": "OBJ-GIE-0417",
+  "lines": [
+   {
+    "description": "Fehlersuche und Reparatur Treppenhausbeleuchtung",
+    "quantity": 3.5,
+    "unit": "HUR",
+    "unitPrice": 68,
+    "vatCategory": "S",
+    "vatRate": 19
+   },
+   {
+    "description": "LED-Panel 30x30 cm, 24 W, inkl. Montage",
+    "quantity": 4,
+    "unit": "H87",
+    "unitPrice": 42.5,
+    "vatCategory": "S",
+    "vatRate": 19
+   },
+   {
+    "description": "Anfahrtspauschale München",
+    "quantity": 1,
+    "unit": "LS",
+    "unitPrice": 35,
+    "vatCategory": "S",
+    "vatRate": 19
+   }
+  ],
+  "netTotal": 443,
+  "vatTotal": 84.17,
+  "grossTotal": 527.17,
+  "dueDate": "2026-11-11",
+  "paymentTerms": "Zahlbar innerhalb von 14 Tagen ohne Abzug.",
+  "reverseCharge": false
+ },
+ "disputes": [],
+ "attempts": [
+  {
+   "attempt": 1,
+   "fields": {
+    "invoiceNumber": "2026-0412",
+    "invoiceDate": "2026-10-28",
+    "invoiceType": "380",
+    "serviceDate": "2026-10-23",
+    "sellerName": "Toni Huber Elektrotechnik GmbH",
+    "sellerStreet": "Lindwurmstraße 112",
+    "sellerPostcode": "80337",
+    "sellerCity": "München",
+    "sellerCountry": "DE",
+    "sellerVatId": "DE312456789",
+    "sellerIban": "DE20701500000012345678",
+    "sellerContactName": "Toni Huber",
+    "sellerPhone": "+49 89 7654321",
+    "sellerEmail": "rechnung@huber-elektrotechnik.example",
+    "buyerName": "Hausverwaltung Giesing GmbH",
+    "buyerStreet": "Tegernseer Landstraße 75",
+    "buyerPostcode": "81539",
+    "buyerCity": "München",
+    "buyerCountry": "DE",
+    "buyerVatId": null,
+    "buyerEmail": "eingangsrechnungen@hv-giesing.example",
+    "buyerReference": "OBJ-GIE-0417",
+    "lines": [
+     {
+      "description": "Fehlersuche und Reparatur Treppenhausbeleuchtung",
+      "quantity": 3.5,
+      "unit": "HUR",
+      "unitPrice": 68,
+      "vatCategory": "S",
+      "vatRate": 19
+     },
+     {
+      "description": "LED-Panel 30x30 cm, 24 W, inkl. Montage",
+      "quantity": 4,
+      "unit": "H87",
+      "unitPrice": 42.5,
+      "vatCategory": "S",
+      "vatRate": 19
+     },
+     {
+      "description": "Anfahrtspauschale München",
+      "quantity": 1,
+      "unit": "LS",
+      "unitPrice": 35,
+      "vatCategory": "S",
+      "vatRate": 19
+     }
+    ],
+    "netTotal": 443,
+    "vatTotal": 84.17,
+    "grossTotal": 527.17,
+    "dueDate": "2026-11-11",
+    "paymentTerms": "Zahlbar innerhalb von 14 Tagen ohne Abzug.",
+    "reverseCharge": false
+   },
+   "manifest": {
+    "attempt": 1,
+    "kositVerdict": "ACCEPTABLE",
+    "profileHash": "a9c6f943c29dff31221fd6b18db4a4ea5391adcd9d4f5550e25da320a815189a",
+    "scenario": "EN16931 XRechnung (UBL Invoice)",
+    "xmlSha256": "8104d05c84b8a0a0f11ce7e228cd1272896bbc3565a290b27650d7929b8f6fc1"
+   },
+   "resultHash": "c4ee5a0496e0a1623c0998e8c262560f521aeeacc8d3444096d257987cb0599c",
+   "selfCheck": {
+    "passed": true,
+    "failures": []
+   },
+   "seededDefect": "BT-48 (buyerVatId) removed, DEMO_SEED_DEFECT=1"
+  }
+ ]
+}

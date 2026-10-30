@@ -1,0 +1,143 @@
+[
+ {
+  "time": "2026-10-30T08:58:42.481Z",
+  "txHash": "5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9",
+  "verdict": "ACCEPTABLE"
+ },
+ {
+  "time": "2026-10-30T09:10:15.842Z",
+  "txHash": "7dc0c48aeea27ad28af8329a6eab14730aa77756ca1f4e95d6261293034ced60",
+  "verdict": "REJECT"
+ },
+ {
+  "time": "2026-10-30T09:12:31.249Z",
+  "txHash": "f846f7980834260f46e297643936ab5f07b2ad27ed4b182f564b1cccdc5c6d9b",
+  "verdict": "ACCEPTABLE"
+ },
+ {
+  "time": "2026-10-30T10:41:13.476Z",
+  "txHash": "91be4fe96927613ac918ba7cae199f1f97b7703712208205cbb147da29ad8a83",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T11:54:34.640Z",
+  "txHash": "4991bca3b5c973dc74fdfe3ec8761620a5ec44e9efa6480d4c96907806af3743",
+  "verdict": "REJECT",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T11:56:16.472Z",
+  "txHash": "138b9c0a11d991f1306277a23e2273bcd60ac5c75d92e9944df4d24684714a4e",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T13:33:22.599Z",
+  "id": "92d0609363e9",
+  "txHash": "6c2b9e77358f07a8d3c94baf95a3e20ceeed86d3b04b320703048b2a156311a9",
+  "verdict": "REJECT",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T13:35:19.077Z",
+  "id": "6fb7f461a657",
+  "txHash": "caa5f314453d928794e5e169e73cc8cbcdcf7e6a533c0aeb95210cf57e126eac",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T13:50:53.808Z",
+  "id": "e20f2960b684",
+  "txHash": "503401f485728a072efef615bbaa20bc36ad235f348f70e50c1014140e6819ad",
+  "verdict": "REJECT",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T13:51:34.814Z",
+  "id": "ac72a8a2fd6d",
+  "txHash": "06203bd11972376a1e967da91a6142f086619d912bd6a7d8d4c0f3ee8839d447",
+  "verdict": "REJECT",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T13:53:14.530Z",
+  "id": "d10e58a8b6fd",
+  "txHash": "660fa3de6a18bc9ab59784add0d37abd949282e0c2dc3ddea816ca5f4efba69c",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T13:55:15.841Z",
+  "id": "2a47d370e2ac",
+  "txHash": "c0d8679b7dc556d589e2aad348cd730c7356ffd631133129aee86db1c06bf05f",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T14:03:39.087Z",
+  "id": "c2485f9022d2",
+  "txHash": "3bd5b914e22abe28e2905a9705da67b3738c55a8ee0e5d3e8debbbed01d6b6bd",
+  "verdict": "REJECT",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T14:03:59.135Z",
+  "id": "9805f0fbe8de",
+  "txHash": "1482258bad80ee9f5432465174ae0e545511f6c6758572168c5c820dcda66dd0",
+  "verdict": null,
+  "status": "not-charged",
+  "httpStatus": 402,
+  "sends": 1,
+  "error": null
+ },
+ {
+  "time": "2026-10-30T14:10:24.734Z",
+  "id": "7dbb0cee748b",
+  "txHash": "a855cc9d209bfdd8b40658a40aeb76134b4167e00cbcb49c63851fa0f4406e76",
+  "verdict": "REJECT",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T14:17:14.495Z",
+  "id": "77cc41d03606",
+  "txHash": "3f94bfdac6d751f1c6942a27024019a026a3a30321e24f152b8975b689e9e0f3",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T14:19:58.261Z",
+  "id": "c8c4cfb7d34a",
+  "txHash": "b00212f7d1e6973025b3100e736892ebfd9159384b367531c32fb71f0ff7321a",
+  "verdict": "REJECT",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T14:20:44.228Z",
+  "id": "240674e9c7c5",
+  "txHash": "bec2eb5660ccd760c26dae7a1301734a7f79b532e470c209136d734f693488bb",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T14:22:47.930Z",
+  "id": "48ca3acab0db",
+  "txHash": "b0203afbe0b5d6dbb9d8fff4226597655c6a644d86983f3b8df50810b86868ff",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T14:28:44.282Z",
+  "id": "69cc406fe047",
+  "txHash": "3d20048616dda41fcac8f743479e6afe7db330982c90a1af6b79de901404e01a",
+  "verdict": "ACCEPTABLE",
+  "status": "settled"
+ },
+ {
+  "time": "2026-10-30T14:29:32.723Z",
+  "id": "1c5bf066d21c",
+  "txHash": "4eda26c5a65ae6d5cea1e03a745e591cff657a37c03407ce92b9dde635747f8f",
+  "verdict": "REJECT",
+  "status": "settled"
+ }
+]

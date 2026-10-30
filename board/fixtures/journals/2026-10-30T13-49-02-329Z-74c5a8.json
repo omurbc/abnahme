@@ -1,0 +1,173 @@
+{
+ "id": "2026-10-30T13-49-02-329Z-74c5a8",
+ "inputKey": "6be530ecfd251c37130417b9319eaf94bb59c205822fc26aedf76771dcc17b2c",
+ "nonce": "74c5a8daf02753e53b1c",
+ "inputHash": "3747038c8d722003044a5c6946d076d9b5ba2e6e67ed57f2d1b4d84590f25336",
+ "profileHash": "a9c6f943c29dff31221fd6b18db4a4ea5391adcd9d4f5550e25da320a815189a",
+ "stage": "done",
+ "round": 0,
+ "disputes": 1,
+ "attempts": [
+  {
+   "round": 0,
+   "attempt": 1,
+   "onChainHash": "d59db357c57bfc7be1c7c8044c860c943961c466b0e3dccb2df375e82bc71041",
+   "hashSource": "Datum (Blockfrost)",
+   "passed": false,
+   "failures": [
+    {
+     "code": "ABN-BETRAG",
+     "textDe": "Der Zahlbetrag (BT-115) ist 527,17 €, erwartet waren 600,00 €."
+    }
+   ],
+   "minor": [],
+   "inspection": {
+    "mode": "local",
+    "txHash": null,
+    "note": null,
+    "httpStatus": 200,
+    "scenario": "EN16931 XRechnung (UBL Invoice)"
+   }
+  }
+ ],
+ "inspectionTxs": [],
+ "log": [
+  {
+   "at": "2026-10-30T13:49:02.337Z",
+   "line": "Auftrag 2026-10-30T13-49-02-329Z-74c5a8: Rechnung für Hausverwaltung Giesing GmbH, erwarteter Betrag 600,00 €, Prüfprofil a9c6f943c29d…"
+  },
+  {
+   "at": "2026-10-30T13:49:03.088Z",
+   "line": "Angebot von RechnungsMeister (Auftrag 3676f1ca-de40-44b3-8136-08102e381baf): 1 tUSDM, Ergebnis bis 15:14, Freigabe ab 15:34. Eingabe-Hash geprüft."
+  },
+  {
+   "at": "2026-10-30T13:49:03.903Z",
+   "line": "Kauf an den Masumi Payment Service übergeben; 1 tUSDM wird in der Escrow auf Cardano gesperrt."
+  },
+  {
+   "at": "2026-10-30T13:50:14.831Z",
+   "line": "Geld gesperrt (FundsLocked). Der RechnungsMeister liest jetzt die Rechnung aus und erstellt die XRechnung; warte auf das Ergebnis."
+  },
+  {
+   "at": "2026-10-30T13:59:29.278Z",
+   "line": "Ergebnis auf Cardano eingereicht (ResultSubmitted). Starte die Abnahmeprüfung."
+  },
+  {
+   "at": "2026-10-30T13:59:31.150Z",
+   "line": "Prüfung 1 (lokaler KoSIT-Prüfer): Ergebnis-Hash (Datum (Blockfrost)) stimmt, KoSIT akzeptiert."
+  },
+  {
+   "at": "2026-10-30T13:59:31.151Z",
+   "line": "Mängel: [ABN-BETRAG] Der Zahlbetrag (BT-115) ist 527,17 €, erwartet waren 600,00 €."
+  },
+  {
+   "at": "2026-10-30T13:59:31.291Z",
+   "line": "Mängelrüge auf Cardano: Rückerstattung verlangt, die Escrow geht in den Streitfall (Disputed)."
+  },
+  {
+   "at": "2026-10-30T14:00:21.756Z",
+   "line": "Streitfall bestätigt (Disputed). Das Geld ist eingefroren. Sende das Prüfprotokoll an den RechnungsMeister."
+  },
+  {
+   "at": "2026-10-30T14:00:21.926Z",
+   "line": "Rechnung abgelehnt. Der RechnungsMeister kann nicht nachbessern (Mangel ABN-BETRAG ist nicht heilbar.) und gibt die Rückerstattung frei."
+  },
+  {
+   "at": "2026-10-30T14:01:42.612Z",
+   "line": "Rechnung abgelehnt. Rückerstattung auf Cardano freigegeben (RefundAuthorized); das Geld geht an das Büro zurück. Hinweis für den Betreiber: MPS 0.29.0 holt eine Erstattung mit gesetztem resultHash nicht selbst ab (upstream #1327); WithdrawRefund muss ausgelöst werden."
+  },
+  {
+   "at": "2026-10-30T14:12:47.862Z",
+   "line": "Escrow abgeschlossen: RefundWithdrawn."
+  }
+ ],
+ "createdAt": "2026-10-30T13:49:02.329Z",
+ "startJob": {
+  "id": "3676f1ca-de40-44b3-8136-08102e381baf",
+  "job_id": "3676f1ca-de40-44b3-8136-08102e381baf",
+  "status": "awaiting_payment",
+  "input_hash": "3747038c8d722003044a5c6946d076d9b5ba2e6e67ed57f2d1b4d84590f25336",
+  "identifierFromPurchaser": "74c5a8daf02753e53b1c",
+  "blockchainIdentifier": "3b0660262c0c6c00c0666013010c451008cc0530071e02b21d143806c2009cc0ad1ef124802c2bce79c125612b3023016034930306180e30e47304e2932c28549145651fb97eb0f0f14fd9794238721580afbf140dfa17e596cb585cb1630b1336cf98b3c13b0a8509161c951e0ac8de05050c195f8fca9609109c93181089119e0d3f87130a9e198544082f161ca2a00e98198a178f0c0d893d2414c1ca12af19908f1c9024161f94561baf18304e1a070a87051f0a0348cd065a103e16163d2ca914ca80402a2119291f298cd310930c8c16b0338b5c9991eb88d41407ba9cb799970f6a9f801582a141c85d2b084b8635838198f01ab01d65060991c837232c470f06079050d090221d62019060eae75c345320270b4951dc4d0e08692349d06e7c6611531984a169f41c5056940fc94ac346c154af56c5406181f2c0e612490a8a806de00d0426130440094a4e20456850cc0fe261182a2e950f5d7188f5e5d074aa968211389c10e94d73070caae6351044bc3a4a2301eaf0ea0cb20f80a765a2e580fc1690c1848789c0fcb0617c195e31e9e15af0101155d981333115cc78701302847a0db5e19c085f3703c254f835ed1eab8e550ad8a1136719066733c02d34bc226c9944d4d8f492bb7d815718c0ca9d921e4bb5d6e2816f88004e007d000b8e000ce07fe001dc005ec78f791cfca420002c00d6e79c25e00360b0015b9ea8005b30000370011d601ddc0e3c00730003dc84bd9f7cc50202000703ca0b41e0742003b481cf660a0a00",
+  "agentIdentifier": "67ab0c92c4ac1610895a1c965ee50aba41a8f1513b15240723b3bd0b10b1b3bfee09a2062af1a65faadc91fe90256b752f2fb71eb9f4923a28000000",
+  "sellerVKey": "5a4de9491113b9c6841a06728203d4f747f0c20ce6d465dcef9c6a03",
+  "paymentSourceType": "Web3CardanoV2",
+  "supportedPaymentSourceIndex": 0,
+  "smartContractAddress": "addr_test1wzs4e6wc95hkwezlccjw9mdvq0r0rsgx6zk34avptga3ftgn37w4g",
+  "amounts": [
+   {
+    "amount": "1000000",
+    "unit": "16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde0014df10745553444d"
+   }
+  ],
+  "payByTime": 1793368742357,
+  "submitResultTime": 1793369642357,
+  "unlockTime": 1793370842357,
+  "externalDisputeUnlockTime": 1793372042357
+ },
+ "purchaseId": "cmvv137yp00h201pgs837om7o",
+ "escrowState": "RefundWithdrawn",
+ "inspected": {
+  "resultSha256": "85a694848982ca639b2e88ee763f70a9eaa52cd6ebe7acfe1bd123e0be890c1c",
+  "inspection": {
+   "mode": "local",
+   "txHash": null,
+   "note": null,
+   "kosit": {
+    "accepted": true,
+    "httpStatus": 200,
+    "scenario": "EN16931 XRechnung (UBL Invoice)",
+    "engine": "KoSIT Validator 1.6.3",
+    "messages": []
+   }
+  }
+ },
+ "lastXml": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Invoice xmlns=\"urn:oasis:names:specification:ubl:schema:xsd:Invoice-2\" xmlns:cac=\"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2\" xmlns:cbc=\"urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2\">\n\t<cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</cbc:CustomizationID>\n\t<cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>\n\t<cbc:ID>2026-LB501</cbc:ID>\n\t<cbc:IssueDate>2026-10-28</cbc:IssueDate>\n\t<cbc:DueDate>2026-11-11</cbc:DueDate>\n\t<cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>\n\t<cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>\n\t<cbc:BuyerReference>OBJ-GIE-0417</cbc:BuyerReference>\n\t<cac:AccountingSupplierParty>\n\t\t<cac:Party>\n\t\t\t<cbc:EndpointID schemeID=\"EM\">rechnung@huber-elektrotechnik.example</cbc:EndpointID>\n\t\t\t<cac:PostalAddress>\n\t\t\t\t<cbc:StreetName>Lindwurmstraße 112</cbc:StreetName>\n\t\t\t\t<cbc:CityName>München</cbc:CityName>\n\t\t\t\t<cbc:PostalZone>80337</cbc:PostalZone>\n\t\t\t\t<cac:Country>\n\t\t\t\t\t<cbc:IdentificationCode>DE</cbc:IdentificationCode>\n\t\t\t\t</cac:Country>\n\t\t\t</cac:PostalAddress>\n\t\t\t<cac:PartyTaxScheme>\n\t\t\t\t<cbc:CompanyID>DE312456789</cbc:CompanyID>\n\t\t\t\t<cac:TaxScheme>\n\t\t\t\t\t<cbc:ID>VAT</cbc:ID>\n\t\t\t\t</cac:TaxScheme>\n\t\t\t</cac:PartyTaxScheme>\n\t\t\t<cac:PartyLegalEntity>\n\t\t\t\t<cbc:RegistrationName>Toni Huber Elektrotechnik GmbH</cbc:RegistrationName>\n\t\t\t</cac:PartyLegalEntity>\n\t\t\t<cac:Contact>\n\t\t\t\t<cbc:Name>Toni Huber</cbc:Name>\n\t\t\t\t<cbc:Telephone>+49 89 7654321</cbc:Telephone>\n\t\t\t\t<cbc:ElectronicMail>rechnung@huber-elektrotechnik.example</cbc:ElectronicMail>\n\t\t\t</cac:Contact>\n\t\t</cac:Party>\n\t</cac:AccountingSupplierParty>\n\t<cac:AccountingCustomerParty>\n\t\t<cac:Party>\n\t\t\t<cbc:EndpointID schemeID=\"EM\">eingangsrechnungen@hv-giesing.example</cbc:EndpointID>\n\t\t\t<cac:PostalAddress>\n\t\t\t\t<cbc:StreetName>Tegernseer Landstraße 75</cbc:StreetName>\n\t\t\t\t<cbc:CityName>München</cbc:CityName>\n\t\t\t\t<cbc:PostalZone>81539</cbc:PostalZone>\n\t\t\t\t<cac:Country>\n\t\t\t\t\t<cbc:IdentificationCode>DE</cbc:IdentificationCode>\n\t\t\t\t</cac:Country>\n\t\t\t</cac:PostalAddress>\n\t\t\t<cac:PartyLegalEntity>\n\t\t\t\t<cbc:RegistrationName>Hausverwaltung Giesing GmbH</cbc:RegistrationName>\n\t\t\t</cac:PartyLegalEntity>\n\t\t</cac:Party>\n\t</cac:AccountingCustomerParty>\n\t<cac:Delivery>\n\t\t<cbc:ActualDeliveryDate>2026-10-23</cbc:ActualDeliveryDate>\n\t</cac:Delivery>\n\t<cac:PaymentMeans>\n\t\t<cbc:PaymentMeansCode>58</cbc:PaymentMeansCode>\n\t\t<cac:PayeeFinancialAccount>\n\t\t\t<cbc:ID>DE20701500000012345678</cbc:ID>\n\t\t\t<cbc:Name>Toni Huber Elektrotechnik GmbH</cbc:Name>\n\t\t</cac:PayeeFinancialAccount>\n\t</cac:PaymentMeans>\n\t<cac:PaymentTerms>\n\t\t<cbc:Note>Zahlbar innerhalb von 14 Tagen ohne Abzug.</cbc:Note>\n\t</cac:PaymentTerms>\n\t<cac:TaxTotal>\n\t\t<cbc:TaxAmount currencyID=\"EUR\">84.17</cbc:TaxAmount>\n\t\t<cac:TaxSubtotal>\n\t\t\t<cbc:TaxableAmount currencyID=\"EUR\">443.00</cbc:TaxableAmount>\n\t\t\t<cbc:TaxAmount currencyID=\"EUR\">84.17</cbc:TaxAmount>\n\t\t\t<cac:TaxCategory>\n\t\t\t\t<cbc:ID>S</cbc:ID>\n\t\t\t\t<cbc:Percent>19</cbc:Percent>\n\t\t\t\t<cac:TaxScheme>\n\t\t\t\t\t<cbc:ID>VAT</cbc:ID>\n\t\t\t\t</cac:TaxScheme>\n\t\t\t</cac:TaxCategory>\n\t\t</cac:TaxSubtotal>\n\t</cac:TaxTotal>\n\t<cac:LegalMonetaryTotal>\n\t\t<cbc:LineExtensionAmount currencyID=\"EUR\">443.00</cbc:LineExtensionAmount>\n\t\t<cbc:TaxExclusiveAmount currencyID=\"EUR\">443.00</cbc:TaxExclusiveAmount>\n\t\t<cbc:TaxInclusiveAmount currencyID=\"EUR\">527.17</cbc:TaxInclusiveAmount>\n\t\t<cbc:PayableAmount currencyID=\"EUR\">527.17</cbc:PayableAmount>\n\t</cac:LegalMonetaryTotal>\n\t<cac:InvoiceLine>\n\t\t<cbc:ID>1</cbc:ID>\n\t\t<cbc:InvoicedQuantity unitCode=\"HUR\">3.5</cbc:InvoicedQuantity>\n\t\t<cbc:LineExtensionAmount currencyID=\"EUR\">238.00</cbc:LineExtensionAmount>\n\t\t<cac:Item>\n\t\t\t<cbc:Name>Fehlersuche und Reparatur Treppenhausbeleuchtung</cbc:Name>\n\t\t\t<cac:ClassifiedTaxCategory>\n\t\t\t\t<cbc:ID>S</cbc:ID>\n\t\t\t\t<cbc:Percent>19</cbc:Percent>\n\t\t\t\t<cac:TaxScheme>\n\t\t\t\t\t<cbc:ID>VAT</cbc:ID>\n\t\t\t\t</cac:TaxScheme>\n\t\t\t</cac:ClassifiedTaxCategory>\n\t\t</cac:Item>\n\t\t<cac:Price>\n\t\t\t<cbc:PriceAmount currencyID=\"EUR\">68</cbc:PriceAmount>\n\t\t</cac:Price>\n\t</cac:InvoiceLine>\n\t<cac:InvoiceLine>\n\t\t<cbc:ID>2</cbc:ID>\n\t\t<cbc:InvoicedQuantity unitCode=\"H87\">4</cbc:InvoicedQuantity>\n\t\t<cbc:LineExtensionAmount currencyID=\"EUR\">170.00</cbc:LineExtensionAmount>\n\t\t<cac:Item>\n\t\t\t<cbc:Name>LED-Panel 30x30 cm, 24 W, inkl. Montage</cbc:Name>\n\t\t\t<cac:ClassifiedTaxCategory>\n\t\t\t\t<cbc:ID>S</cbc:ID>\n\t\t\t\t<cbc:Percent>19</cbc:Percent>\n\t\t\t\t<cac:TaxScheme>\n\t\t\t\t\t<cbc:ID>VAT</cbc:ID>\n\t\t\t\t</cac:TaxScheme>\n\t\t\t</cac:ClassifiedTaxCategory>\n\t\t</cac:Item>\n\t\t<cac:Price>\n\t\t\t<cbc:PriceAmount currencyID=\"EUR\">42.5</cbc:PriceAmount>\n\t\t</cac:Price>\n\t</cac:InvoiceLine>\n\t<cac:InvoiceLine>\n\t\t<cbc:ID>3</cbc:ID>\n\t\t<cbc:InvoicedQuantity unitCode=\"LS\">1</cbc:InvoicedQuantity>\n\t\t<cbc:LineExtensionAmount currencyID=\"EUR\">35.00</cbc:LineExtensionAmount>\n\t\t<cac:Item>\n\t\t\t<cbc:Name>Anfahrtspauschale München</cbc:Name>\n\t\t\t<cac:ClassifiedTaxCategory>\n\t\t\t\t<cbc:ID>S</cbc:ID>\n\t\t\t\t<cbc:Percent>19</cbc:Percent>\n\t\t\t\t<cac:TaxScheme>\n\t\t\t\t\t<cbc:ID>VAT</cbc:ID>\n\t\t\t\t</cac:TaxScheme>\n\t\t\t</cac:ClassifiedTaxCategory>\n\t\t</cac:Item>\n\t\t<cac:Price>\n\t\t\t<cbc:PriceAmount currencyID=\"EUR\">35</cbc:PriceAmount>\n\t\t</cac:Price>\n\t</cac:InvoiceLine>\n</Invoice>",
+ "lastResultHash": "d59db357c57bfc7be1c7c8044c860c943961c466b0e3dccb2df375e82bc71041",
+ "pendingFailures": [
+  {
+   "code": "ABN-BETRAG",
+   "textDe": "Der Zahlbetrag (BT-115) ist 527,17 €, erwartet waren 600,00 €."
+  }
+ ],
+ "refundUntil": 1793370021984,
+ "status": "REFUSED",
+ "followUntil": 1793371302668,
+ "txs": [
+  {
+   "label": "FundsLocked",
+   "txHash": "5a03d782a89790c3dd875d22d4b9adfe21abc24b51fe680caec080cfb9867b40",
+   "status": "Confirmed",
+   "at": "2026-10-30T13:49:51.000Z",
+   "explorerUrl": "https://preprod.cardanoscan.io/transaction/5a03d782a89790c3dd875d22d4b9adfe21abc24b51fe680caec080cfb9867b40"
+  },
+  {
+   "label": "ResultSubmitted",
+   "txHash": "21650d0a8920ca50f35d0c542b683e632ebc5d7aa854e4c3ca606cc3e2192cae",
+   "status": "Confirmed",
+   "at": "2026-10-30T13:59:13.000Z",
+   "explorerUrl": "https://preprod.cardanoscan.io/transaction/21650d0a8920ca50f35d0c542b683e632ebc5d7aa854e4c3ca606cc3e2192cae"
+  },
+  {
+   "label": "Disputed",
+   "txHash": "d1b09bbc5fedd91799aff2ad975b86ed14ed3b0247f5329e9f4a03e33d6219c6",
+   "status": "Confirmed",
+   "at": "2026-10-30T14:00:02.000Z",
+   "explorerUrl": "https://preprod.cardanoscan.io/transaction/d1b09bbc5fedd91799aff2ad975b86ed14ed3b0247f5329e9f4a03e33d6219c6"
+  },
+  {
+   "label": "AuthorizeRefund",
+   "txHash": "f67f2650b44d622cfc62b62fb77c6c352ac7454051fdfae61a4d8ab6d6b393e1",
+   "status": "Confirmed",
+   "at": "2026-10-30T14:01:15.000Z",
+   "explorerUrl": "https://preprod.cardanoscan.io/transaction/f67f2650b44d622cfc62b62fb77c6c352ac7454051fdfae61a4d8ab6d6b393e1"
+  },
+  {
+   "label": "RefundWithdrawn",
+   "txHash": "81ba3629fe98727b3da132da8935a8d967147feb352a649c0f48d8779ebc393d",
+   "status": "Confirmed",
+   "at": "2026-10-30T14:12:35.000Z",
+   "explorerUrl": "https://preprod.cardanoscan.io/transaction/81ba3629fe98727b3da132da8935a8d967147feb352a649c0f48d8779ebc393d"
+  }
+ ]
+}

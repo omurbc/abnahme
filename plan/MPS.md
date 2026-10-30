@@ -38,6 +38,7 @@ when a project secret outside the profile is present (for example when `.env` is
 | `mps-admin` | `ADMIN_KEY`, Blockfrost | one-shot operator scripts (`mps/*.mjs`, registration scripts) |
 | `buero-api` | Büro selling `MPS_RUNTIME_TOKEN` | template `agent-api.mjs` |
 | `eve` | `ZAI_API_KEY` | template `start.mjs` |
+| `board` | Blockfrost, `MPS_READ_TOKEN` | `board/server.mjs` (read-only demo board) |
 
 `GUTACHTER_SELLER_MNEMONIC` and the MPS secrets (`ENCRYPTION_KEY`, the hot-wallet mnemonics) are in no profile.
 Compose still reads `.local/mps.env` and `.local/mps-secrets.env` through `mps/mps.sh`.

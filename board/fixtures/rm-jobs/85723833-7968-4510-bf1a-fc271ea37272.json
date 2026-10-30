@@ -1,0 +1,236 @@
+{
+ "id": "85723833-7968-4510-bf1a-fc271ea37272",
+ "input": {
+  "invoiceText": "Toni Huber Elektrotechnik GmbH\nLindwurmstraße 112 · 80337 München\nTel. +49 89 7654321 · rechnung@huber-elektrotechnik.example\n\nBau Isar Generalunternehmer GmbH\nRosenheimer Straße 145\n81671 München\nRechnungseingang: eingangsrechnungen@bau-isar.example\nIhre USt-IdNr.: DE287654321\n\n2. ABSCHLAGSRECHNUNG\n\nAbschlagsrechnung Nr.: AR-2026-LB201\nDatum: 28.10.2026\nLeistungszeitraum: 01.10.2026 bis 23.10.2026\nIhr Zeichen: BV-2026-014\nAnsprechpartner: Toni Huber\nBauvorhaben: Wohnanlage Isarauen, Haus A, Gewerk Elektroinstallation\n\nPos.  Leistung                                                    Menge    Einheit    EP netto       GP netto\n1     Elektroinstallation Haus A, Leistungsstand 40 %             1        pauschal   12.600,00 €    12.600,00 €\n2     Unterverteilungen UV-1 bis UV-4 geliefert und montiert      4        Stk.        1.450,00 €     5.800,00 €\n\n                                                          Summe netto              18.400,00 €\n                                                          USt. 0 %                      0,00 €\n                                                          Abschlagsbetrag          18.400,00 €\n\nSteuerschuldnerschaft des Leistungsempfängers gemäß § 13b UStG.\nDie Umsatzsteuer schuldet der Leistungsempfänger.\n\nZahlbar innerhalb von 21 Tagen ohne Abzug.\n\nBankverbindung: Stadtsparkasse München · IBAN DE20 7015 0000 0012 3456 78 · BIC SSKMDEMMXXX\nUSt-IdNr.: DE312456789 · Amtsgericht München HRB 234567 · Geschäftsführer: Anton Huber\n",
+  "recipientProfileId": "bau-isar",
+  "expectedTotal": "18400.00",
+  "acceptanceProfileHash": "64a8294cadfaca2383bd7f944cdf016cb7683e904e99b938b39c4001c6cedc10"
+ },
+ "inputHash": "0f39c074d9cf67abbe573458bf3648dfd77032eb8a850d9eecbbaff69550f78c",
+ "status": "completed",
+ "phase": "result-confirmed",
+ "demo": {
+  "seedDefect": true,
+  "cheat": false
+ },
+ "closed": "WithdrawAuthorized",
+ "fields0": {
+  "invoiceNumber": "AR-2026-LB201",
+  "invoiceDate": "2026-10-28",
+  "invoiceType": "875",
+  "serviceDate": "2026-10-23",
+  "sellerName": "Toni Huber Elektrotechnik GmbH",
+  "sellerStreet": "Lindwurmstraße 112",
+  "sellerPostcode": "80337",
+  "sellerCity": "München",
+  "sellerCountry": "DE",
+  "sellerVatId": "DE312456789",
+  "sellerIban": "DE20 7015 0000 0012 3456 78",
+  "sellerContactName": "Toni Huber",
+  "sellerPhone": "+49 89 7654321",
+  "sellerEmail": "rechnung@huber-elektrotechnik.example",
+  "buyerName": "Bau Isar Generalunternehmer GmbH",
+  "buyerStreet": "Rosenheimer Straße 145",
+  "buyerPostcode": "81671",
+  "buyerCity": "München",
+  "buyerCountry": "DE",
+  "buyerVatId": "DE287654321",
+  "buyerEmail": "eingangsrechnungen@bau-isar.example",
+  "buyerReference": "BV-2026-014",
+  "lines": [
+   {
+    "description": "Elektroinstallation Haus A, Leistungsstand 40 %",
+    "quantity": 1,
+    "unit": "LS",
+    "unitPrice": 12600,
+    "vatCategory": "AE",
+    "vatRate": 0
+   },
+   {
+    "description": "Unterverteilungen UV-1 bis UV-4 geliefert und montiert",
+    "quantity": 4,
+    "unit": "H87",
+    "unitPrice": 1450,
+    "vatCategory": "AE",
+    "vatRate": 0
+   }
+  ],
+  "netTotal": 18400,
+  "vatTotal": 0,
+  "grossTotal": 18400,
+  "dueDate": null,
+  "paymentTerms": "Zahlbar innerhalb von 21 Tagen ohne Abzug.",
+  "reverseCharge": true
+ },
+ "disputes": [
+  {
+   "round": 1,
+   "receivedAt": "2026-10-30T14:10:31.909Z",
+   "failures": [
+    {
+     "code": "BR-AE-02",
+     "textDe": "Bei Steuerschuldnerschaft des Leistungsempfängers (Kategorie „AE“) müssen beim Verkäufer die USt-IdNr. (BT-31), die Steuernummer (BT-32) oder die USt-IdNr. des Steuervertreters (BT-63) und beim Käufer die USt-IdNr. (BT-48) oder die Registernummer (BT-47) angegeben sein."
+    },
+    {
+     "code": "ABN-BT48",
+     "textDe": "Die USt-IdNr. des Käufers (BT-48) fehlt; bei § 13b muss DE287654321 angegeben sein."
+    }
+   ],
+   "kositReportSha256": "c558546f6bb8249f2b0ede568c2d7fae7cbafed80839e0834ef6040b146278a1",
+   "status": 200,
+   "response": {
+    "status": "cure-submitted",
+    "attempt": 2,
+    "patch": {
+     "buyerVatId": "DE287654321"
+    },
+    "sources": {
+     "buyerVatId": "input_data.invoiceText"
+    }
+   }
+  }
+ ],
+ "attempts": [
+  {
+   "attempt": 1,
+   "fields": {
+    "invoiceNumber": "AR-2026-LB201",
+    "invoiceDate": "2026-10-28",
+    "invoiceType": "875",
+    "serviceDate": "2026-10-23",
+    "sellerName": "Toni Huber Elektrotechnik GmbH",
+    "sellerStreet": "Lindwurmstraße 112",
+    "sellerPostcode": "80337",
+    "sellerCity": "München",
+    "sellerCountry": "DE",
+    "sellerVatId": "DE312456789",
+    "sellerIban": "DE20 7015 0000 0012 3456 78",
+    "sellerContactName": "Toni Huber",
+    "sellerPhone": "+49 89 7654321",
+    "sellerEmail": "rechnung@huber-elektrotechnik.example",
+    "buyerName": "Bau Isar Generalunternehmer GmbH",
+    "buyerStreet": "Rosenheimer Straße 145",
+    "buyerPostcode": "81671",
+    "buyerCity": "München",
+    "buyerCountry": "DE",
+    "buyerVatId": null,
+    "buyerEmail": "eingangsrechnungen@bau-isar.example",
+    "buyerReference": "BV-2026-014",
+    "lines": [
+     {
+      "description": "Elektroinstallation Haus A, Leistungsstand 40 %",
+      "quantity": 1,
+      "unit": "LS",
+      "unitPrice": 12600,
+      "vatCategory": "AE",
+      "vatRate": 0
+     },
+     {
+      "description": "Unterverteilungen UV-1 bis UV-4 geliefert und montiert",
+      "quantity": 4,
+      "unit": "H87",
+      "unitPrice": 1450,
+      "vatCategory": "AE",
+      "vatRate": 0
+     }
+    ],
+    "netTotal": 18400,
+    "vatTotal": 0,
+    "grossTotal": 18400,
+    "dueDate": null,
+    "paymentTerms": "Zahlbar innerhalb von 21 Tagen ohne Abzug.",
+    "reverseCharge": true
+   },
+   "manifest": {
+    "attempt": 1,
+    "kositVerdict": "REJECT",
+    "profileHash": "64a8294cadfaca2383bd7f944cdf016cb7683e904e99b938b39c4001c6cedc10",
+    "scenario": "EN16931 XRechnung (UBL Invoice)",
+    "xmlSha256": "f0a4aaedaa3465567eddd9769d7343b2eea384155e2b96e64fe4666ea8814868"
+   },
+   "resultHash": "1c37eeff899dcade2539b0e402f1ffa683d7f5ee2ced1e50e35d1b351cd1ceec",
+   "selfCheck": {
+    "passed": false,
+    "failures": [
+     "BR-AE-02",
+     "ABN-BT48"
+    ]
+   },
+   "seededDefect": "BT-48 (buyerVatId) removed, DEMO_SEED_DEFECT=1",
+   "submittedAt": 1793368223440
+  },
+  {
+   "attempt": 2,
+   "fields": {
+    "invoiceNumber": "AR-2026-LB201",
+    "invoiceDate": "2026-10-28",
+    "invoiceType": "875",
+    "serviceDate": "2026-10-23",
+    "sellerName": "Toni Huber Elektrotechnik GmbH",
+    "sellerStreet": "Lindwurmstraße 112",
+    "sellerPostcode": "80337",
+    "sellerCity": "München",
+    "sellerCountry": "DE",
+    "sellerVatId": "DE312456789",
+    "sellerIban": "DE20 7015 0000 0012 3456 78",
+    "sellerContactName": "Toni Huber",
+    "sellerPhone": "+49 89 7654321",
+    "sellerEmail": "rechnung@huber-elektrotechnik.example",
+    "buyerName": "Bau Isar Generalunternehmer GmbH",
+    "buyerStreet": "Rosenheimer Straße 145",
+    "buyerPostcode": "81671",
+    "buyerCity": "München",
+    "buyerCountry": "DE",
+    "buyerVatId": "DE287654321",
+    "buyerEmail": "eingangsrechnungen@bau-isar.example",
+    "buyerReference": "BV-2026-014",
+    "lines": [
+     {
+      "description": "Elektroinstallation Haus A, Leistungsstand 40 %",
+      "quantity": 1,
+      "unit": "LS",
+      "unitPrice": 12600,
+      "vatCategory": "AE",
+      "vatRate": 0
+     },
+     {
+      "description": "Unterverteilungen UV-1 bis UV-4 geliefert und montiert",
+      "quantity": 4,
+      "unit": "H87",
+      "unitPrice": 1450,
+      "vatCategory": "AE",
+      "vatRate": 0
+     }
+    ],
+    "netTotal": 18400,
+    "vatTotal": 0,
+    "grossTotal": 18400,
+    "dueDate": null,
+    "paymentTerms": "Zahlbar innerhalb von 21 Tagen ohne Abzug.",
+    "reverseCharge": true
+   },
+   "manifest": {
+    "attempt": 2,
+    "kositVerdict": "ACCEPTABLE",
+    "profileHash": "64a8294cadfaca2383bd7f944cdf016cb7683e904e99b938b39c4001c6cedc10",
+    "scenario": "EN16931 XRechnung (UBL Invoice)",
+    "xmlSha256": "678454d9c1fcb2b63cc7fb18c282f490e174567bfbf71845577fadcdd582b2cd"
+   },
+   "resultHash": "d9773d4dce13e92dec99f3aaa9195f210afc6c2631240eb12377a453df656063",
+   "selfCheck": {
+    "passed": true,
+    "failures": []
+   },
+   "cure": {
+    "patch": {
+     "buyerVatId": "DE287654321"
+    },
+    "sources": {
+     "buyerVatId": "input_data.invoiceText"
+    },
+    "retransmit": false
+   },
+   "submittedAt": 1793369432030
+  }
+ ]
+}

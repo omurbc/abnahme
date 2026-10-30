@@ -98,7 +98,8 @@ test('daily budget: refuses to sign once 20 payments were charged in the last 24
  const fill=entries=>writeFileSync(logPath,JSON.stringify(entries));
  let opts=setup([settled]);
  fill(Array.from({length:20},(_,i)=>entry(1,i%2?'settled':'unknown',i)));
- await assert.rejects(buyInspection('<Invoice/>',opts),/budget/);
+ // The message reaches the board and the Sokosumi protocol: no local file paths in it.
+ await assert.rejects(buyInspection('<Invoice/>',opts),e=>/budget/.test(e.message)&&!e.message.includes(logPath)&&!/(^|\s)\//.test(e.message));
  assert.equal(signs,0); assert.equal(paidHeaders.length,0);
  opts=setup([settled]);
  fill([...Array.from({length:19},(_,i)=>entry(1,'settled',i)),...Array.from({length:5},(_,i)=>entry(1,'not-charged',i)),...Array.from({length:5},(_,i)=>entry(25,'settled',i))]);
