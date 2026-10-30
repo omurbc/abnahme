@@ -59,9 +59,11 @@ Do not rerun `api-key | key-import` after the successful import: it mints a new 
 | KoSIT 1.6.3 | `kosit/start.sh` | PRÜFEN |
 | Mailpit | `mail/start.sh` (container `abnahme-mailpit`, SMTP 127.0.0.1:1025, UI http://127.0.0.1:8025) | SENDEN |
 | Gutachter, RechnungsMeister | stream B / D commands | PRÜFEN with stream D's `runAbnahme` only |
-| Worker (exactly one) | `npm run worker` | everything |
+| Worker (exactly one) | `node --env-file=.env --env-file=.local/mps.env --env-file=.local/buero-buyer-runtime.env worker.mjs` | everything |
 | Eve (`npm start`) | **not needed**, see F | |
 
+The worker needs the two extra env files because stream D's `buero/abnahme.mjs` buys with `MPS_BUYER_TOKEN` and reads with
+`ADMIN_KEY`; `npm run worker` loads only `.env` and is enough only with `ABNAHME_IMPL=local`.
 `ABNAHME_IMPL=local npm run worker` uses `buero/abnahme-local.mjs` instead of stream D's `buero/abnahme.mjs`:
 the real extraction, XRechnung build, KoSIT validation and semantic checks, but **no escrow purchase and no tx hashes**.
 Extraction follows `EXTRACT_MODE` (`llm` by default, uses `ANTHROPIC_API_KEY`; `fixed` only for the `*.fixed.txt` layout).
@@ -118,4 +120,5 @@ SDK in `einvoice/extract.mjs`.
 | G4 paid SENDEN FundsLocked | done: Task `01a18c2a-6912-7478-9755-8872eb2ff753`, FundsLocked [`d9c69f50…2859`](https://preprod.cardanoscan.io/transaction/d9c69f508f1f15299cdd3cc056ff4444b9ba0fcadf00e197cd14f7286c952859) (block 5352737), ResultSubmitted [`68b5a6fc…242e`](https://preprod.cardanoscan.io/transaction/68b5a6fc55deb0d28481d4ac4976532ca4dcf88d419eb896a4ae658c60f4242e), COMPLETED 09:39:50Z, 100 credits (TUM pool) |
 | Mailpit delivery | Message-ID `<1bc07905-682d-4513-9f3c-2d2c541f90d8@abnahme.local>`, `250 2.0.0 Ok: queued as 0vC5CRzIiDK69V1YJl57Qn` |
 | § 14c duplicate | Task `01a18c2e-6de2-76ca-b42e-5d48cbef591e` (second `SENDEN AR-2026-0087`): FAILED before any payment request, 0 credits |
-| Withdrawn + seller receipt | TBD (unlockTime 10:11:56Z) |
+| SENDEN Withdrawn + seller receipt | Withdrawn [`5d61bf3f…7146`](https://preprod.cardanoscan.io/transaction/5d61bf3f11db7fb2e4a110e98ea44f1699e7fb8d779866d5513cb5e83e0a7146) 10:22:14Z; `settlement.mjs`: receipt `settled: true`, net +1000000 tUSDM units at the Abnahme-Büro seller address (journal stage `settled`) |
+| PRÜFEN with stream D's real escrow | Task `01a18c4b-3a89-717e-905d-6fd3d92b67c5`, COMPLETED 10:24:26Z, 17 progress comments, 0 credits. FundsLocked `e88c7599…`, ResultSubmitted `8515a0d9…`, Disputed `75177063…` (BR-AE-02, ABN-BT48), cure `c03d4aea…`, AuthorizeWithdrawal `af74d6d7…`, Withdrawn `378ee7a6…`, all confirmed on Blockfrost. Inspections fell back to local KoSIT (x402 answered HTTP 402) |
