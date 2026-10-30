@@ -43,14 +43,27 @@ export function invoiceFacts(xml){
   currencyIds:descendants(doc).filter(e=>e.attrs.has('currencyID')).map(e=>e.attrs.get('currencyID')),
   notes:select(doc,'cbc:Note').map(n=>n.text),
   taxSubtotals:select(doc,'cac:TaxTotal/cac:TaxSubtotal').map(t=>({category:one(t,'cac:TaxCategory/cbc:ID'),percent:one(t,'cac:TaxCategory/cbc:Percent'),taxable:one(t,'cbc:TaxableAmount'),tax:one(t,'cbc:TaxAmount'),reason:one(t,'cac:TaxCategory/cbc:TaxExemptionReason')})),
+  lineTaxCategories:select(doc,'cac:InvoiceLine/cac:Item/cac:ClassifiedTaxCategory').map(c=>({category:one(c,'cbc:ID'),percent:one(c,'cbc:Percent')})),
+  allowanceChargeTaxCategories:select(doc,'cac:AllowanceCharge/cac:TaxCategory').map(c=>({category:one(c,'cbc:ID'),percent:one(c,'cbc:Percent')})),
+  taxInclusiveAmount:one(doc,'cac:LegalMonetaryTotal/cbc:TaxInclusiveAmount'),
+  prepaidAmounts:select(doc,'cac:LegalMonetaryTotal/cbc:PrepaidAmount').map(e=>e.text.trim()),
  };
 }
+// A rate as written in the XML ("19", "19.00"); anything else is no rate.
+const rate=s=>s!=null&&/^\d+(?:\.\d+)?$/.test(s)?Number(s):NaN;
 
 const SEMANTIC={
  'payable-amount':(f,{expectedTotal})=>{
   if(expectedTotal==null)return [{code:'ABN-BETRAG',textDe:'Es liegt kein erwarteter Rechnungsbetrag vor; der Zahlbetrag (BT-115) kann nicht abgenommen werden.'}];
   if(f.payableAmount==null)return [{code:'ABN-BETRAG',textDe:'Der Zahlbetrag (BT-115) fehlt.'}];
   return cents(f.payableAmount)===cents(expectedTotal)?[]:[{code:'ABN-BETRAG',textDe:`Der Zahlbetrag (BT-115) ist ${euro(f.payableAmount)}, erwartet waren ${euro(expectedTotal)}.`}];
+ },
+ // The job has no input for a prepayment, so none is declared: BT-115 must be the whole invoice total (BT-112). Otherwise
+ // inflated lines plus a fake prepayment keep BT-115 at the expected total (DELTA-VERIFIER-1).
+ 'prepaid-amount':f=>{
+  const prepaid=f.prepaidAmounts.filter(a=>cents(a)!==0);
+  if(prepaid.length)return [{code:'ABN-VORAUSZAHLUNG',textDe:`Die Rechnung zieht eine Vorauszahlung von ${prepaid.map(euro).join(', ')} ab (BT-113); der Auftrag nennt keine Vorauszahlung.`}];
+  return f.taxInclusiveAmount!=null&&cents(f.taxInclusiveAmount)===cents(f.payableAmount)?[]:[{code:'ABN-VORAUSZAHLUNG',textDe:`Der Gesamtbetrag einschließlich Umsatzsteuer (BT-112) ist ${f.taxInclusiveAmount==null?'nicht eindeutig angegeben':euro(f.taxInclusiveAmount)}, der Zahlbetrag (BT-115) ${euro(f.payableAmount)}; Abzüge oder Rundungsbeträge (BT-113, BT-114) sind nicht vereinbart.`}];
  },
  'seller-vat-id':(f,{recipient})=>{
   if(!f.sellerVatIds.length)return [{code:'ABN-USTID',textDe:'Die USt-IdNr. des Verkäufers (BT-31) fehlt.'}];
@@ -70,6 +83,15 @@ const SEMANTIC={
   if(!categories.length||categories.some(c=>c!=='AE'))failures.push({code:'ABN-13B',textDe:`Für ${recipient.name} gilt § 13b UStG: alle Positionen und die Steueraufschlüsselung müssen Kategorie AE haben (gefunden: ${[...new Set(categories)].join(', ')||'keine'}).`});
   if(!f.buyerVatIds.includes(norm(recipient.vatId)))failures.push({code:'ABN-BT48',textDe:f.buyerVatIds.length?`Die USt-IdNr. des Käufers (BT-48) ist ${f.buyerVatIds.join(', ')}, erwartet ${recipient.vatId}.`:`Die USt-IdNr. des Käufers (BT-48) fehlt; bei § 13b muss ${recipient.vatId} angegeben sein.`});
   return failures;
+ },
+ // The recipient profile pins the one VAT category and rate its invoices carry (vat): an exempt or 7 % invoice with the
+ // expected BT-115 is no invoice the recipient ordered (DELTA-VERIFIER-1).
+ 'vat-rate':(f,{recipient})=>{
+  const {category,percent}=recipient.vat;
+  const found=[...f.lineTaxCategories,...f.taxSubtotals,...f.allowanceChargeTaxCategories];
+  const wrong=found.filter(t=>t.category!==category||rate(t.percent)!==percent);
+  if(found.length&&!wrong.length)return [];
+  return [{code:'ABN-STEUERSATZ',textDe:`Für ${recipient.name} gilt Kategorie ${category} mit ${percent} % (Empfängerprofil); die Rechnung enthält ${[...new Set(wrong.map(t=>`${t.category??'ohne Kategorie'} ${t.percent??'ohne Satz'} %`))].join(', ')||'keine Steuerkategorie'} (BT-151/BT-152, BT-118/BT-119).`}];
  },
  'buyer-reference':(f,{recipient})=>{
   if(!f.buyerReference)return [{code:'ABN-BT10',textDe:`Die Käuferreferenz (BT-10) fehlt; ${recipient.name} erwartet ${recipient.buyerReferenceHinweis}.`}];
@@ -92,10 +114,15 @@ const SEMANTIC={
   return f.currency===check.currency&&found.every(c=>c===check.currency)?[]:[{code:'ABN-WAEHRUNG',textDe:`Die Rechnung enthält Beträge in ${found.join(', ')||'unbekannter Währung'}; abgenommen werden nur Beträge in ${check.currency} (BT-5, currencyID).`}];
  },
  'invoice-type':(f,{check})=>check.codes.includes(f.invoiceType)?[]:[{code:'ABN-RECHNUNGSART',textDe:`Die Rechnungsart (BT-3) ist ${f.invoiceType??'nicht angegeben'}; abgenommen werden nur ${check.codes.join(', ')} (Rechnung, Abschlagsrechnung Bau).`}],
- 'reverse-charge-wording':f=>{
+ // Exact statements only (check.statements, compared after NFC and whitespace normalisation): a substring test also
+ // passed "Keine Steuerschuldnerschaft des Leistungsempfängers" (DELTA-VERIFIER-4). Every BT-22/BT-120 text that speaks of
+ // Steuerschuldnerschaft must be one of the statements; other free text is not interpreted.
+ 'reverse-charge-wording':(f,{check})=>{
   if(![...f.lineCategories,...f.breakdownCategories].includes('AE'))return [];
   const texts=[...f.notes,...f.taxSubtotals.filter(t=>t.category==='AE').map(t=>t.reason)].filter(Boolean).map(plain);
-  return texts.some(t=>t.includes(RC_WORDING))?[]:[{code:'ABN-13B-HINWEIS',textDe:`Bei Steuerschuldnerschaft des Leistungsempfängers muss die Rechnung die Angabe „${RC_WORDING}“ enthalten (§ 14a Abs. 5 UStG; BT-120 oder BT-22).`}];
+  const foreign=texts.filter(t=>/steuerschuldnerschaft/i.test(t)&&!check.statements.includes(t));
+  if(foreign.length)return [{code:'ABN-13B-HINWEIS',textDe:`Der Hinweis „${foreign[0].slice(0,200)}“ (BT-22 oder BT-120) ist keine der Angaben nach § 14a Abs. 5 UStG; zulässig ist wörtlich ${check.statements.map(s=>`„${s}“`).join(' oder ')}.`}];
+  return texts.some(t=>check.statements.includes(t))?[]:[{code:'ABN-13B-HINWEIS',textDe:`Bei Steuerschuldnerschaft des Leistungsempfängers muss die Rechnung die Angabe „${RC_WORDING}“ enthalten (§ 14a Abs. 5 UStG; BT-120 oder BT-22).`}];
  },
  'vat-arithmetic':f=>f.taxSubtotals.flatMap(t=>{
   const percent=t.percent??'0',expected=vatCents(cents(t.taxable),percent);

@@ -6,6 +6,7 @@ import {buildXml,invoiceData} from './build.mjs';
 import {validate,kositAvailable,XRECHNUNG_UBL_SCENARIO} from '../verifier/kosit.mjs';
 import {runChecks} from '../verifier/checks.mjs';
 import {loadProfile} from '../verifier/profile.mjs';
+import {parseXml} from '../verifier/xml.mjs';
 
 const fixture=name=>readFileSync(new URL(`../fixtures/${name}`,import.meta.url),'utf8');
 const skip=await kositAvailable()?false:'KoSIT not running on 127.0.0.1:8090 (start it with kosit/start.sh)';
@@ -49,6 +50,18 @@ test('line nets and VAT are rounded half-up like a paper invoice, also where bin
  }
  // Negative taxable amount on a half cent: -0,50 x 19 % = -0,095 -> -0,10 (symmetric), not -0,09.
  assert.equal(invoice([[1,-0.5]])['cac:TaxTotal'][0]['cbc:TaxAmount'],'-0.10');
+});
+
+// xmlbuilder2 4.0.3 leaves "&name;" and "&#digits;" unescaped (nonEntityAmpersandRegex), so "R&D;" became the
+// undeclared entity &D; and KoSIT answered 422 (DELTA-VERIFIER-7).
+test('free text with entity-like "&" sequences is carried through literally and stays well-formed',async()=>{
+ const text='Zahlbar sofort. R&D; Abteilung, &#65; &lt;b&gt; & <i>mehr</i> &amp;';
+ const a=parseFixed(fixture('a-reparatur-hv-giesing.fixed.txt'));
+ const xml=await buildXml({...a,paymentTerms:text,lines:a.lines.map(l=>({...l,description:text}))});
+ const doc=parseXml(xml),texts=[];
+ const walk=e=>{if(e.name==='Note'&&e.text.includes('Zahlbar sofort'))texts.push(e.text);if(e.name==='Name'&&e.text.includes('Zahlbar sofort'))texts.push(e.text);e.children.forEach(walk);};
+ walk(doc);
+ assert.deepEqual(texts,Array(4).fill(text));
 });
 
 test('the § 13b note and the line categories must agree',async()=>{

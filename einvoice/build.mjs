@@ -77,9 +77,14 @@ export function invoiceData(f){
 }
 
 const silent={log(){},warn(){},error(){}};
+// xmlbuilder2 4.0.3 (via the library's create(data)) first decodes &amp; &lt; &gt; &quot; &apos; and &#…; in every input
+// string (BaseReader._decodeText), then escapes only an "&" that does not look like an entity (/&(?![A-Za-z]+;|#\d+;)/).
+// So free text "R&D;" came out as the undeclared entity &D;, and "&#65;" as "A". Each "&" goes in as "&amp;amp;": the
+// reader makes it "&amp;", which the writer keeps, so the XML text is exactly the input (einvoice/roundtrip.test.mjs).
+const escapeAmpersands=data=>JSON.parse(JSON.stringify(data),(_key,value)=>typeof value==='string'?value.replaceAll('&','&amp;amp;'):value);
 export async function buildXml(fields){
  let xml;
- try{xml=await new InvoiceService(silent).generate(invoiceData(fields),{format:'XRECHNUNG-UBL',lang:'de-de'});}
+ try{xml=await new InvoiceService(silent).generate(escapeAmpersands(invoiceData(fields)),{format:'XRECHNUNG-UBL',lang:'de-de'});}
  catch(error){
   if(!error.errors)throw error;
   throw new Error(`XRechnung kann nicht erzeugt werden: ${error.errors.map(e=>`${e.instancePath} ${e.message}`).join('; ')}`);

@@ -77,6 +77,33 @@ test('KoSIT 5xx: the invoice was not inspected, validate() throws instead of rep
  assert.deepEqual(r.messages.map(m=>[m.level,m.code]),[['error','KOSIT-HTTP-422']]);
 });
 
+// The KoSIT 1.6.3 daemon answers 200/406 (report) or 400/422 (document unreadable). Anything else comes from a wrong
+// URL or a proxy, never from an inspection: no Mängelrüge against a correct delivery.
+test('statuses KoSIT never sends (401, 403, 404, 429, 204) are not inspected; 400 and 422 stay defects of the document',async()=>{
+ for(const status of [401,403,404,429,204])
+  await withFakeKosit(status,'<html>Not Found</html>',()=>assert.rejects(validate('<Invoice/>'),new RegExp(`\\(HTTP ${status}\\); die Rechnung wurde nicht beurteilt`)),undefined);
+ for(const status of [400,422]){
+  const r=await withFakeKosit(status,'',()=>validate('<Invoice/>'));
+  assert.equal(r.accepted,false); assert.deepEqual(r.messages.map(m=>m.code),[`KOSIT-HTTP-${status}`]);
+ }
+});
+
+// A Gutachter answer reaches parseReport before the validator pin (buero/abnahme.mjs kositFromReport): the PoC inputs
+// of DELTA-VERIFIER-2 took 48 s (description), 2.1 s (documentHash) and 2.3 s (message) with the old regexes.
+test('parseReport is linear on hostile reports and refuses a report over its size limit',{timeout:20000},()=>{
+ for(const [name,hostile] of [
+  ['description',`${'<rep:scenarioMatched><s:scenario>'.repeat(3000)}${'<s:description>'.repeat(3000)}`],
+  ['documentHash','<rep:documentHash>'.repeat(29000)],
+  ['message','<rep:message>'.repeat(40000)],
+  ['description tags',`<rep:scenarioMatched><s:scenario><s:description>${'<'.repeat(200000)}</s:description>`],
+  ['version',`<rep:scenarioMatched><s:scenario><s:description>${'XRechnung 1.'.repeat(40000)}</s:description>`],
+ ]){
+  const started=performance.now(); parseReport(hostile);
+  assert.ok(performance.now()-started<1000,`${name}: ${Math.round(performance.now()-started)} ms`);
+ }
+ assert.throws(()=>parseReport(`<rep:report>${' '.repeat(16*1024*1024)}</rep:report>`),/KoSIT-Bericht ist größer als 16 MiB; die Rechnung wurde nicht beurteilt/);
+});
+
 test('a busy KoSIT that answers its health check after 3 s still counts as running',async()=>{
  const server=createServer((req,res)=>setTimeout(()=>{res.writeHead(200);res.end('ok');},3000));
  await new Promise(r=>server.listen(0,'127.0.0.1',r));

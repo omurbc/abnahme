@@ -29,8 +29,8 @@ test('profile hash ignores key order and changes with content',()=>{
 // Changing a profile file changes the escrow input hash. Update these values only on purpose.
 test('profile hashes are stable',()=>{
  assert.deepEqual(recipientIds(),['bau-isar','hv-giesing']);
- assert.equal(loadProfile('bau-isar').profileHash,'64a8294cadfaca2383bd7f944cdf016cb7683e904e99b938b39c4001c6cedc10');
- assert.equal(loadProfile('hv-giesing').profileHash,'a9c6f943c29dff31221fd6b18db4a4ea5391adcd9d4f5550e25da320a815189a');
+ assert.equal(loadProfile('bau-isar').profileHash,'e9a2831b3eb0944265c5d55c0fd1dc81481505b883d7710e96efacfe73759bf0');
+ assert.equal(loadProfile('hv-giesing').profileHash,'e7f7ba8e0d831dcfc4072fea4ffef0515404e64609c4faec79c3ad95386133ec');
 });
 
 test('acceptance profile pins the KoSIT scenario the client enforces',()=>{

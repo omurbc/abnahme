@@ -20,7 +20,8 @@ test('facts are read from the delivered XML',async()=>{
  const facts=invoiceFacts(await buildXml(fields('b-abschlag-13b-bau-isar')));
  assert.deepEqual(facts,{invoiceNumber:'AR-2026-0087',payableAmount:'18400.00',sellerVatIds:['DE312456789'],buyerVatIds:['DE287654321'],ibans:['DE20701500000012345678'],lineCategories:['AE','AE'],breakdownCategories:['AE'],buyerReference:'BV-2026-014',
   buyerName:'Bau Isar Generalunternehmer GmbH',buyerPostcode:'81671',issueDate:'2026-10-28',dueDate:null,invoiceType:'875',currency:'EUR',taxCurrency:null,currencyIds:Array(11).fill('EUR'),notes:['Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)'],
-  taxSubtotals:[{category:'AE',percent:'0',taxable:'18400.00',tax:'0.00',reason:'Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)'}]});
+  taxSubtotals:[{category:'AE',percent:'0',taxable:'18400.00',tax:'0.00',reason:'Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)'}],
+  lineTaxCategories:[{category:'AE',percent:'0'},{category:'AE',percent:'0'}],allowanceChargeTaxCategories:[],taxInclusiveAmount:'18400.00',prepaidAmounts:[]});
 });
 
 test('clean invoices pass for their recipient',async()=>{
@@ -46,14 +47,14 @@ test('seller IBAN and VAT ID must match the master data',async()=>{
 test('§ 13b recipient requires category AE and its own VAT ID in BT-48',async()=>{
  const regular={reverseCharge:false,lines:fields('b-abschlag-13b-bau-isar').lines.map(l=>({...l,vatCategory:'S',vatRate:19}))};
  const s=await check('b-abschlag-13b-bau-isar','bau-isar',{change:regular,expectedTotal:21896});
- assert.deepEqual(codes(s),['ABN-13B']);
+ assert.deepEqual(codes(s),['ABN-13B','ABN-STEUERSATZ']);
  assert.deepEqual(codes(await check('b-abschlag-13b-bau-isar','bau-isar',{change:{buyerVatId:'DE111111111'}})),['ABN-BT48']);
  assert.deepEqual(codes(await check('c-abschlag-13b-ohne-ustid','bau-isar')),['ABN-BT48']);
 });
 
 test('a non-§ 13b recipient must not receive category AE',async()=>{
  const ae={reverseCharge:true,lines:fields('a-reparatur-hv-giesing').lines.map(l=>({...l,vatCategory:'AE',vatRate:0}))};
- assert.deepEqual(codes(await check('a-reparatur-hv-giesing','hv-giesing',{change:ae,expectedTotal:443})),['ABN-13B']);
+ assert.deepEqual(codes(await check('a-reparatur-hv-giesing','hv-giesing',{change:ae,expectedTotal:443})),['ABN-13B','ABN-STEUERSATZ']);
 });
 
 test('BT-10 must match the recipient pattern',async()=>{
@@ -229,6 +230,73 @@ test('KoSIT accepts the converter deliveries without an error, the acceptance te
   const r=runChecks({xml,kosit,acceptance,recipient,expectedTotal:total});
   assert.deepEqual(codes(r),[code],name);
  }
+});
+
+// DELTA-VERIFIER-1: converter deliveries that keep BT-115 at the expected total but change the tax content. KoSIT accepts
+// all of them; the recipient profile pins category and rate, and the job declares no prepayment (BT-113).
+const prepay=(xml,prepaid,payable)=>swap(xml,/<cbc:PayableAmount currencyID="EUR">[^<]*<\/cbc:PayableAmount>/,`<cbc:PrepaidAmount currencyID="EUR">${prepaid}</cbc:PrepaidAmount><cbc:PayableAmount currencyID="EUR">${payable}</cbc:PayableAmount>`);
+const oneLine=(category,rate,unitPrice)=>({reverseCharge:false,lines:[{description:'Reparatur Treppenhausbeleuchtung',quantity:1,unit:'LS',unitPrice,vatCategory:category,vatRate:rate}]});
+const tax={
+ // (i) lines inflated by 1.000,00 net, VAT 274,17, a fake prepayment of 1.190,00 keeps BT-115 at 527,17
+ prepaidA:async()=>prepay(await buildXml({...fields('a-reparatur-hv-giesing'),lines:[...fields('a-reparatur-hv-giesing').lines,{description:'Zusatz',quantity:1,unit:'LS',unitPrice:1000,vatCategory:'S',vatRate:19}]}),'1190.00','527.17'),
+ // (ii) the whole amount exempt (E, 0 %, with an exemption reason so that BR-E-10 holds)
+ exemptA:async()=>swap(await buildXml({...fields('a-reparatur-hv-giesing'),...oneLine('E',0,527.17)}),/(<cac:TaxSubtotal>[\s\S]*?<cbc:Percent>0<\/cbc:Percent>)/,'$1<cbc:TaxExemptionReason>Steuerfrei nach § 4 Nr. 12 UStG</cbc:TaxExemptionReason>'),
+ // (iii) 492,68 net at 7 %, VAT 34,49
+ reducedA:async()=>buildXml({...fields('a-reparatur-hv-giesing'),...oneLine('S',7,492.68)}),
+ // (iv) Entgelt 28.400,00 to Bau Isar with a fake prepayment of 10.000,00, BT-115 18.400,00
+ prepaidB:async()=>prepay(await buildXml({...fields('b-abschlag-13b-bau-isar'),lines:fields('b-abschlag-13b-bau-isar').lines.map((l,i)=>i?l:{...l,unitPrice:22600})}),'10000.00','18400.00'),
+};
+const TAX_CASES=[['prepaidA','hv-giesing',527.17,'ABN-VORAUSZAHLUNG'],['exemptA','hv-giesing',527.17,'ABN-STEUERSATZ'],['reducedA','hv-giesing',527.17,'ABN-STEUERSATZ'],['prepaidB','bau-isar',18400,'ABN-VORAUSZAHLUNG']];
+
+test('the tax content is bound to the recipient profile: other categories or rates and an undeclared prepayment are refused',async()=>{
+ for(const [name,recipientId,total,code] of TAX_CASES){
+  const r=checkXml(await tax[name](),recipientId,total);
+  assert.deepEqual(codes(r),[code],name);
+ }
+ const reduced=checkXml(await tax.reducedA(),'hv-giesing',527.17);
+ assert.match(reduced.failures[0].textDe,/Kategorie S mit 19 %.*S 7 %/);
+ assert.match(checkXml(await tax.prepaidB(),'bau-isar',18400).failures[0].textDe,/Vorauszahlung.*10\.000,00 €.*BT-113/);
+ // A rounding amount or another gap between BT-112 and BT-115 is no agreed deduction either.
+ const b=await buildXml(fields('b-abschlag-13b-bau-isar'));
+ assert.deepEqual(codes(checkXml(swap(b,'<cbc:TaxInclusiveAmount currencyID="EUR">18400.00','<cbc:TaxInclusiveAmount currencyID="EUR">18399.50'),'bau-isar',18400)),['ABN-VORAUSZAHLUNG']);
+ assert.deepEqual(codes(checkXml(prepay(b,'0.00','18400.00'),'bau-isar',18400)),[],'a zero prepayment is no deduction');
+ assert.deepEqual(loadProfile('hv-giesing').recipient.vat,{category:'S',percent:19});
+ assert.deepEqual(loadProfile('bau-isar').recipient.vat,{category:'AE',percent:0});
+});
+
+test('KoSIT accepts the tax-content deliveries without an error, the acceptance test refuses them',{skip:kositSkip},async()=>{
+ for(const [name,recipientId,total,code] of TAX_CASES){
+  const {acceptance,recipient}=loadProfile(recipientId);
+  const xml=await tax[name]();
+  const kosit=await validate(xml,{scenario:acceptance.scenario});
+  assert.equal(kosit.accepted,true,`${name}: ${JSON.stringify(kosit.messages)}`);
+  assert.deepEqual(kosit.messages.filter(m=>m.level==='error'),[],name);
+  const r=runChecks({xml,kosit,acceptance,recipient,expectedTotal:total});
+  assert.equal(r.passed,false,name); assert.deepEqual(codes(r),[code],name);
+ }
+});
+
+// DELTA-VERIFIER-4: the § 14a Abs. 5 statement must be there word for word; a note that speaks of Steuerschuldnerschaft
+// and is not one of the profile's statements (e.g. its negation) is refused.
+const NEGATED='Keine Steuerschuldnerschaft des Leistungsempfängers; die Umsatzsteuer schuldet der leistende Unternehmer.';
+const NOTE=/<cbc:Note>Steuerschuldnerschaft[^<]*<\/cbc:Note>/,REASON=/<cbc:TaxExemptionReason>[^<]*<\/cbc:TaxExemptionReason>/;
+const wording=(b,note,reason)=>{assert.ok(NOTE.test(b)&&REASON.test(b));return b.replace(NOTE,`<cbc:Note>${note}</cbc:Note>`).replace(REASON,`<cbc:TaxExemptionReason>${reason}</cbc:TaxExemptionReason>`);};
+test('§ 14a Abs. 5 wording: only the exact statements count, a negating note is refused',async()=>{
+ const b=await buildXml(fields('b-abschlag-13b-bau-isar'));
+ const negated=checkXml(wording(b,NEGATED,NEGATED),'bau-isar',18400);
+ assert.deepEqual(codes(negated),['ABN-13B-HINWEIS']); assert.match(negated.failures[0].textDe,/Keine Steuerschuldnerschaft/);
+ assert.deepEqual(codes(checkXml(wording(b,NEGATED,'Steuerschuldnerschaft des Leistungsempfängers'),'bau-isar',18400)),['ABN-13B-HINWEIS'],'an exact BT-120 does not excuse a negating BT-22');
+ assert.deepEqual(codes(checkXml(wording(b,'Hinweis: Steuerschuldnerschaft des Leistungsempfängers gilt nicht','Steuerschuldnerschaft des Leistungsempfängers'),'bau-isar',18400)),['ABN-13B-HINWEIS']);
+ for(const ok of ['Steuerschuldnerschaft des Leistungsempfängers','Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)',' Steuerschuldnerschaft  des\n Leistungsempfängers '])
+  assert.deepEqual(codes(checkXml(wording(b,ok,ok),'bau-isar',18400)),[],ok);
+});
+
+test('KoSIT accepts the negated § 14a Abs. 5 note, the acceptance test refuses it',{skip:kositSkip},async()=>{
+ const {acceptance,recipient}=loadProfile('bau-isar');
+ const xml=wording(await buildXml(fields('b-abschlag-13b-bau-isar')),NEGATED,NEGATED);
+ const kosit=await validate(xml,{scenario:acceptance.scenario});
+ assert.equal(kosit.accepted,true,JSON.stringify(kosit.messages));
+ assert.deepEqual(codes(runChecks({xml,kosit,acceptance,recipient,expectedTotal:18400})),['ABN-13B-HINWEIS']);
 });
 
 test('BT-1 is read like a parser reads it: comments ignored, entities decoded',async()=>{

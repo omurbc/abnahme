@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {abnahme} from './cli.mjs';
+import {abnahme,summaryDe} from './cli.mjs';
 import {kositAvailable} from '../verifier/kosit.mjs';
+import {loadAcceptance} from '../verifier/profile.mjs';
 
 const path=rel=>fileURLToPath(new URL(rel,import.meta.url));
 const FIXTURE=path('../fixtures/b-abschlag-13b-bau-isar.fixed.txt');
@@ -39,6 +40,14 @@ test('the CLI runs as a script: exit 1 and ABGELEHNT for fixture c, exit 2 witho
  const none=cli();
  assert.equal(none.status,2);
  assert.match(none.stderr,/^Aufruf/);
+});
+
+test('the summary of a document the checks cannot read still says ABGELEHNT with its defects, it does not throw',()=>{
+ const out=summaryDe({acceptance:loadAcceptance(),recipient:{id:'bau-isar'},profileHash:'h',fields:{invoiceNumber:'1',invoiceDate:'2026-10-28',sellerName:'S',buyerName:'B'},xml:'<Invoice>&D;</Invoice>',
+  kosit:{httpStatus:422,scenario:null},checks:{passed:false,failures:[{code:'ABN-XML',textDe:'Die gelieferte XML-Datei kann nicht sicher gelesen werden.'}],minor:[]},expectedTotal:18400});
+ assert.match(out,/^Abnahme: ABGELEHNT/);
+ assert.match(out,/Zahlbetrag laut XRechnung: unbekannt \(erwartet: 18\.400,00 €\)/);
+ assert.match(out,/\[ABN-XML\]/);
 });
 
 test('importing the CLI module never throws, whatever argv[1] is (buero/abnahme-local.mjs imports summaryDe)',()=>{

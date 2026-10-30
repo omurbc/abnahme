@@ -29,13 +29,15 @@
   },
   "semanticChecks": [
     {"id": "payable-amount", "bt": ["BT-115"], "beschreibung": "Zahlbetrag entspricht dem erwarteten Rechnungsbetrag."},
+    {"id": "prepaid-amount", "bt": ["BT-112", "BT-113", "BT-114", "BT-115"], "beschreibung": "Keine Vorauszahlung (BT-113): der Auftrag nennt keine. Gesamtbetrag einschließlich Umsatzsteuer (BT-112) gleich Zahlbetrag (BT-115), also auch kein Rundungsbetrag (BT-114)."},
     {"id": "seller-vat-id", "bt": ["BT-31"], "beschreibung": "USt-IdNr. des Verkäufers steht in den Kreditorenstammdaten des Empfängers."},
     {"id": "seller-iban", "bt": ["BT-84"], "beschreibung": "IBAN entspricht der IBAN aus den Kreditorenstammdaten."},
     {"id": "reverse-charge", "bt": ["BT-151", "BT-118", "BT-48"], "beschreibung": "Bei §-13b-Empfängern: alle Positionen und die Steueraufschlüsselung in Kategorie AE, BT-48 gleich der USt-IdNr. des Empfängers. Sonst keine Kategorie AE."},
+    {"id": "vat-rate", "bt": ["BT-151", "BT-152", "BT-118", "BT-119", "BT-95", "BT-96", "BT-102", "BT-103"], "beschreibung": "Jede Position, jede Steueraufschlüsselung und jeder Nachlass oder Zuschlag auf Dokumentebene hat die Steuerkategorie und den Steuersatz aus dem Empfängerprofil (vat)."},
     {"id": "buyer-reference", "bt": ["BT-10"], "beschreibung": "Käuferreferenz entspricht dem Muster des Empfängers."},
     {"id": "currency", "bt": ["BT-5", "BT-6"], "currency": "EUR", "beschreibung": "Rechnungswährung und jede Betragswährung (currencyID) ist EUR."},
     {"id": "invoice-type", "bt": ["BT-3"], "codes": ["380", "875"], "beschreibung": "Rechnungsart ist 380 (Rechnung) oder 875 (Abschlagsrechnung Bau)."},
-    {"id": "reverse-charge-wording", "bt": ["BT-120", "BT-22"], "beschreibung": "Bei Kategorie AE steht „Steuerschuldnerschaft des Leistungsempfängers“ (§ 14a Abs. 5 UStG) in BT-120 oder BT-22."},
+    {"id": "reverse-charge-wording", "bt": ["BT-120", "BT-22"], "statements": ["Steuerschuldnerschaft des Leistungsempfängers", "Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)"], "beschreibung": "Bei Kategorie AE steht eine der Angaben aus statements (§ 14a Abs. 5 UStG) wörtlich in BT-120 oder BT-22, verglichen nach NFC und mit zusammengefasstem Leerraum. Jeder Text in BT-22 oder BT-120, der von Steuerschuldnerschaft spricht, muss eine dieser Angaben sein; so wird z. B. „Keine Steuerschuldnerschaft des Leistungsempfängers“ abgelehnt. Andere Freitexte werden nicht ausgelegt."},
     {"id": "vat-arithmetic", "bt": ["BT-116", "BT-117", "BT-119"], "beschreibung": "Steuerbetrag je Kategorie ist genau BT-116 × BT-119 / 100, kaufmännisch auf Cent gerundet (KoSIT lässt ±0,99 zu)."},
     {"id": "buyer-identity", "bt": ["BT-44", "BT-53"], "beschreibung": "Name und Postleitzahl des Käufers entsprechen dem Empfängerprofil."},
     {"id": "dates", "bt": ["BT-2", "BT-9"], "beschreibung": "Rechnungsdatum nicht nach heute (Europe/Berlin), Fälligkeitsdatum nicht vor dem Rechnungsdatum."}

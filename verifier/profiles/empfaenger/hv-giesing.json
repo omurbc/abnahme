@@ -5,6 +5,7 @@
   "rolle": "Hausverwaltung, Regelbesteuerung 19 %",
   "vatId": null,
   "reverseCharge13b": false,
+  "vat": {"category": "S", "percent": 19},
   "buyerReferencePattern": "^OBJ-GIE-\\d{4}$",
   "buyerReferenceHinweis": "Objektnummer, z. B. OBJ-GIE-0417",
   "kreditoren": [

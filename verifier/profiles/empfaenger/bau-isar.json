@@ -5,6 +5,7 @@
   "rolle": "Generalunternehmer, empfängt Bauleistungen nach § 13b UStG",
   "vatId": "DE287654321",
   "reverseCharge13b": true,
+  "vat": {"category": "AE", "percent": 0},
   "buyerReferencePattern": "^BV-\\d{4}-\\d{3}$",
   "buyerReferenceHinweis": "Bauvorhaben-Nummer, z. B. BV-2026-014",
   "kreditoren": [

@@ -1,4 +1,4 @@
-// Usage: node --env-file-if-exists=.env einvoice/cli.mjs <invoice.txt> <empfaenger-id> <betrag>
+// Usage: node --env-file=.local/env/einvoice.env --import=./scripts/env-guard.mjs einvoice/cli.mjs <invoice.txt> <empfaenger-id> <betrag>
 // extract (EXTRACT_MODE=llm|fixed) -> build XRechnung-UBL -> KoSIT validate -> semantic checks -> German summary.
 // <betrag> is the gross total the buyer agreed to (e.g. 18400.00); BT-115 is checked against it, never against the
 // total the invoice prints about itself.
@@ -22,11 +22,13 @@ export async function abnahme(text,recipientId,{mode,expectedTotal}={}){
 }
 
 const euro=n=>n==null?'unbekannt':Number(n).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+// A document the checks cannot read is already refused (ABN-XML in checks.failures): the summary says so, it does not throw.
+const payableOf=xml=>{try{return invoiceFacts(xml).payableAmount;}catch{return null;}};
 export function summaryDe({acceptance,recipient,profileHash,fields,xml,kosit,checks,expectedTotal=fields.grossTotal}){
  const out=[
   `Abnahme: ${checks.passed?'ABGENOMMEN':'ABGELEHNT'}`,
   `Rechnung ${fields.invoiceNumber} vom ${fields.invoiceDate} – ${fields.sellerName} an ${fields.buyerName}`,
-  `Zahlbetrag laut XRechnung: ${euro(invoiceFacts(xml).payableAmount)} (erwartet: ${euro(expectedTotal)})`,
+  `Zahlbetrag laut XRechnung: ${euro(payableOf(xml))} (erwartet: ${euro(expectedTotal)})`,
   `KoSIT ${acceptance.validator.version} / Konfiguration ${acceptance.configuration.release}: HTTP ${kosit.httpStatus}, Szenario „${kosit.scenario??'keins'}“`,
   `Prüfprofil: ${acceptance.id} + ${recipient.id}, Hash ${profileHash}`,
  ];
