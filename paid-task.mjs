@@ -7,6 +7,8 @@ import {taskTarget,assertTaskTarget,verifyRuntimeTask} from './task-target.mjs';
 const MINUTE=60*1000;
 // Sokosumi books the Task's credits when it accepts the masumiPayment event; a FAILED Task does not refund them.
 const CHARGED=' Die Zahlungsanforderung war bereits gestellt: Sokosumi hat dafür Credits gebucht, die bei diesem Abbruch nicht automatisch erstattet werden.';
+// DELTA-WORKER-2: the answer took effect (the e-mail is out), but MPS takes no result after submitResultTime.
+const LATE='Hinweis: Die E-Mail ist versendet, das Ergebnis wurde aber nicht vor Ablauf der Frist auf Cardano eingereicht (der Büro-Agent war unterbrochen). Das Büro wird dafür nicht aus der Escrow bezahlt; die 1 tUSDM gehen an den Käufer (Sokosumi) zurück.';
 export const USDM='16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde0014df10745553444d';
 export function taskHash(text){return createHash('sha256').update(text,'utf8').digest('hex')}
 export function confirmedState(payment,expected){
@@ -86,6 +88,10 @@ export async function createPaidAdapter({save,answer,recover,core:providedCore,m
      if(Date.now()>=Number(p.payment.payByTime)+3*MINUTE)return persist(task,state,{...p,stage:'gate-failed',error:'Die Escrow-Zahlung wurde bis zur Zahlungsfrist nicht bestätigt; nichts versendet.'});
      return state;
     }
+    // DELTA-WORKER-4: right before the answer (the SMTP hand-off for SENDEN), a Task cancelled or closed after the payment
+    // request gets nothing.
+    const {data:current}=await (await getCore()).get(`/v1/tasks/${encodeURIComponent(task.id)}`,AbortSignal.timeout(30000));
+    if(['COMPLETED','FAILED','CANCELED','CANCELLED'].includes(current?.status))return persist(task,{...state,phase:'closed'},{...p,stage:'failed',coreStatus:current?.status??null,error:'Der Auftrag war bei Zahlungseingang nicht mehr aktiv; nichts versendet.'});
     state=await persist(task,state,{...p,stage:'model-pending'});
     let result;
     try{
@@ -114,19 +120,19 @@ export async function createPaidAdapter({save,answer,recover,core:providedCore,m
   if(p.stage==='complete-pending'||p.stage==='fail-pending'){
    const {data:current}=await (await getCore()).get(`/v1/tasks/${encodeURIComponent(task.id)}`,AbortSignal.timeout(30000));
    if(current.status==='RUNNING')return persist(task,state,{...p,stage:p.stage==='complete-pending'?'complete-ready':'gate-failed'});
-   if(p.stage==='complete-pending')return persist(task,{...state,phase:current.status==='COMPLETED'?'completed':'closed'},{...p,stage:'awaiting-withdrawal',coreStatus:current.status});
+   if(p.stage==='complete-pending')return persist(task,{...state,phase:current.status==='COMPLETED'?'completed':'closed'},{...p,stage:p.late?'completed-late':'awaiting-withdrawal',coreStatus:current.status});
    return persist(task,{...state,phase:current.status==='FAILED'?'failed':'closed'},{...p,stage:'failed',coreStatus:current.status});
   }
   if(p.stage==='result-saved'){
-   if(Date.now()>=Number(p.payment.submitResultTime))throw new Error('Result deadline expired before submit');
+   if(Date.now()>=Number(p.payment.submitResultTime))return persist(task,state,{...p,stage:'complete-ready',late:true});
    state=await persist(task,state,{...p,stage:'submit-pending'});
    await mps('/api/v1/payment/submit-result',{network:'Preprod',blockchainIdentifier:p.payment.blockchainIdentifier,submitResultHash:p.resultHash});
    return persist(task,state,{...p,stage:'awaiting-result'});
   }
   if(p.stage==='complete-ready'){
    state=await persist(task,state,{...p,stage:'complete-pending'});
-   const response=await (await verifyRuntimeTask(await getCore(),task.id,target)).post(`/v1/tasks/${encodeURIComponent(task.id)}/events`,{status:'COMPLETED',comment:p.result});
-   return persist(task,{...state,phase:'completed'},{...p,stage:'awaiting-withdrawal',completionEventId:response.data.id});
+   const response=await (await verifyRuntimeTask(await getCore(),task.id,target)).post(`/v1/tasks/${encodeURIComponent(task.id)}/events`,{status:'COMPLETED',comment:p.late?`${p.result}\n\n${LATE}`:p.result});
+   return persist(task,{...state,phase:'completed'},{...p,stage:p.late?'completed-late':'awaiting-withdrawal',completionEventId:response.data.id});
   }
   if(p.stage==='gate-failed'){
    state=await persist(task,state,{...p,stage:'fail-pending'});

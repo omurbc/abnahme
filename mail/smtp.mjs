@@ -46,8 +46,10 @@ export async function sendMail({from,to,subject,text,attachment,messageId=`<${ra
     if(/^\d{3} /.test(line)||/^\d{3}$/.test(line)){const w=waiting;waiting=null;w?.(line);}
    }
   });
-  const expect=(codes,command)=>new Promise(done=>{
-   waiting=line=>codes.includes(line.slice(0,3))?done(line):fail(new Error(`SMTP ${command??'greeting'} refused: ${line}`));
+  // Any reply is definitive, also after DATA (RFC 5321 4.2.5: a refused message was not taken): dataSent stays true only
+  // when no reply comes (timeout, lost connection). The error names the step, never the message itself (DELTA-WORKER-5).
+  const expect=(codes,command,label=command)=>new Promise(done=>{
+   waiting=line=>{if(codes.includes(line.slice(0,3)))return done(line);dataSent=false;fail(new Error(`SMTP ${label??'greeting'} refused: ${line}`));};
    if(command!==undefined)socket.write(command+CRLF);
   });
   (async()=>{
@@ -57,7 +59,7 @@ export async function sendMail({from,to,subject,text,attachment,messageId=`<${ra
    await expect(['250','251'],`RCPT TO:<${address(to)}>`);
    await expect(['354'],'DATA');
    dataSent=true;
-   const smtpReply=await expect(['250'],`${message}${CRLF}.`);
+   const smtpReply=await expect(['250'],`${message}${CRLF}.`,'message');
    socket.end(`QUIT${CRLF}`);
    resolve({messageId,smtpReply});
   })().catch(fail);

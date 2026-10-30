@@ -10,6 +10,7 @@ import {AP_INBOX,SENDER} from '../mail/recipients.mjs';
 import {loadSokosumiRuntime} from '../sokosumi-runtime.mjs';
 import {verifyRuntimeTask} from '../task-target.mjs';
 import {invoiceFacts} from '../verifier/checks.mjs';
+import {parseXml} from '../verifier/xml.mjs';
 
 export const SEND_PRICE_DE='Senden: kostenpflichtig, Sokosumi bucht dafür Credits (Escrow 1 tUSDM); nur für abgenommene Rechnungen';
 export const MAX_TASK_CHARS=16000;  // same cap as the template's answer() and RechnungsMeister's invoice text
@@ -80,9 +81,6 @@ export function pruefenJob(input){
  return job;
 }
 
-const XML_ENTITIES={amp:'&',lt:'<',gt:'>',quot:'"',apos:"'"};
-const decodeXml=s=>s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/giu,(_,e)=>e[0]==='#'?String.fromCodePoint(/^#x/iu.test(e)?parseInt(e.slice(2),16):Number(e.slice(1))):XML_ENTITIES[e.toLowerCase()]);
-const stripComments=xml=>xml.replace(/<!--[\s\S]*?-->/gu,'');
 // BT-1, read by the verifier's strict XML reader (Invoice/cbc:ID by namespace path, as KoSIT reads it).
 // It becomes the store key, the SENDEN line, the subject and the attachment name: one printable line, no quotes.
 export function invoiceNumberOf(xml){
@@ -91,13 +89,20 @@ export function invoiceNumberOf(xml){
  if(!/^[\p{L}\p{N}][\p{L}\p{N} ._/#&+()-]*$/u.test(n))throw new Error(`Die Rechnungsnummer (BT-1) ${JSON.stringify(n).slice(0,80)} enthält Zeichen, die der Büro-Agent nicht versenden kann. Erlaubt sind Buchstaben, Ziffern, Leerzeichen und . _ - / # & + ( ).`);
  return n;
 }
-// Same supply: same AP inbox, same lines (quantity, net, name, price) and same Leistungsdatum (BT-72 or BG-14, else the
-// issue date). BT-1 and the payment reference do not count, a re-issue under a new number changes them.
+// Same supply: same AP inbox, same lines (quantity, net, price) and same Leistungsdatum (BT-72, BG-14 or BG-26, else the
+// issue date). BT-1 and the payment reference do not count, a re-issue under a new number changes them; nor does the
+// free-text line name, which a second conversion of the same text may word differently. Read by namespace path with the
+// verifier's strict reader, as KoSIT reads it: another prefix, CDATA or a copy inside an extension change nothing (DELTA-VERIFIER-3).
+const UBL={cac:'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2',cbc:'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2'};
+const select=(el,path)=>path.split('/').reduce((set,step)=>{const [p,name]=step.split(':');return set.flatMap(e=>e.children.filter(c=>c.ns===UBL[p]&&c.name===name));},[el]);
+const texts=(el,path)=>select(el,path).map(e=>e.text.trim());
+const number=v=>v===undefined?'':String(Number(v));  // 238.00 and 238 are the same amount
 export function supplyKey(xml,to){
- const x=stripComments(xml),all=(name,src=x)=>[...src.matchAll(new RegExp(`<cbc:${name}\\b[^>]*>([^<]*)</cbc:${name}>`,'gu'))].map(m=>decodeXml(m[1]).trim());
- const lines=[...x.matchAll(/<cac:InvoiceLine>([\s\S]*?)<\/cac:InvoiceLine>/gu)].map(([,l])=>['InvoicedQuantity','LineExtensionAmount','Name','PriceAmount'].map(n=>all(n,l)[0]??'').join('|')).sort();
- const period=[...all('ActualDeliveryDate'),...all('StartDate'),...all('EndDate')];
- return sha256(JSON.stringify({to,lines,period:period.length?period:all('IssueDate')}));
+ const doc=parseXml(xml);
+ const lines=select(doc,'cac:InvoiceLine').map(l=>['cbc:InvoicedQuantity','cbc:LineExtensionAmount','cac:Price/cbc:PriceAmount'].map(p=>number(texts(l,p)[0])).join('|')).sort();
+ const period=[...new Set(['cac:Delivery/cbc:ActualDeliveryDate','cac:InvoicePeriod/cbc:StartDate','cac:InvoicePeriod/cbc:EndDate',
+  'cac:InvoiceLine/cac:InvoicePeriod/cbc:StartDate','cac:InvoiceLine/cac:InvoicePeriod/cbc:EndDate'].flatMap(p=>texts(doc,p)))].sort();
+ return sha256(JSON.stringify({to,lines,period:period.length?period:texts(doc,'cbc:IssueDate')}));
 }
 const facts=xml=>{try{return invoiceFacts(xml)}catch{return {taxSubtotals:[]}}};
 const vatShown=xml=>facts(xml).taxSubtotals.some(t=>Number(t.tax)>0);
@@ -111,7 +116,8 @@ function refundDe(r){
  if(has('AuthorizeRefund'))return 'Rückerstattung freigegeben (AuthorizeRefund auf Cardano); sie wird automatisch ausgezahlt (Workaround für Masumi #1327): die 1 tUSDM gehen aus der Escrow an das Büro zurück.';
  return 'Die Rückerstattung ist noch nicht auf Cardano: die 1 tUSDM bleiben in der Escrow gesperrt, der RechnungsMeister wird ohne Freigabe des Büros nicht bezahlt. Ein Betreiber schließt die Rückerstattung ab.';
 }
-const smtpErrorDe=e=>/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|ECONNRESET/u.test(e.message)?'Postausgang (SMTP) nicht erreichbar':/timeout/iu.test(e.message)?'Zeitüberschreitung beim Postausgang (SMTP)':e.message;
+const smtpErrorDe=e=>/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|ECONNRESET/u.test(e.message)?'Postausgang (SMTP) nicht erreichbar':/timeout/iu.test(e.message)?'Zeitüberschreitung beim Postausgang (SMTP)'
+ :/^SMTP message refused: /u.test(e.message)?`Der Postausgang (SMTP) hat die Nachricht abgelehnt: ${e.message.slice(22,222)}`:e.message;
 
 export function txTableDe(txs){
  if(!txs?.length)return 'Transaktionen: keine (lokale Prüfung ohne Escrow-Kauf).';
@@ -125,7 +131,8 @@ export function createBuero({runAbnahme,send=smtpSend,probe=probeSmtp,dir='.loca
  // Write and rename: a crash leaves the old or the new file, never a torn one.
  const write=(path,value)=>{writeFileSync(`${path}.tmp`,JSON.stringify(value,null,1),{mode:0o600});renameSync(`${path}.tmp`,path);};
  const xmlOf=sha=>{const p=`${dir}/abnahmen/${sha}.xml`;return existsSync(p)?readFileSync(p,'utf8'):null;};
- const keyOf=e=>e.supplyKey??(xmlOf(e.xmlSha256)===null?null:supplyKey(xmlOf(e.xmlSha256),e.to));
+ // The stored XML decides, so entries keyed by the old regex reader still count; the saved key only without the XML.
+ const keyOf=e=>{const xml=xmlOf(e.xmlSha256);return xml===null?e.supplyKey??null:supplyKey(xml,e.to);};
  const refuse=reasonDe=>({ok:false,reasonDe});
  const outcome=e=>e.status==='sent'?`am ${timeDe(e.sentAt)} versendet (Message-ID ${e.messageId})`
   :`im Versand mit ungeklärtem Ausgang${e.messageId?` (Message-ID ${e.messageId})`:''}. Bitte Postfach prüfen; danach kann der Betreiber den Eintrag als versendet oder nicht versendet klären`;
@@ -183,15 +190,21 @@ export function createBuero({runAbnahme,send=smtpSend,probe=probeSmtp,dir='.loca
  function sendenCheck(input,{taskId,userId,reserve=false}={}){
   let job;try{job=parseTask(input)}catch(e){return refuse(e.message)}
   if(job.kind!=='SENDEN')return refuse('Die erste Zeile muss „SENDEN <Rechnungsnummer>“ lauten.');
-  const n=job.invoiceNumber,accepted=read(acceptedPath,{})[n];
+  const n=job.invoiceNumber,ledger=read(ledgerPath,{entries:[]});
+  // A reservation pins the acceptance it was made for (DELTA-WORKER-1): a later PRÜFEN of the same number changes nothing.
+  const mine=taskId&&ledger.entries.find(e=>e.taskId===taskId&&e.invoiceNumber===n&&e.status==='reserved');
+  if(mine){
+   const xml=xmlOf(mine.xmlSha256)??'';
+   if(sha256(xml)!==mine.xmlSha256)return refuse('Das gespeicherte XML weicht vom abgenommenen XML ab. Bitte erneut PRÜFEN.');
+   return {ok:true,job,reservation:mine,xml};
+  }
+  const accepted=read(acceptedPath,{})[n];
   if(!accepted)return refuse(`Rechnung „${n}“ wurde nicht in einer PRÜFEN-Aufgabe abgenommen. Bitte zuerst PRÜFEN.`);
   if(accepted.refused)return refuse(`Rechnung ${n} wurde zuletzt in PRÜFEN-Aufgabe ${accepted.taskId} abgelehnt. Bitte die Mängel beheben und erneut PRÜFEN.`);
   if(accepted.pending)return refuse(`Die PRÜFEN-Aufgabe ${accepted.taskId} für Rechnung ${n} wurde nicht abgeschlossen. Bitte erneut PRÜFEN.`);
   if(accepted.userId&&accepted.userId!==userId)return refuse(`Rechnung ${n} wurde unter einem anderen Sokosumi-Konto geprüft. SENDEN ist nur für dieses Konto möglich.`);
   const xml=existsSync(accepted.xmlFile)?readFileSync(accepted.xmlFile,'utf8'):'';
   if(sha256(xml)!==accepted.xmlSha256)return refuse('Das gespeicherte XML weicht vom abgenommenen XML ab. Bitte erneut PRÜFEN.');
-  const ledger=read(ledgerPath,{entries:[]});
-  if(taskId&&ledger.entries.some(e=>e.taskId===taskId&&e.invoiceNumber===n&&e.status==='reserved'))return {ok:true,job,accepted,xml};
   const same=ledger.entries.find(e=>e.invoiceNumber===n||e.xmlSha256===accepted.xmlSha256);
   if(same?.status==='reserved')return refuse(`Für Rechnung ${same.invoiceNumber} läuft bereits der SENDEN-Auftrag ${same.taskId}.`);
   if(same)return refuse(`Doppelversand gesperrt: Rechnung ${same.invoiceNumber} (XML sha256 ${same.xmlSha256}) ist bereits ${outcome(same)}.`);
@@ -199,11 +212,16 @@ export function createBuero({runAbnahme,send=smtpSend,probe=probeSmtp,dir='.loca
   if(twin)return refuse(`Dieselbe Leistung (Empfänger ${to}, gleiche Positionen, gleiches Leistungsdatum) ist bereits als Rechnung ${twin.invoiceNumber} ${twin.status==='reserved'?`im SENDEN-Auftrag ${twin.taskId}`:outcome(twin)}.${vatShown(xml)?' Eine zweite Rechnung mit Steuerausweis für dieselbe Leistung würde die Umsatzsteuer nach § 14c Abs. 1 UStG ein zweites Mal schulden.':''} Ein zweiter Versand für dieselbe Leistung ist gesperrt.`);
   if(reserve){
    if(!taskId)return refuse('SENDEN ohne Auftrags-ID.');
-   ledger.entries.push({invoiceNumber:n,xmlSha256:accepted.xmlSha256,supplyKey:key,taskId,userId:userId??null,to,status:'reserved',reservedAt:now().toISOString()});
+   const reservation={invoiceNumber:n,xmlSha256:accepted.xmlSha256,supplyKey:key,taskId,userId:userId??null,to,status:'reserved',reservedAt:now().toISOString(),
+    acceptedTaskId:accepted.taskId,acceptedAt:accepted.acceptedAt,recipientProfileId:accepted.recipientProfileId};
+   ledger.entries.push(reservation);
    write(ledgerPath,ledger);
+   return {ok:true,job,reservation,xml};
   }
   return {ok:true,job,accepted,xml};
  }
+ // The acceptance a ledger entry was reserved for; entries from before DELTA-WORKER-1 fall back to the current store.
+ const acceptanceOf=e=>e.acceptedTaskId?{taskId:e.acceptedTaskId,acceptedAt:e.acceptedAt,recipientProfileId:e.recipientProfileId}:read(acceptedPath,{})[e.invoiceNumber]??{};
  // The paid gate. Free refusals first (they also explain themselves with the mail server down), then the SMTP probe,
  // then the reservation. Mailpit can still fail after the probe; the paid FAILED text then names the credits.
  async function sendenGate(input,task){
@@ -225,8 +243,8 @@ export function createBuero({runAbnahme,send=smtpSend,probe=probeSmtp,dir='.loca
   if(!task.id)throw new Error('SENDEN ohne Auftrags-ID.');
   const check=sendenCheck(input,{taskId:task.id,userId:task.userId,reserve:true});
   if(!check.ok)throw new Error(check.reasonDe);
-  const {job:{invoiceNumber},accepted,xml}=check;
-  const messageId=`<${randomUUID()}@abnahme.local>`,to=AP_INBOX[accepted.recipientProfileId];
+  const {job:{invoiceNumber},reservation,xml}=check,accepted={...acceptanceOf(reservation),xmlSha256:reservation.xmlSha256};
+  const messageId=`<${randomUUID()}@abnahme.local>`,to=reservation.to;
   update(task.id,e=>Object.assign(e,{status:'sending',messageId,sendingAt:now().toISOString()}));  // before SMTP: a crash leaves it blocked, never resent
   let mail;
   try{
@@ -247,19 +265,23 @@ export function createBuero({runAbnahme,send=smtpSend,probe=probeSmtp,dir='.loca
  function recover(task){
   const ledger=read(ledgerPath,{entries:[]}),e=ledger.entries.find(e=>e.taskId===task.id);
   if(!e||e.status==='reserved')return {retry:true};  // nothing was handed to SMTP; the adapter re-checks FundsLocked and the deadline
-  if(e.status==='sent')return {result:sentText(e,read(acceptedPath,{})[e.invoiceNumber]??{},xmlOf(e.xmlSha256)??'')};
+  if(e.status==='sent')return {result:sentText(e,acceptanceOf(e),xmlOf(e.xmlSha256)??'')};
   if(e.status==='sending'){e.status='uncertain';e.error='Unterbrechung während des Versands';write(ledgerPath,ledger);}
   return {error:`Versand von Rechnung ${e.invoiceNumber} mit ungeklärtem Ausgang (Unterbrechung während des Versands, Message-ID ${e.messageId??'unbekannt'}). Bitte Postfach prüfen.`};
  }
- // Operator step after checking the inbox for the entry's Message-ID: 'sent' keeps the number locked, 'not-sent'
- // frees it for one new SENDEN.
+ // Operator step (buero/resolve.mjs) after checking the inbox for the entry's Message-ID: 'sent' keeps the number locked,
+ // 'not-sent' frees it for one new SENDEN. It also frees a reservation whose Task closed without the worker (DELTA-WORKER-3).
  function resolve(invoiceNumber,result){
-  const ledger=read(ledgerPath,{entries:[]}),e=ledger.entries.find(e=>e.invoiceNumber===invoiceNumber&&['sending','uncertain'].includes(e.status));
+  const ledger=read(ledgerPath,{entries:[]}),e=ledger.entries.find(e=>e.invoiceNumber===invoiceNumber&&['reserved','sending','uncertain'].includes(e.status));
   if(!e)throw new Error(`Kein ungeklärter Versand für Rechnung ${invoiceNumber}.`);
-  if(result==='sent')Object.assign(e,{status:'sent',sentAt:e.sendingAt??now().toISOString(),smtpReply:e.smtpReply??'vom Betreiber nach Postfachprüfung bestätigt',resolvedAt:now().toISOString()});
+  if(result==='sent'){
+   if(e.status==='reserved')throw new Error(`Rechnung ${invoiceNumber} ist nur reserviert (SENDEN-Auftrag ${e.taskId}); es wurde nichts an SMTP übergeben. Nur not-sent ist möglich.`);
+   Object.assign(e,{status:'sent',sentAt:e.sendingAt??now().toISOString(),smtpReply:e.smtpReply??'vom Betreiber nach Postfachprüfung bestätigt',resolvedAt:now().toISOString()});
+  }
   else if(result==='not-sent')ledger.entries.splice(ledger.entries.indexOf(e),1);
   else throw new Error('Ergebnis muss sent oder not-sent sein.');
   write(ledgerPath,ledger);
+  return e;
  }
  return {pruefen,confirm,sendenCheck,sendenGate,release,senden,recover,resolve};
 }

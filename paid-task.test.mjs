@@ -4,7 +4,7 @@ import {taskHash,purchasePayload,createPaidAdapter,confirmedState,USDM} from './
 const registration={walletId:'seller-wallet',agentIdentifier:'a'.repeat(80),supportedPaymentSourceIndex:0};
 const target={coworkerId:'coworker',organizationId:null};
 const task={id:'task',coworkerId:'coworker',organizationId:null};
-const core={get:async()=>({data:task})};
+const core={get:async()=>({data:{...task,status:'RUNNING'}})};
 const payment={sellerReturnAddress:null,forceLayer:null,PaymentSource:{network:'Preprod',paymentSourceType:'Web3CardanoV2',smartContractAddress:'addr_test1contract',policyId:'a'.repeat(56)},SmartContractWallet:{id:'seller-wallet',walletVkey:'b'.repeat(56)},RequestedFunds:[{amount:'1000000',unit:USDM}],agentIdentifier:registration.agentIdentifier,blockchainIdentifier:'signed',inputHash:taskHash('abc'),payByTime:String(Date.now()+100000),submitResultTime:String(Date.now()+200000),unlockTime:'9999999999999',externalDisputeUnlockTime:'9999999999999'};
 test('Task compatibility hashes exact UTF-8 bytes without JSON escapes or nonce',()=>{
  assert.equal(taskHash('abc'),'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
@@ -142,4 +142,22 @@ test('QA-2: submit-pending, complete-pending and fail-pending are reconciled wit
   assert.equal(state.paid.stage,expected,`${stage}/${status}`);assert.deepEqual(posts.map(b=>b.status),statuses,`${stage}/${status}`);
   assert.equal(calls.includes('/api/v1/payment/submit-result'),false);
  }
+});
+
+// ---- Fix round 5 (delta review).
+test('DELTA-WORKER-2: a mailed SENDEN found at result-saved after the result deadline is COMPLETED once with a German note and never polled again',async()=>{
+ await sandbox();const {posts,core}=recorder();const calls=[];const late={...payment,submitResultTime:String(Date.now()-60*1000)};
+ const adapter=await createPaidAdapter({target,registration,core,save:async()=>{},answer:async()=>{throw Error('unexpected model')},mps:async path=>{calls.push(path);return lockedPayment}});
+ const result='Versendet: XRechnung AR-2026-0087 an eingangsrechnungen@bau-isar.example';
+ let state={input:'abc',paid:{stage:'result-saved',payment:late,payload:{},result,resultHash:taskHash(result)}};
+ for(let i=0;i<4;i++)state=await adapter.advance(task,state);
+ assert.deepEqual(posts.map(b=>b.status),['COMPLETED']);
+ assert.ok(posts[0].comment.startsWith(result),'the user gets the send result');
+ assert.match(posts[0].comment,/nicht vor Ablauf der Frist auf Cardano eingereicht/);
+ assert.equal(state.phase,'completed');assert.equal(state.paid.stage,'completed-late');
+ assert.equal(calls.includes('/api/v1/payment/submit-result'),false);
+ // A restart at complete-pending (Core already COMPLETED) ends in the same terminal stage, never awaiting-withdrawal.
+ const restarted=await createPaidAdapter({target,registration,core:recorder({status:'COMPLETED'}).core,save:async()=>{},answer:async()=>{},mps:async path=>{calls.push(path);return lockedPayment}});
+ const done=await restarted.advance(task,{input:'abc',paid:{...state.paid,stage:'complete-pending'}});
+ assert.equal(done.paid.stage,'completed-late');
 });

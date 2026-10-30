@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {parseFixed} from '../einvoice/parse-fixed.mjs';
 import {buildXml} from '../einvoice/build.mjs';
-import {parseTask,parseAmount,isSenden,invoiceNumberOf,createBuero,sha256,SEND_PRICE_DE,txTableDe} from './sokosumi.mjs';
+import {parseTask,parseAmount,isSenden,invoiceNumberOf,createBuero,sha256,SEND_PRICE_DE,txTableDe,supplyKey} from './sokosumi.mjs';
 
 const fixture=name=>readFileSync(new URL(`../fixtures/${name}`,import.meta.url),'utf8');
 const xmlB=await buildXml(parseFixed(fixture('b-abschlag-13b-bau-isar.fixed.txt')));
@@ -276,4 +276,68 @@ test('LANE-A2-7: SENDEN for an invoice refused in its first PRÜFEN says it was 
  const ok=createBuero({dir:b.dir,runAbnahme:async()=>({status:'ACCEPTED',protocolDe:'Abnahme: ABGENOMMEN',xml:xmlB,txs:[tx],purchaseId:'purchase-2'})});
  await ok.pruefen({taskId:'t2',userId:'u',input:pruefenInput});ok.confirm('t2');
  assert.equal(ok.sendenCheck('SENDEN AR-2026-0087',{userId:'u'}).ok,true);
+});
+
+// ---- Fix round 5 (delta review).
+test('DELTA-WORKER-1: a reserved SENDEN mails the acceptance it reserved, whatever PRÜFEN of the same number runs before FundsLocked',async()=>{
+ const xmlB2=await xmlWith('b-abschlag-13b-bau-isar.fixed.txt',{paymentTerms:'Zahlbar sofort ohne Abzug.'});
+ const reserved=async()=>{const t=setup2({xmls:[xmlB,xmlB2]});await t.accept('p1');assert.equal(t.buero.sendenCheck('SENDEN AR-2026-0087',{taskId:'s1',userId:'u',reserve:true}).ok,true);return t;};
+ const assertPinned=async({buero,sent,dir},why)=>{
+  const text=await buero.senden('SENDEN AR-2026-0087',s1);
+  assert.equal(sent.length,1,why);assert.equal(sent[0].attachment.content,xmlB,why);assert.equal(sent[0].to,'eingangsrechnungen@bau-isar.example',why);
+  assert.ok(text.includes(`XML sha256: ${sha256(xmlB)}`),why);assert.match(text,/Abgenommen in PRÜFEN-Aufgabe p1 /,why);assert.match(text,/Empfängerprofil bau-isar/,why);
+  const [e]=JSON.parse(readFileSync(`${dir}/sent-ledger.json`,'utf8')).entries;
+  assert.deepEqual([e.status,e.xmlSha256,e.to,e.acceptedTaskId],['sent',sha256(xmlB),'eingangsrechnungen@bau-isar.example','p1'],why);
+  assert.equal((await buero.recover(s1)).result,text,`${why}: recover() reports the pinned acceptance too`);
+ };
+ // A: another Workspace member PRÜFENs a refused invoice with the same BT-1.
+ const a=await reserved();
+ await createBuero({dir:a.dir,runAbnahme:async()=>({status:'REFUSED',protocolDe:'Abnahme: ABGELEHNT',xml:xmlB2,txs:[]})}).pruefen({taskId:'t-other',userId:'other',input:pruefenInput});
+ await assertPinned(a,'A: later refusal');
+ // B: a re-PRÜFEN of the same number is still running (pending) at FundsLocked.
+ const b=await reserved();await b.buero.pruefen({taskId:'p2',userId:'u',input:pruefenInput});
+ await assertPinned(b,'B: pending re-PRÜFEN');
+ // C: a re-PRÜFEN with another XML completed first.
+ const c=await reserved();await c.accept('p2');
+ await assertPinned(c,'C: completed re-PRÜFEN');
+ // D: the re-PRÜFEN named another recipient profile.
+ const d=await reserved();await d.accept('p2',`PRÜFEN\nEmpfänger: hv-giesing\nBetrag: 18.400,00\nRechnung`);
+ await assertPinned(d,'D: other recipient');
+ // The pinned XML is re-hashed before it is mailed.
+ const e=await reserved();writeFileSync(`${e.dir}/abnahmen/${sha256(xmlB)}.xml`,xmlB2);
+ await assert.rejects(e.buero.senden('SENDEN AR-2026-0087',s1),/weicht vom abgenommenen XML ab/);assert.equal(e.sent.length,0);
+});
+test('DELTA-WORKER-5: an SMTP refusal of the message frees the invoice and says so in German, without the message text',async()=>{
+ let calls=0;const {buero,dir,accept}=setup2({send:async m=>{if(++calls===1)throw Object.assign(new Error('SMTP message refused: 554 5.7.1 Message rejected'),{dataSent:false});return {messageId:m.messageId,smtpReply:'250 Ok'}}});
+ await accept();
+ const error=await buero.senden('SENDEN AR-2026-0087',s1).then(()=>null,e=>e);
+ assert.match(error.message,/^Versand fehlgeschlagen \(nichts versendet\): Der Postausgang \(SMTP\) hat die Nachricht abgelehnt: 554 5\.7\.1 Message rejected\.$/);
+ assert.deepEqual(JSON.parse(readFileSync(`${dir}/sent-ledger.json`,'utf8')).entries,[]);
+ assert.match(await buero.senden('SENDEN AR-2026-0087',s2),/Versendet/);
+});
+test('DELTA-VERIFIER-3: the same-supply key reads the XML like KoSIT does: another prefix, CDATA, a decoy line in an extension or another line name do not change it',async()=>{
+ const xmlA=await buildXml(fieldsOf('a-reparatur-hv-giesing.fixed.txt')),to='eingangsrechnungen@hv-giesing.example',key=supplyKey(xmlA,to);
+ const renamed=xmlA.replace('xmlns:cbc=','xmlns:b=').replaceAll('<cbc:','<b:').replaceAll('</cbc:','</b:');
+ const cdata=xmlA.replace('>238.00</cbc:LineExtensionAmount>','><![CDATA[238.00]]></cbc:LineExtensionAmount>');
+ const decoy=xmlA.replace('<cbc:CustomizationID>','<ext:UBLExtensions xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"><ext:UBLExtension><ext:ExtensionContent><cac:InvoiceLine><cbc:InvoicedQuantity>9</cbc:InvoicedQuantity></cac:InvoiceLine></ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions><cbc:CustomizationID>');
+ const renamedLine=xmlA.replace('Fehlersuche und Reparatur Treppenhausbeleuchtung','Reparatur der Treppenhausbeleuchtung');
+ for(const [why,variant] of Object.entries({renamed,cdata,decoy,renamedLine}))assert.equal(supplyKey(variant,to),key,why);
+ assert.notEqual(supplyKey(xmlA.replace('>3.5</cbc:InvoicedQuantity>','>4.5</cbc:InvoicedQuantity>'),to),key,'another quantity is another supply');
+ assert.notEqual(supplyKey(xmlA,'eingangsrechnungen@bau-isar.example'),key,'another inbox is another supply');
+ // 06c (delta review): 2026-0412 is sent; the same supply as 2026-0412-1 with the cbc prefix renamed is refused before payment.
+ const xmlA1=(await xmlWith('a-reparatur-hv-giesing.fixed.txt',{invoiceNumber:'2026-0412-1'})).replace('xmlns:cbc=','xmlns:b=').replaceAll('<cbc:','<b:').replaceAll('</cbc:','</b:');
+ const {buero,dir}=setup2({xmls:[xmlA,xmlA1]});const input='PRÜFEN\nEmpfänger: hv-giesing\nBetrag: 527,17\nRechnung';
+ await buero.pruefen({taskId:'p1',userId:'u',input});buero.confirm('p1');await buero.senden('SENDEN 2026-0412',s1);
+ await buero.pruefen({taskId:'p2',userId:'u',input});buero.confirm('p2');
+ // Ledger entries keep the key of the old regex reader; the stored XML decides, so an entry sent before this fix still counts.
+ const ledgerPath=`${dir}/sent-ledger.json`,ledger=JSON.parse(readFileSync(ledgerPath,'utf8'));ledger.entries[0].supplyKey='0'.repeat(64);writeFileSync(ledgerPath,JSON.stringify(ledger));
+ assert.match(buero.sendenCheck('SENDEN 2026-0412-1',{taskId:'s2',userId:'u',reserve:true}).reasonDe,/Dieselbe Leistung.*2026-0412/su);
+});
+test('DELTA-WORKER-3/QA-16: the operator step also frees a reservation left behind by a closed Task, but cannot mark it sent',async()=>{
+ const {buero,dir,accept}=setup2();await accept();
+ buero.sendenCheck('SENDEN AR-2026-0087',{taskId:'s1',userId:'u',reserve:true});
+ assert.throws(()=>buero.resolve('AR-2026-0087','sent'),/nur reserviert.*nichts an SMTP übergeben/su);
+ assert.equal(buero.resolve('AR-2026-0087','not-sent').taskId,'s1');
+ assert.deepEqual(JSON.parse(readFileSync(`${dir}/sent-ledger.json`,'utf8')).entries,[]);
+ assert.match(await buero.senden('SENDEN AR-2026-0087',s2),/Versendet/);
 });

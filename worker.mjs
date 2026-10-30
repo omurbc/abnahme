@@ -21,7 +21,7 @@ export async function runWorker(worker,{wait=ms=>new Promise(r=>setTimeout(r,ms)
   await Promise.race([wait(5000),...worker.inflight.values()]);
  }
 }
-const DONE=new Set(['completed','failed','closed']),PAID_DONE=new Set(['settled','failed']);
+const DONE=new Set(['completed','failed','closed']),PAID_DONE=new Set(['settled','failed','completed-late']);
 const CLOSABLE=new Set(['starting','started','result-saved','gate-failed','complete-pending','fail-pending']);
 const TERMINAL=new Set(['COMPLETED','FAILED','CANCELED','CANCELLED']);
 const MAX_PRUEFEN=2;  // each free PRÜFEN costs a Claude call or an escrow purchase
@@ -38,7 +38,8 @@ export function createWorker({target,cli,buero,paid,events,paidReady=isPaidReady
   let next=state;
   if(state.phase==='complete-pending'&&t.status==='COMPLETED'){next={...state,phase:'completed'};buero.confirm(t.id);}
   else if(state.phase==='fail-pending'&&t.status==='FAILED')next={...state,phase:'failed'};
-  else if(TERMINAL.has(t.status)&&CLOSABLE.has(state.phase))next={...state,phase:'closed',coreStatus:t.status};
+  // A SENDEN closed before the paid adapter saved a stage still holds its reservation (DELTA-WORKER-3).
+  else if(TERMINAL.has(t.status)&&CLOSABLE.has(state.phase)){next={...state,phase:'closed',coreStatus:t.status};buero.release(t.id);}
   else if(state.phase==='starting')next=t.status==='READY'?{}:t.status==='RUNNING'&&typeof t.description==='string'?{phase:'started',input:t.description}:state;
   // An abandoned PRÜFEN runs again with the same input; the escrow engine resumes its own journal for that input.
   else if(state.phase==='model-pending'&&!inflight.has(t.id))next={...state,phase:'started'};

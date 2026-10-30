@@ -241,3 +241,40 @@ test('LANE-A2-3: queued PRÜFEN start oldest first, and a PRÜFEN with an input 
  await polls(worker,3);
  assert.deepEqual(['p1','p2','p3','p4'].map(id=>s.task(id).status),['COMPLETED','COMPLETED','COMPLETED','COMPLETED']);
 });
+
+// ---- Fix round 5 (delta review).
+test('DELTA-WORKER-2: a paid SENDEN at result-saved after the result deadline is COMPLETED and then left alone',async()=>{
+ sandbox();const {s,m}=await sendenUntilResultSaved();
+ const j=journal('s1');writeFileSync('.local/s1.json',JSON.stringify({...j,paid:{...j.paid,payment:{...j.paid.payment,submitResultTime:String(Date.now()-1000)}}}));
+ const {worker,mails}=await setup(s,m);
+ await polls(worker,3);
+ assert.equal(s.task('s1').status,'COMPLETED');assert.match(s.posted.find(e=>e.taskId==='s1'&&e.status==='COMPLETED').comment,/Versendet: XRechnung AR-2026-0087[\s\S]*nicht vor Ablauf der Frist/);
+ assert.equal(mails.length,0);assert.equal(m.calls.includes('/api/v1/payment/submit-result'),false);
+ const before={core:s.calls.length,mps:m.calls.length};
+ await polls(worker,2);
+ assert.deepEqual(s.calls.slice(before.core),['tasks list','tasks list']);assert.equal(m.calls.length,before.mps);
+});
+test('DELTA-WORKER-3: a SENDEN whose Task closes before the paid adapter saved a stage releases its reservation',async()=>{
+ sandbox();const s=fakeSokosumi([task('p1',pruefenInput)]),m=fakeMps();const {worker}=await setup(s,m);
+ await polls(worker,2);
+ s.add(task('s1','SENDEN AR-2026-0087'));
+ const get=s.core.get;let fail=true;s.core.get=async(...a)=>{if(fail){fail=false;throw new Error('HTTP 503')}return get(...a)};
+ await polls(worker,1);
+ assert.equal(JSON.parse(readFileSync('.local/sent-ledger.json','utf8')).entries[0].status,'reserved','the gate reserved before the Core read failed');
+ s.task('s1').status='CANCELED';await polls(worker,1);
+ assert.equal(journal('s1').phase,'closed');
+ assert.deepEqual(JSON.parse(readFileSync('.local/sent-ledger.json','utf8')).entries,[]);
+ s.add(task('s2','SENDEN AR-2026-0087'));await polls(worker,6);
+ assert.equal(m.payments(),1);assert.equal(s.task('s2').status,'COMPLETED');
+});
+test('DELTA-WORKER-4: a paid SENDEN cancelled after the payment request is not mailed when FundsLocked arrives, and gives its reservation back',async()=>{
+ sandbox();const s=fakeSokosumi([task('p1',pruefenInput)]),m=fakeMps();const {worker,mails}=await setup(s,m);
+ await polls(worker,2);s.add(task('s1','SENDEN AR-2026-0087'));
+ for(let i=0;i<5&&!(existsSync('.local/s1.json')&&journal('s1').paid?.stage==='awaiting-escrow');i++)await polls(worker,1);
+ assert.equal(journal('s1').paid.stage,'awaiting-escrow');
+ s.task('s1').status='CANCELED';await polls(worker,3);
+ assert.equal(mails.length,0);assert.equal(m.calls.includes('/api/v1/payment/submit-result'),false);
+ assert.equal(journal('s1').paid.stage,'failed');assert.equal(journal('s1').phase,'closed');
+ assert.equal(s.posted.some(e=>e.taskId==='s1'&&e.status),false);
+ assert.deepEqual(JSON.parse(readFileSync('.local/sent-ledger.json','utf8')).entries,[]);
+});

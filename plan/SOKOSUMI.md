@@ -61,6 +61,7 @@ Do not rerun `api-key | key-import` after the successful import: it mints a new 
 | Gutachter | `cd gutachter && npm run seller` (loads `../.local/env/gutachter-seller.env`, no secrets) | PRÜFEN with stream D's `runAbnahme` only |
 | RechnungsMeister | `node --env-file=.local/env/rechnungsmeister.env --import=./scripts/env-guard.mjs rechnungsmeister/server.mjs` | PRÜFEN with stream D's `runAbnahme` only |
 | Worker (exactly one) | `node --env-file=.local/env/buero.env --import=./scripts/env-guard.mjs worker.mjs` | everything |
+| Refund-repair loop (exactly one) | `node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs mps/refund-repair.mjs --loop` | refunds of refused PRÜFEN and stuck payouts on MPS 0.29.0 (`plan/MPS.md`) |
 | Eve (`npm start`) | **not needed**, see F | |
 
 Generate the `.local/env/*.env` files first with `node scripts/env-split.mjs` (see `plan/MPS.md`, "Env files per process"); rerun it
@@ -93,9 +94,27 @@ The first line of the description picks the route (`buero/sokosumi.mjs`). A desc
     The § 14c UStG note appears only when the invoice shows VAT.
 
   Then the worker probes SMTP (refused for free if Mailpit does not answer) and **reserves** the invoice in the ledger before
-  it requests payment, so a second SENDEN for the same invoice fails for free. After FundsLocked the same check runs again
-  against the reservation; a refusal there ends FAILED and never submits a result. Every FAILED text says whether credits were
-  booked: after the payment request, Sokosumi has booked credits that a FAILED Task does not refund.
+  it requests payment, so a second SENDEN for the same invoice fails for free. The reservation pins the acceptance: the XML
+  sha256, the inbox and the accepting PRÜFEN Task. After FundsLocked the worker reads the Task again (a Task cancelled meanwhile
+  gets nothing) and mails exactly the pinned XML, re-hashed, to the pinned inbox; a PRÜFEN of the same number in between changes
+  neither. A refusal there ends FAILED and never submits a result. Every FAILED text says whether credits were
+  booked: after the payment request, Sokosumi has booked credits that a FAILED Task does not refund. A SENDEN whose mail went out
+  but whose result missed the MPS deadline (the worker was down) ends COMPLETED with the send result and a note that the Büro is
+  not paid for it.
+
+**Unclear send (operator, `buero/resolve.mjs`).** A FAILED SENDEN that says "mit ungeklärtem Ausgang" names a Message-ID: the
+worker stopped, or the connection broke, after the message was handed to SMTP. An SMTP refusal (a 4xx/5xx reply) is
+"nichts versendet" and frees the number by itself. Search Mailpit (http://127.0.0.1:8025) for the Message-ID, stop the worker
+(one SIGTERM, it finishes its pass), then from the repo root:
+
+```sh
+node buero/resolve.mjs AR-2026-0087 sent       # the mail is in Mailpit: the number stays locked (Doppelversand)
+node buero/resolve.mjs AR-2026-0087 not-sent   # it is not: the number is free for one new SENDEN
+```
+
+and start the worker again. The CLI takes the worker lock, so it refuses while a worker runs. `not-sent` also frees a reservation
+that a SENDEN Task left behind ("läuft bereits der SENDEN-Auftrag …" for a Task that is no longer running); `sent` is refused
+for a mere reservation, because nothing was handed to SMTP.
 
 ```sh
 SLUG=tum-hackathon-u4ve65; CW=01a18c0c-c2b5-72ea-93e6-a678359b9cc2

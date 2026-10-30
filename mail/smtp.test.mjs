@@ -4,14 +4,14 @@ import {createServer} from 'node:net';
 import {sendMail} from './smtp.mjs';
 
 // Fake SMTP server: records commands and the DATA body, answers like Mailpit.
-function fakeSmtp(){
+function fakeSmtp({dataReply='250 2.0.0 Ok: queued as FAKE1'}={}){
  const seen={commands:[],data:''};
  const server=createServer(socket=>{
   let buffer='',inData=false;
   socket.write('220 fake ESMTP\r\n');
   socket.on('data',chunk=>{
    buffer+=chunk;
-   if(inData){const end=buffer.indexOf('\r\n.\r\n');if(end<0)return;seen.data=buffer.slice(0,end);buffer=buffer.slice(end+5);inData=false;socket.write('250 2.0.0 Ok: queued as FAKE1\r\n');}
+   if(inData){const end=buffer.indexOf('\r\n.\r\n');if(end<0)return;seen.data=buffer.slice(0,end);buffer=buffer.slice(end+5);inData=false;if(dataReply)socket.write(`${dataReply}\r\n`);}
    let i;while(!inData&&(i=buffer.indexOf('\r\n'))>=0){
     const line=buffer.slice(0,i);buffer=buffer.slice(i+2);seen.commands.push(line);
     if(line.startsWith('EHLO'))socket.write('250-fake\r\n250 8BITMIME\r\n');
@@ -67,4 +67,18 @@ test('QA-3: probeSmtp is true for a live server and false for a closed port, wit
  try{assert.equal(typeof probeSmtp,'function');assert.equal(await probeSmtp({port}),true);}finally{server.close();}
  assert.equal(seen.commands.some(c=>c.startsWith('MAIL')||c==='DATA'),false);
  assert.equal(await probeSmtp({port}),false);
+});
+
+// ---- Fix round 5 (delta review).
+test('DELTA-WORKER-5: a 5xx reply to the message is a definitive refusal (dataSent=false) and the error does not carry the message',async()=>{
+ const {server,port}=await fakeSmtp({dataReply:'554 5.7.1 Message rejected'});
+ const mail={port,from:'a@x.example',to:'b@y.example',subject:'XRechnung AR-1',text:'Hallo',attachment:{filename:'AR-1.xml',content:'<Invoice/>',contentType:'application/xml'}};
+ const error=await sendMail(mail).then(()=>null,e=>e);server.close();
+ assert.ok(error);assert.equal(error.dataSent,false);assert.match(error.message,/554 5\.7\.1 Message rejected/);
+ assert.doesNotMatch(error.message,/From:|Content-Type|multipart|PEludm9pY2Uv/);assert.ok(error.message.length<200,error.message);
+});
+test('DELTA-WORKER-5: no reply after the message stays uncertain (dataSent=true)',async()=>{
+ const {server,port}=await fakeSmtp({dataReply:null});
+ const error=await sendMail({port,timeoutMs:300,from:'a@x.example',to:'b@y.example',subject:'s',text:'t',attachment:{filename:'f.xml',content:'<a/>',contentType:'application/xml'}}).then(()=>null,e=>e);server.close();
+ assert.ok(error);assert.equal(error.dataSent,true);assert.match(error.message,/timeout/);
 });
