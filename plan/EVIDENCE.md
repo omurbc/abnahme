@@ -154,7 +154,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T12-02-48-533Z-bbebcd: ACCEPTED
 
-Fixture `/tmp/abnahme-audit/p2-live/s5-b-var-B.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local. Finished 2026-10-30T12:09:47.354Z, 7.0 min. Purchase `cmvuxamb8008h01pg1vqcde08`.
+Fixture `s5-b-var-B.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local. Finished 2026-10-30T12:09:47.354Z, 7.0 min. Purchase `cmvuxamb8008h01pg1vqcde08`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -189,7 +189,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T12-02-48-533Z-3fa6cf: ACCEPTED
 
-Fixture `/tmp/abnahme-audit/p2-live/s5-b-var-A.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local. Finished 2026-10-30T12:10:57.951Z, 8.2 min. Purchase `cmvuxama0008c01pgtgbg2u56`.
+Fixture `s5-b-var-A.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local. Finished 2026-10-30T12:10:57.951Z, 8.2 min. Purchase `cmvuxama0008c01pgtgbg2u56`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -267,7 +267,7 @@ Gutachter buyer top-up (20 tADA from the Büro purchasing wallet, `mps/fund.mjs`
 
 ## Escrow run 2026-10-30T13-29-14-578Z-0041d9: ACCEPTED
 
-Fixture `/tmp/b-g1-live.txt`, recipient `bau-isar`, expected 18400.00 EUR, x402 inspection, --follow. Finished 2026-10-30T13:39:05.147Z, 9.8 min. Purchase `cmvv0drmb00e001pg5vzg9gl3`.
+Fixture `b-g1-live.txt`, recipient `bau-isar`, expected 18400.00 EUR, x402 inspection, --follow. Finished 2026-10-30T13:39:05.147Z, 9.8 min. Purchase `cmvv0drmb00e001pg5vzg9gl3`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -305,7 +305,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T13-48-25-183Z-f4ea24: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign/lane-b/inv-B102.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:00:07.241Z, 11.7 min. Purchase `cmvv12fje00g801pgilf9m9zs`.
+Fixture `inv-B102.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:00:07.241Z, 11.7 min. Purchase `cmvv12fje00g801pgilf9m9zs`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -341,7 +341,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T13-48-25-184Z-601d33: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign/lane-b/inv-B101.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:00:07.246Z, 11.7 min. Purchase `cmvv12foh00gi01pgv1xl00si`.
+Fixture `inv-B101.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:00:07.246Z, 11.7 min. Purchase `cmvv12foh00gi01pgv1xl00si`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -377,7 +377,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T13-49-02-339Z-7faf49: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign/lane-b/inv-B401.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:05:01.227Z, 4.6 min. Purchase `cmvv1385a00h501pgxcz2idlw`.
+Fixture `inv-B401.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:05:01.227Z, 4.6 min. Purchase `cmvv1385a00h501pgxcz2idlw`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -414,7 +414,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T13-59-49-451Z-b0cb80: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign/lane-b/inv-B601.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:07:40.204Z, 7.8 min. Purchase `cmvv1h3pd00n101pgroifb7sw`.
+Fixture `inv-B601.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:07:40.204Z, 7.8 min. Purchase `cmvv1h3pd00n101pgroifb7sw`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -450,7 +450,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T13-48-25-176Z-a678b5: FAILED
 
-Fixture `/tmp/abnahme-campaign/lane-b/inv-B301.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:12:19.930Z, 23.9 min. Purchase `cmvv12fq900gn01pgda5ltq08`.
+Fixture `inv-B301.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:12:19.930Z, 23.9 min. Purchase `cmvv12fq900gn01pgda5ltq08`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -477,7 +477,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T13-49-02-329Z-74c5a8: REFUSED
 
-Fixture `/tmp/abnahme-campaign/lane-b/inv-B501.txt`, recipient `hv-giesing`, expected 600.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:12:47.925Z, 23.8 min. Purchase `cmvv137yp00h201pgs837om7o`.
+Fixture `inv-B501.txt`, recipient `hv-giesing`, expected 600.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:12:47.925Z, 23.8 min. Purchase `cmvv137yp00h201pgs837om7o`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -507,7 +507,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T13-48-25-176Z-c7699f: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign/lane-b/inv-B201.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:14:56.195Z, 26.5 min. Purchase `cmvv12g3e00gt01pgnb0iajo4`.
+Fixture `inv-B201.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:14:56.195Z, 26.5 min. Purchase `cmvv12g3e00gt01pgnb0iajo4`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -544,7 +544,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T14-08-42-591Z-10c96e: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign/lane-b/inv-B602.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:18:43.650Z, 10.0 min. Purchase `cmvv1siop00rk01pg2jgpevbf`.
+Fixture `inv-B602.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:18:43.650Z, 10.0 min. Purchase `cmvv1siop00rk01pg2jgpevbf`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -580,7 +580,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T13-48-25-184Z-8e66a5: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign/lane-b/inv-B103.txt`, recipient `hv-giesing`, expected 527.17 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:44:38.204Z, 56.2 min. Purchase `cmvv12g2p00gq01pggredqsh8`.
+Fixture `inv-B103.txt`, recipient `hv-giesing`, expected 527.17 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:44:38.204Z, 56.2 min. Purchase `cmvv12g2p00gq01pggredqsh8`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -604,7 +604,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T13-48-25-176Z-a678b5: REFUSED
 
-Fixture `/tmp/abnahme-campaign/lane-b/inv-B301.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:51:43.149Z, 6.7 min. Purchase `cmvv12fq900gn01pgda5ltq08`.
+Fixture `inv-B301.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T14:51:43.149Z, 6.7 min. Purchase `cmvv12fq900gn01pgda5ltq08`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -677,7 +677,7 @@ Finding IDs (CAMPAIGN-n) refer to `audit/raw/e2e-campaign.md`. Times are UTC; "q
 
 ## Escrow run 2026-10-30T16-00-35-195Z-e5d100: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign2/lane-b/inv-C101.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:07:34.171Z, 7.0 min. Purchase `cmvv5sej5012q01pg59qnwsnx`.
+Fixture `inv-C101.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:07:34.171Z, 7.0 min. Purchase `cmvv5sej5012q01pg59qnwsnx`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -713,7 +713,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T16-00-35-195Z-f0574e: REFUSED
 
-Fixture `/tmp/abnahme-campaign2/lane-b/inv-C501.txt`, recipient `hv-giesing`, expected 600.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:12:44.570Z, 12.2 min. Purchase `cmvv5selu013801pgrvwwp5ll`.
+Fixture `inv-C501.txt`, recipient `hv-giesing`, expected 600.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:12:44.570Z, 12.2 min. Purchase `cmvv5selu013801pgrvwwp5ll`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -743,7 +743,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T16-08-54-607Z-36a463: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign2/lane-b/inv-C402.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:18:50.620Z, 2.9 min. Purchase `cmvv64tg4018101pg20qr6y42`.
+Fixture `inv-C402.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:18:50.620Z, 2.9 min. Purchase `cmvv64tg4018101pg20qr6y42`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -780,7 +780,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T16-00-35-195Z-097ac6: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign2/lane-b/inv-C201.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:25:23.790Z, 24.8 min. Purchase `cmvv5sekm013201pglzacvqhl`.
+Fixture `inv-C201.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:25:23.790Z, 24.8 min. Purchase `cmvv5sekm013201pglzacvqhl`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -817,7 +817,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T16-26-26-509Z-1be162: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign2/lane-b/inv-C601.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:35:27.349Z, 9.0 min. Purchase `cmvv6pn7901go01pg40grgrna`.
+Fixture `inv-C601.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:35:27.349Z, 9.0 min. Purchase `cmvv6pn7901go01pg40grgrna`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -853,7 +853,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T16-08-54-607Z-36a463: ACCEPTED (resumed)
 
-Fixture `/tmp/abnahme-campaign2/lane-b/inv-C402.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:41:09.974Z, 0.0 min. Purchase `cmvv64tg4018101pg20qr6y42`.
+Fixture `inv-C402.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:41:09.974Z, 0.0 min. Purchase `cmvv64tg4018101pg20qr6y42`.
 Resumed: the tx rows and protocol lines of the earlier section for this journal are not repeated; this status replaces it.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
@@ -868,7 +868,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T16-35-27-489Z-6ec0b0: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign2/lane-b/inv-C602.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:43:58.716Z, 8.5 min. Purchase `cmvv7198401j401pg7msr6k3q`.
+Fixture `inv-C602.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:43:58.716Z, 8.5 min. Purchase `cmvv7198401j401pg7msr6k3q`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -904,7 +904,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T16-00-35-195Z-9c98cb: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign2/lane-b/inv-C103.txt`, recipient `hv-giesing`, expected 527.17 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:57:47.237Z, 57.2 min. Purchase `cmvv5sem7013c01pg6akrnerd`.
+Fixture `inv-C103.txt`, recipient `hv-giesing`, expected 527.17 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T16:57:47.237Z, 57.2 min. Purchase `cmvv5sem7013c01pg6akrnerd`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -928,7 +928,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T16-08-54-607Z-8f45a8: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign2/lane-b/inv-C401.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T17:21:32.039Z, 66.4 min. Purchase `cmvv633he017g01pgpdp6niyi`.
+Fixture `inv-C401.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T17:21:32.039Z, 66.4 min. Purchase `cmvv633he017g01pgpdp6niyi`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -964,7 +964,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T16-00-35-195Z-ba4e12: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign2/lane-b/inv-C102.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T17:21:32.039Z, 80.9 min. Purchase `cmvv5senj013f01pgs57v892s`.
+Fixture `inv-C102.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T17:21:32.039Z, 80.9 min. Purchase `cmvv5senj013f01pgs57v892s`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |
@@ -999,7 +999,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Escrow run 2026-10-30T16-00-35-195Z-1ea84f: ACCEPTED
 
-Fixture `/tmp/abnahme-campaign2/lane-b/inv-C301.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T17:27:25.033Z, 86.8 min. Purchase `cmvv5sepg013i01pgk52ooc8v`.
+Fixture `inv-C301.txt`, recipient `bau-isar`, expected 18400.00 EUR, INSPECT_MODE=local, --follow. Finished 2026-10-30T17:27:25.033Z, 86.8 min. Purchase `cmvv5sepg013i01pgk52ooc8v`.
 RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
 
 | Step | Time (UTC) | Tx | Explorer |

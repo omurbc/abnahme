@@ -226,7 +226,7 @@ history shows that label for this tx (the buyer side keeps `Disputed>WithdrawAut
 The buyer purchases followed to `Withdrawn` / `None`. Afterwards no V2 payment or purchase was left in `WithdrawAuthorized`.
 The trigger cannot be switched off by configuration: the L1 SubmitResult batch size is hardcoded (`SUBMIT_RESULT_BATCH_SIZE = 7`
 in `payments/submit-result/service.ts`), so the `--loop` is the safety net. It only picks up the new mode after a restart.
-Upstream issue draft (not filed): `/tmp/mps-upstream-drafts/ISSUE2.md`.
+Upstream issue: [masumi-payment-service#1331](https://github.com/masumi-network/masumi-payment-service/issues/1331), fix [#1332](https://github.com/masumi-network/masumi-payment-service/pull/1332).
 
 ## Refunds RechnungsMeister decided while MPS holds the payment (DELTA-SELLER-2): same script, `repairHeldRefunds`
 

@@ -104,7 +104,7 @@ export async function repairStuckRefunds({url=process.env.MPS_URL,adminKey=proce
  }
 }
 
-// LB2-1 (MPS 0.29.0, also on main and dev; upstream draft in /tmp/mps-upstream-drafts/ISSUE2.md). In a batched V2 SubmitResult
+// LB2-1 (MPS 0.29.0, also on main and dev; upstream issue masumi-payment-service#1331). In a batched V2 SubmitResult
 // all escrows share one Transaction row. tx-sync's first entry marks it Confirmed, and for every later escrow that stays
 // Disputed (a cure) the handler's idempotency guard (same txHash, Confirmed, onChainState already Disputed) returns early. The
 // payment keeps SubmitResultInitiated, the buyer's AuthorizeWithdrawal then maps to WaitingForManualAction ("Possible a action
