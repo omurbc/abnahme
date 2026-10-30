@@ -48,6 +48,7 @@ A defect freezes the converter's money on chain until the converter fixes it.
 - [Tech stack](#tech-stack)
 - [On-chain evidence](#on-chain-evidence)
 - [Upstream contributions](#upstream-contributions-two-bugs-in-the-masumi-payment-service)
+- [Regulatory compliance](#regulatory-compliance)
 - [Security review](#security-review)
 - [Status](#status)
 - [Credits](#credits)
@@ -1061,6 +1062,20 @@ While building the refusal path we found that MPS 0.28.0 (the first release with
 - Workaround, verified on our instance: `request-repair` with the `AuthorizeWithdrawal` tx, then `error-state-recovery`; the three stuck payouts were paid in [`d6d48469…`](https://preprod.cardanoscan.io/transaction/d6d484694ce2d8af2f1bae88d11cb41e9495124782dbf91be33da0cae614da08) and [`4d580b35…`](https://preprod.cardanoscan.io/transaction/4d580b35eb441be0ed25701c9f4c1ef254fd6cbbc267fcb877d6a95d2590c17a). [`mps/refund-repair.mjs`](mps/refund-repair.mjs) detects and repairs both bugs automatically, after checking the escrow datum on chain.
 
 ---
+
+## Regulatory compliance
+
+Abnahme is a hackathon build on Cardano preprod, run by one founder with no company yet. Nothing here is a legal opinion; a legal review is budgeted before the first customer. Sources and details: [business case, section 9](docs/business.md#9-regulatory-and-trust).
+
+| Area | What applies | What Abnahme does today | Open before the first customer |
+|---|---|---|---|
+| E-invoicing (UStG) | §14 UStG: structured e-invoices (EN 16931) for domestic B2B; issuing is mandatory from 1 Jan 2027 above EUR 800,000 turnover. §13b reverse charge with the §14a Abs. 5 wording. §14c: VAT shown on an invoice issued twice can be owed twice | XRechnung UBL, validated by the official KoSIT validator 1.6.3 with the pinned XRechnung configuration 2026-08-31. Checks for the §13b category, the buyer VAT ID (BT-48), the §14a wording and the VAT rate. One send per invoice number | – |
+| Archiving (GoBD, §147 AO, §14b UStG) | Invoices are kept for 8 years, the structured part in its original form | Hands over the original XML, its sha256 and the acceptance protocol. Archiving stays with the customer's accounting tool | An archive partner |
+| Data protection (DSGVO) | Invoice text holds personal data: names, contacts, IBANs | Only hashes go on chain. Extraction runs on the Anthropic API under its Data Processing Addendum with the EU Standard Contractual Clauses | EU-only processing (an EU route such as AWS Bedrock); salting the SENDEN `input_hash`, which today lets invoice numbers be guessed |
+| Payment services (ZAG) | Escrowing third parties' purchase prices is money remittance (Finanztransfergeschäft, §1 Abs. 1 S. 2 Nr. 6 ZAG) | Escrows only the agent fee, paid by our own agent from our own funds. Never the invoice amount | A legal opinion on the fee escrow. Escrowing invoice amounts ("Fällig") only with a licensed partner |
+| Crypto-assets (MiCA) | Stablecoins and services for clients' crypto-assets are regulated in the EU | Preprod test tokens only, with no value. Frau Berger pays in Sokosumi credits and never holds a wallet or crypto | On mainnet: a MiCA-compliant settlement token, and a check whether any role is a crypto-asset service |
+| Tax advice (StBerG) | Tax advice is reserved to tax advisers | The result is the buyer's acceptance criteria, identified by the profile hash, not a tax opinion. The recipient must still check the invoice (BMF 2025, Rn. 35a) | Terms of service, liability insurance |
+| Imprint (§5 DDG) | A commercial site needs a full imprint | [Hackathon imprint](site/impressum.html), no company yet | A full imprint once incorporated |
 
 ## Security review
 
