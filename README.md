@@ -644,8 +644,8 @@ Hashes are filled in from preprod as each run lands; rows still marked TBD have 
 | # | Transaction | Rail | What it shows | Tx hash |
 |---|---|---|---|---|
 | 1 | x402 inspection payment, 1 tADA | x402 | Gutachter paid per call (track requirement) | [`5820e591b57f…`](https://preprod.cardanoscan.io/transaction/5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9) |
-| 2 | RechnungsMeister registration (agent NFT mint) | Masumi registry | Seller agent on the registry | TBD |
-| 3 | Abnahme-Büro registration (agent NFT mint) | Masumi registry | Buyer / Coworker agent on the registry | TBD |
+| 2 | RechnungsMeister registration (agent NFT mint) | Masumi registry | Seller agent on the registry | [`8548d4f7a4a8…`](https://preprod.cardanoscan.io/transaction/8548d4f7a4a8667a91ccbd068d41ad6070062bc5794d1e6fe72159b625836333) |
+| 3 | Abnahme-Büro registration (agent NFT mint) | Masumi registry | Buyer / Coworker agent on the registry | [`f63a51dc5728…`](https://preprod.cardanoscan.io/transaction/f63a51dc57282b2a680ce12ef25f4d80d74f65ed12a19330af1986d00bc0fc22) |
 | 4 | `FundsLocked` | Masumi V2 escrow | Büro-Agent buys from RechnungsMeister, `input_hash` pins the profile | TBD |
 | 5 | `ResultSubmitted`, first delivery | Masumi V2 escrow | Delivery with BT-48 missing | TBD |
 | 6 | x402 inspection → REJECT `BR-AE-02` | x402 | The paid inspection that found the defect | TBD |
