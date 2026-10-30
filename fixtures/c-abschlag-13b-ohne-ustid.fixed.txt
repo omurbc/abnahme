@@ -1,0 +1,32 @@
+ABNAHME-FIXED/1
+# Fixture c: same § 13b progress invoice WITHOUT buyer VAT ID (expected: KoSIT reject BR-AE-02)
+invoiceNumber: AR-2026-0087
+invoiceDate: 2026-10-28
+invoiceType: 875
+serviceDate: 2026-10-23
+sellerName: Toni Huber Elektrotechnik GmbH
+sellerStreet: Lindwurmstraße 112
+sellerPostcode: 80337
+sellerCity: München
+sellerCountry: DE
+sellerVatId: DE312456789
+sellerIban: DE20701500000012345678
+sellerContactName: Toni Huber
+sellerPhone: +49 89 7654321
+sellerEmail: rechnung@huber-elektrotechnik.example
+buyerName: Bau Isar Generalunternehmer GmbH
+buyerStreet: Rosenheimer Straße 145
+buyerPostcode: 81671
+buyerCity: München
+buyerCountry: DE
+buyerVatId:
+buyerEmail: eingangsrechnungen@bau-isar.example
+buyerReference: BV-2026-014
+line: 1 | LS | 12600.00 | AE | 0 | Elektroinstallation Haus A, Leistungsstand 40 %
+line: 4 | H87 | 1450.00 | AE | 0 | Unterverteilungen UV-1 bis UV-4 geliefert und montiert
+netTotal: 18400.00
+vatTotal: 0.00
+grossTotal: 18400.00
+dueDate:
+paymentTerms: Zahlbar innerhalb von 21 Tagen ohne Abzug.
+reverseCharge: true

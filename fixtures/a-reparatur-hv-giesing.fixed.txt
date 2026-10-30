@@ -1,0 +1,33 @@
+ABNAHME-FIXED/1
+# Fixture a: clean 19 % repair invoice to Hausverwaltung Giesing (expected: accept)
+invoiceNumber: 2026-0412
+invoiceDate: 2026-10-28
+invoiceType: 380
+serviceDate: 2026-10-23
+sellerName: Toni Huber Elektrotechnik GmbH
+sellerStreet: Lindwurmstraße 112
+sellerPostcode: 80337
+sellerCity: München
+sellerCountry: DE
+sellerVatId: DE312456789
+sellerIban: DE20701500000012345678
+sellerContactName: Toni Huber
+sellerPhone: +49 89 7654321
+sellerEmail: rechnung@huber-elektrotechnik.example
+buyerName: Hausverwaltung Giesing GmbH
+buyerStreet: Tegernseer Landstraße 75
+buyerPostcode: 81539
+buyerCity: München
+buyerCountry: DE
+buyerVatId:
+buyerEmail: eingangsrechnungen@hv-giesing.example
+buyerReference: OBJ-GIE-0417
+line: 3.5 | HUR | 68.00 | S | 19 | Fehlersuche und Reparatur Treppenhausbeleuchtung
+line: 4 | H87 | 42.50 | S | 19 | LED-Panel 30x30 cm, 24 W, inkl. Montage
+line: 1 | LS | 35.00 | S | 19 | Anfahrtspauschale München
+netTotal: 443.00
+vatTotal: 84.17
+grossTotal: 527.17
+dueDate:
+paymentTerms: Zahlbar innerhalb von 14 Tagen ohne Abzug.
+reverseCharge: false

@@ -1,0 +1,32 @@
+Toni Huber Elektrotechnik GmbH
+Lindwurmstraße 112 · 80337 München
+Tel. +49 89 7654321 · rechnung@huber-elektrotechnik.example
+
+Hausverwaltung Giesing GmbH
+Tegernseer Landstraße 75
+81539 München
+E-Rechnung an: eingangsrechnungen@hv-giesing.example
+
+RECHNUNG
+
+Rechnungs-Nr.: 2026-0412
+Rechnungsdatum: 28.10.2026
+Leistungsdatum: 23.10.2026
+Ihr Zeichen / Objekt-Nr.: OBJ-GIE-0417
+Ansprechpartner: Toni Huber
+
+Objekt: Tegernseer Landstraße 75, Treppenhaus Haus B
+
+Pos.  Beschreibung                                         Menge      Einheit   Einzelpreis   Gesamt
+1     Fehlersuche und Reparatur Treppenhausbeleuchtung     3,5        Std.      68,00 €       238,00 €
+2     LED-Panel 30x30 cm, 24 W, inkl. Montage               4          Stk.      42,50 €       170,00 €
+3     Anfahrtspauschale München                            1          pauschal  35,00 €        35,00 €
+
+                                               Summe netto                     443,00 €
+                                               zzgl. 19 % USt.                  84,17 €
+                                               Rechnungsbetrag                 527,17 €
+
+Zahlbar innerhalb von 14 Tagen ohne Abzug.
+
+Bankverbindung: Stadtsparkasse München · IBAN DE20 7015 0000 0012 3456 78 · BIC SSKMDEMMXXX
+USt-IdNr.: DE312456789 · Amtsgericht München HRB 234567 · Geschäftsführer: Anton Huber

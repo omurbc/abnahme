@@ -1,0 +1,12 @@
+{
+  "id": "hv-giesing",
+  "name": "Hausverwaltung Giesing GmbH",
+  "rolle": "Hausverwaltung, Regelbesteuerung 19 %",
+  "vatId": null,
+  "reverseCharge13b": false,
+  "buyerReferencePattern": "^OBJ-GIE-\\d{4}$",
+  "buyerReferenceHinweis": "Objektnummer, z. B. OBJ-GIE-0417",
+  "kreditoren": [
+    {"name": "Toni Huber Elektrotechnik GmbH", "vatId": "DE312456789", "iban": "DE20701500000012345678"}
+  ]
+}

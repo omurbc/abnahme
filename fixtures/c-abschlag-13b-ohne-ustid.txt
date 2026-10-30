@@ -1,0 +1,33 @@
+Toni Huber Elektrotechnik GmbH
+Lindwurmstraße 112 · 80337 München
+Tel. +49 89 7654321 · rechnung@huber-elektrotechnik.example
+
+Bau Isar Generalunternehmer GmbH
+Rosenheimer Straße 145
+81671 München
+Rechnungseingang: eingangsrechnungen@bau-isar.example
+
+2. ABSCHLAGSRECHNUNG
+
+Abschlagsrechnung Nr.: AR-2026-0087
+Datum: 28.10.2026
+Leistungszeitraum: 01.10.2026 bis 23.10.2026
+Ihr Zeichen: BV-2026-014
+Ansprechpartner: Toni Huber
+Bauvorhaben: Wohnanlage Isarauen, Haus A, Gewerk Elektroinstallation
+
+Pos.  Leistung                                                    Menge    Einheit    EP netto       GP netto
+1     Elektroinstallation Haus A, Leistungsstand 40 %             1        pauschal   12.600,00 €    12.600,00 €
+2     Unterverteilungen UV-1 bis UV-4 geliefert und montiert      4        Stk.        1.450,00 €     5.800,00 €
+
+                                                          Summe netto              18.400,00 €
+                                                          USt. 0 %                      0,00 €
+                                                          Abschlagsbetrag          18.400,00 €
+
+Steuerschuldnerschaft des Leistungsempfängers gemäß § 13b UStG.
+Die Umsatzsteuer schuldet der Leistungsempfänger.
+
+Zahlbar innerhalb von 21 Tagen ohne Abzug.
+
+Bankverbindung: Stadtsparkasse München · IBAN DE20 7015 0000 0012 3456 78 · BIC SSKMDEMMXXX
+USt-IdNr.: DE312456789 · Amtsgericht München HRB 234567 · Geschäftsführer: Anton Huber
