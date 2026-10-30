@@ -142,6 +142,17 @@ test('DELTA-SECRETS-6: env-split copies only known settings; the guard refuses e
 });
 
 
+test('known settings whose names look like secrets (DEMO_SEED_DEFECT) still pass the guard and go into every profile',()=>{
+ const root=fakeRepo();
+ writeFileSync(join(root,'.env'),readFileSync(join(root,'.env'),'utf8')+'DEMO_SEED_DEFECT="1"\n');
+ splitEnv(root);
+ for(const name of Object.keys(PROFILES))assert.equal(parseEnv(readFileSync(join(root,'.local/env',`${name}.env`),'utf8')).DEMO_SEED_DEFECT,'1',name);
+ assert.deepEqual(checkEnv({ABNAHME_ENV_PROFILE:'rechnungsmeister',DEMO_SEED_DEFECT:'1'},'rechnungsmeister'),[]);
+ assert.doesNotThrow(()=>requireProfile('rechnungsmeister',{ABNAHME_ENV_PROFILE:'rechnungsmeister',DEMO_SEED_DEFECT:'1'}));
+ const r=run({ABNAHME_ENV_PROFILE:'rechnungsmeister',DEMO_SEED_DEFECT:'1'});
+ assert.equal(r.status,0,r.stderr);
+});
+
 test('DELTA-SECRETS-2: npm start (profile eve) refuses while the repo-root .env files hold secrets Eve does not need, since its dev server loads them itself',()=>{
  const root=fakeRepo(),fakeGuard=fakeScripts(root);
  const start=()=>spawnSync(process.execPath,['--import',fakeGuard,'-e','console.log("started")'],{cwd:root,env:{PATH:process.env.PATH,ABNAHME_ENV_PROFILE:'eve',ZAI_API_KEY:'sentinel-zai'},encoding:'utf8'});

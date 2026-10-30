@@ -21,8 +21,9 @@ export const CONFIG=['ABNAHME_IMPL','AGENT_API_PORT','AGENT_AUTHOR','BOARD_PORT'
  'GUTACHTER_SELLER_ADDRESS','GUTACHTER_STUB','GUTACHTER_URL','INSPECT_MODE','KOSIT_PORT','KOSIT_URL','MAIL_SMTP_PORT','MAILPIT_URL','MPS_PORT','MPS_URL',
  'PAID_TASKS_ENABLED','RM_URL','SOKOSUMI_ORGANIZATION_ID','SOKOSUMI_ORGANIZATION_SLUG','ZAI_BASE_URL','ZAI_CONTEXT_WINDOW_TOKENS','ZAI_MODEL'];
 // The guard refuses, outside the profile, every name in SECRETS and every name or value that looks like a credential.
-const looksSecret=(name,value='')=>SECRETS.includes(name)||/(^|_)(KEY|TOKEN|MNEMONIC|SECRET|PASSWORD|PASS|PASSPHRASE|SEED|PRIVKEY|APIKEY|CREDENTIALS?)(_|$)/.test(name)
- ||/^BLOCKFROST_/.test(name)||/:\/\/[^/\s:@]+:[^/\s@]+@/.test(value);
+// A known setting is judged by its value only (DEMO_SEED_DEFECT is a demo switch, not a seed).
+const looksSecret=(name,value='')=>SECRETS.includes(name)||!CONFIG.includes(name)&&(/(^|_)(KEY|TOKEN|MNEMONIC|SECRET|PASSWORD|PASS|PASSPHRASE|SEED|PRIVKEY|APIKEY|CREDENTIALS?)(_|$)/.test(name)
+ ||/^BLOCKFROST_/.test(name))||/:\/\/[^/\s:@]+:[^/\s@]+@/.test(value);
 // The Büro's key for the RechnungsMeister's window for new jobs (DELTA-SELLER-3), created on the first run.
 const BUYER_KEY_FILE='.local/rm-buyer-key.env';
 
