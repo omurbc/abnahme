@@ -45,3 +45,26 @@ test('a refused connection reports dataSent=false, so nothing was handed over',a
 test('an invalid address is rejected before any SMTP traffic',async()=>{
  await assert.rejects(sendMail({port:1,from:'a@x.example',to:'evil@x.example>\r\nRCPT TO:<other@x.example',subject:'s',text:'t',attachment:{filename:'f.xml',content:'<a/>',contentType:'application/xml'}}),/Invalid e-mail address/);
 });
+
+test('PENTEST-2: an attachment filename cannot add header lines or break out of its quoted parameter',async()=>{
+ const {buildMessage}=await import('./smtp.mjs');
+ const base={from:'a@x.example',to:'b@y.example',subject:'s',text:'t',messageId:'<m@x>'};
+ assert.throws(()=>buildMessage({...base,attachment:{filename:'AR-1\r\nX-Injected: pwned\r\n.xml',content:'<a/>',contentType:'application/xml'}}),/Invalid MIME parameter/);
+ const quoted=buildMessage({...base,attachment:{filename:'x";filename*=UTF-8\'\'Zahlung.exe;x=".xml',content:'<a/>',contentType:'application/xml'}});
+ assert.ok(quoted.includes('filename="x\\";filename*=UTF-8\'\'Zahlung.exe;x=\\".xml"'));
+ const umlaut=buildMessage({...base,attachment:{filename:'Ä-1.xml',content:'<a/>',contentType:'application/xml'}});
+ assert.match(umlaut,/filename\*=UTF-8''%C3%84-1\.xml/);
+ assert.throws(()=>buildMessage({...base,attachment:{filename:'f.xml',content:'<a/>',contentType:'application/xml\r\nX: 1'}}),/Invalid MIME/);
+});
+test('QA-2: sendMail uses a caller-chosen Message-ID, so it can be journaled before DATA',async()=>{
+ const {server,seen,port}=await fakeSmtp();
+ const r=await sendMail({port,messageId:'<chosen@abnahme.local>',from:'a@x.example',to:'b@y.example',subject:'s',text:'t',attachment:{filename:'f.xml',content:'<a/>',contentType:'application/xml'}});
+ server.close();assert.equal(r.messageId,'<chosen@abnahme.local>');assert.ok(seen.data.includes('Message-ID: <chosen@abnahme.local>'));
+});
+test('QA-3: probeSmtp is true for a live server and false for a closed port, without sending mail',async()=>{
+ const {probeSmtp}=await import('./smtp.mjs');
+ const {server,seen,port}=await fakeSmtp();
+ try{assert.equal(typeof probeSmtp,'function');assert.equal(await probeSmtp({port}),true);}finally{server.close();}
+ assert.equal(seen.commands.some(c=>c.startsWith('MAIL')||c==='DATA'),false);
+ assert.equal(await probeSmtp({port}),false);
+});
