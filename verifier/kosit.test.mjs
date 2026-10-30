@@ -2,9 +2,10 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
+import {createHash} from 'node:crypto';
 import {parseFixed} from '../einvoice/parse-fixed.mjs';
 import {buildXml} from '../einvoice/build.mjs';
-import {validate,kositAvailable,parseReport,assertPinnedValidator} from './kosit.mjs';
+import {validate,kositAvailable,parseReport,assertPinnedValidator,assertDocumentHash,documentHashOf} from './kosit.mjs';
 
 const skip=await kositAvailable()?false:'KoSIT not running on 127.0.0.1:8090 (start it with kosit/start.sh)';
 const fixture=name=>readFileSync(new URL(`../fixtures/${name}`,import.meta.url),'utf8');
@@ -28,7 +29,7 @@ test('non-invoice XML is rejected without a matched scenario',{skip},async()=>{
 
 test('report parser reads scenario, levels, codes and decodes entities',()=>{
  const r=parseReport('<rep:report><rep:scenarioMatched><s:scenario><s:name>X</s:name></s:scenario></rep:scenarioMatched><rep:message id="1" level="information" xpathLocation="/a" code="BR-DE-27">[BR-DE-27] &quot;Tel&quot; &amp; mehr</rep:message><rep:assessment><rep:accept/></rep:assessment></rep:report>');
- assert.deepEqual(r,{scenario:'X',messages:[{level:'information',code:'BR-DE-27',text:'[BR-DE-27] "Tel" & mehr'}],assessment:'accept',engine:null,xrechnungVersion:null});
+ assert.deepEqual(r,{scenario:'X',messages:[{level:'information',code:'BR-DE-27',text:'[BR-DE-27] "Tel" & mehr'}],assessment:'accept',engine:null,xrechnungVersion:null,documentHash:null});
 });
 
 // A minimal accepting report for the pinned scenario, as KoSIT 1.6.3 writes it (description wrapped like the real one).
@@ -44,6 +45,17 @@ test('the verdict counts only from the pinned validator and XRechnung release, o
  await withFakeKosit(200,report({xrechnung:'3.0.20'}),()=>assert.rejects(validate('<Invoice/>'),/XRechnung 3\.0\.2/));
  assertPinnedValidator(parseReport(report()));
  assert.throws(()=>assertPinnedValidator(parseReport('<stub>GUTACHTER_STUB=1</stub>')),/keine Version/,'reports from elsewhere (x402) use the same pin');
+});
+
+// KoSIT names the bytes it judged: rep:documentHash is base64(sha256(document)), as in the real 1.6.3 reports.
+test('a report counts only for the bytes it names (rep:documentHash), else nothing was inspected',()=>{
+ const xml='<Invoice>ä</Invoice>';
+ assert.equal(documentHashOf(xml),createHash('sha256').update(Buffer.from(xml,'utf8')).digest('base64'));
+ const named=hash=>parseReport(report().replace('<rep:engine>',`<rep:documentIdentification><rep:documentHash><rep:hashAlgorithm>SHA-256</rep:hashAlgorithm><rep:hashValue>${hash}</rep:hashValue></rep:documentHash><rep:documentReference>supplied_instance_1</rep:documentReference></rep:documentIdentification><rep:engine>`));
+ assert.equal(named(documentHashOf(xml)).documentHash,documentHashOf(xml));
+ assertDocumentHash(named(documentHashOf(xml)),xml);
+ assert.throws(()=>assertDocumentHash(named(documentHashOf('<Invoice>other</Invoice>')),xml),/anderen Dokument.*die Rechnung wurde nicht beurteilt/);
+ assert.throws(()=>assertDocumentHash(parseReport(report()),xml),/documentHash fehlt/);
 });
 
 // A fake KoSIT on an ephemeral port answering every POST with one status. KOSIT_URL/KOSIT_PORT are read per call.
@@ -71,6 +83,23 @@ test('a busy KoSIT that answers its health check after 3 s still counts as runni
  const before=process.env.KOSIT_URL;process.env.KOSIT_URL=`http://127.0.0.1:${server.address().port}/`;
  try{assert.equal(await kositAvailable(),true);}
  finally{before===undefined?delete process.env.KOSIT_URL:process.env.KOSIT_URL=before;server.close();}
+});
+
+test('an XML over 5 MB (the Gutachter limit) is a defect and never reaches KoSIT; 5 MB exactly is posted',async()=>{
+ let posts=0;
+ const big=n=>`<Invoice>${'x'.repeat(n-'<Invoice></Invoice>'.length)}</Invoice>`;
+ const counted=async xml=>{
+  const server=createServer((req,res)=>{posts++;req.resume();req.on('end',()=>{res.writeHead(200);res.end(report());});});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const before=process.env.KOSIT_URL;process.env.KOSIT_URL=`http://127.0.0.1:${server.address().port}/`;
+  try{return await validate(xml);}finally{before===undefined?delete process.env.KOSIT_URL:process.env.KOSIT_URL=before;server.close();}
+ };
+ const over=await counted(big(5*1024*1024+1));
+ assert.equal(posts,0);assert.equal(over.accepted,false);assert.equal(over.httpStatus,413);
+ assert.deepEqual(over.messages.map(m=>[m.level,m.code]),[['error','KOSIT-SIZE']]);
+ assert.match(over.messages[0].text,/größer als 5 MB/);
+ const at=await counted(big(5*1024*1024));
+ assert.equal(posts,1);assert.equal(at.accepted,true);
 });
 
 test('KOSIT_PORT alone points the client at another daemon (kosit/start.sh honours it too)',async()=>{

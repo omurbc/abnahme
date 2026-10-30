@@ -35,7 +35,8 @@ export const MODEL='claude-opus-5-5';
 // Same limit as RechnungsMeister's input_data. Caps the spend of one (free) PRÜFEN before the model is called.
 export const MAX_TEXT_CHARS=16000;
 
-export async function extractLlm(text,client=new Anthropic()){
+// A stalled API call fails after at most 2 x 120 s instead of the SDK default of 3 x 10 min.
+export async function extractLlm(text,client=new Anthropic({timeout:120_000,maxRetries:1})){
  if(text.length>MAX_TEXT_CHARS)throw new Error(`Der Rechnungstext ist zu lang (${text.length.toLocaleString('de-DE')} Zeichen, höchstens ${MAX_TEXT_CHARS.toLocaleString('de-DE')}). Bitte nur die Rechnung selbst einfügen.`);
  const response=await client.beta.messages.parse({
   model:MODEL,

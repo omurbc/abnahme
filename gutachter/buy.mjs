@@ -2,6 +2,8 @@
 // node buy.mjs <file.xml>   prints the verdict and the settlement tx, appends to payments.log.json.
 // It signs ONE payment. While the answer says that payment may still settle, it resends the same signed header
 // (backoff, up to 3 min); it never signs a second payment. The tx hash is logged before the first paid send.
+// It pays only GUTACHTER_SELLER_ADDRESS, and one call at a time per process (one buyer wallet).
+import {randomBytes} from 'node:crypto';
 import {readFileSync,writeFileSync,existsSync,realpathSync} from 'node:fs';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {x402Client,x402HTTPClient} from '@x402/fetch';
@@ -13,10 +15,14 @@ const BLOCKFROST='https://cardano-preprod.blockfrost.io/api/v0';
 // lovelace is not USD-pegged, so the default spend controls reject it: allow it, capped at the 1 tADA price, so an
 // inflated offer is refused. Across runs, at most MAX_PAYMENTS_PER_DAY charged payments per rolling 24 h (payments.log.json).
 export const SPEND_CONTROLS={allowedAssets:[{network:'cardano:*',asset:'lovelace',maxAmountPerPayment:'1000000'}]};
-const MAX_PAYMENTS_PER_DAY=Number(process.env.GUTACHTER_MAX_PAYMENTS_PER_DAY||20);
-const RETRY_DELAY_MS=5000,RESEND_BUDGET_MS=180_000,MAX_DELAY_MS=30_000;
+const cap=process.env.GUTACHTER_MAX_PAYMENTS_PER_DAY||'20';
+if(!/^\d+$/.test(cap)) throw new Error(`GUTACHTER_MAX_PAYMENTS_PER_DAY must be a whole number of payments, got ${JSON.stringify(cap)}: refusing to pay without a daily budget`);
+const MAX_PAYMENTS_PER_DAY=Number(cap);
+const RETRY_DELAY_MS=5000,RESEND_BUDGET_MS=180_000,MAX_DELAY_MS=30_000,OFFER_TIMEOUT_MS=30_000;
 const LOG=fileURLToPath(new URL('./payments.log.json',import.meta.url));
-const sellerUrl=process.env.GUTACHTER_URL??`http://localhost:${process.env.GUTACHTER_PORT??4021}`;
+// 127.0.0.1, not localhost: Node tries ::1 first, and any local process can bind [::1]:4021 next to the seller.
+const sellerUrl=process.env.GUTACHTER_URL??`http://127.0.0.1:${process.env.GUTACHTER_PORT??4021}`;
+const PAY_TO=process.env.GUTACHTER_SELLER_ADDRESS;
 
 function buyer(){
  const mnemonic=process.env.GUTACHTER_BUYER_MNEMONIC,projectId=process.env.BLOCKFROST_API_KEY_PREPROD;
@@ -28,10 +34,11 @@ function buyer(){
 }
 
 const readLog=logPath=>existsSync(logPath)?JSON.parse(readFileSync(logPath,'utf8')):[];
-function writeLog(logPath,txHash,fields){
+// One entry per call (id), not per tx: two calls can sign the same tx when the wallet's last payment is not yet visible.
+function writeLog(logPath,id,fields){
  const log=readLog(logPath);
- const entry=log.findLast(e=>e.txHash===txHash);
- if(entry) Object.assign(entry,fields); else log.push({time:new Date().toISOString(),txHash,...fields});
+ const entry=log.findLast(e=>e.id===id);
+ if(entry) Object.assign(entry,fields); else log.push({time:new Date().toISOString(),id,...fields});
  writeFileSync(logPath,JSON.stringify(log,null,1)+'\n');
 }
 
@@ -46,19 +53,34 @@ function mayStillSettle({status,receipt,error}){
 }
 
 // Returns {httpStatus, payer, txHash, verdict, receipt, result}. txHash is null only when nothing was charged.
-export async function buyInspection(xml,{client,logPath=LOG,retryDelayMs=RETRY_DELAY_MS,budgetMs=RESEND_BUDGET_MS}={}){
+// Calls run one after the other: a concurrent call would count the budget before this call's entry exists, and could
+// spend the same UTxO into the same tx before this payment's change output is visible.
+let queue=Promise.resolve();
+export function buyInspection(xml,options){
+ const call=queue.then(()=>buyOnce(xml,options));
+ queue=call.catch(()=>{});
+ return call;
+}
+
+async function buyOnce(xml,{client,logPath=LOG,retryDelayMs=RETRY_DELAY_MS,budgetMs=RESEND_BUDGET_MS,offerTimeoutMs=OFFER_TIMEOUT_MS}={}){
  let address=null;
  if(!client) ({client,address}=buyer());
  const http=new x402HTTPClient(client);
  const url=`${sellerUrl}/inspect`,init={method:'POST',headers:{'content-type':'application/xml'},body:xml};
- const offer=await fetch(url,init);
+ const offer=await fetch(url,{...init,signal:AbortSignal.timeout(offerTimeoutMs)}); // bounded: later calls wait for this one
+ if(offer.ok) throw new Error(`The Gutachter answered HTTP ${offer.status} without asking for payment: that is no inspection`);
  if(offer.status!==402) return {httpStatus:offer.status,payer:address,txHash:null,verdict:null,result:await offer.json().catch(()=>null)};
+ if(!PAY_TO) throw new Error('Set GUTACHTER_SELLER_ADDRESS: the buyer pays only the Gutachter\'s own address');
+ const required=http.getPaymentRequiredResponse(name=>offer.headers.get(name),await offer.json().catch(()=>undefined));
+ const accepts=required.accepts.filter(a=>a.payTo===PAY_TO);
+ if(!accepts.length) throw new Error(`The offer pays ${[...new Set(required.accepts.map(a=>a.payTo))].join(', ')}, not GUTACHTER_SELLER_ADDRESS: nothing signed`);
  const charged=readLog(logPath).filter(e=>e.status!=='not-charged'&&Date.now()-Date.parse(e.time)<86_400_000).length; // sent and unknown may have been paid
  if(charged>=MAX_PAYMENTS_PER_DAY) throw new Error(`x402 budget reached: ${charged} payments in the last 24 h (max ${MAX_PAYMENTS_PER_DAY}, GUTACHTER_MAX_PAYMENTS_PER_DAY), see ${logPath}`);
- const payload=await client.createPaymentPayload(http.getPaymentRequiredResponse(name=>offer.headers.get(name),await offer.json().catch(()=>undefined)));
+ const payload=await client.createPaymentPayload({...required,accepts});
  const txHash=decodeCardanoTransaction(String(payload.payload.transaction)).txHash;
  const headers={...init.headers,...http.encodePaymentSignatureHeader(payload)};
- writeLog(logPath,txHash,{verdict:null,status:'sent'});
+ const id=randomBytes(6).toString('hex');
+ writeLog(logPath,id,{txHash,verdict:null,status:'sent'});
  const deadline=Date.now()+budgetMs;
  let last,sends=0,delay=retryDelayMs;
  for(;;){
@@ -75,7 +97,7 @@ export async function buyInspection(xml,{client,logPath=LOG,retryDelayMs=RETRY_D
  const {status,receipt,result,error}=last;
  const outcome=status===200&&receipt?.success?'settled':mayStillSettle(last)||sends>1?'unknown':'not-charged'; // after a resend only cardanoscan can say
  const verdict=outcome==='settled'?result?.verdict??null:null;
- writeLog(logPath,txHash,{verdict,status:outcome,...outcome==='settled'?{}:{httpStatus:status,sends,error:receipt?.errorReason??result?.error??error?.message??null}});
+ writeLog(logPath,id,{verdict,status:outcome,...outcome==='settled'?{}:{httpStatus:status,sends,error:receipt?.errorReason??result?.error??error?.message??null}});
  return {httpStatus:status,payer:address,txHash:outcome==='not-charged'?null:txHash,verdict,receipt,result};
 }
 

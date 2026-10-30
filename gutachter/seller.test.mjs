@@ -10,6 +10,8 @@ import {fileURLToPath} from 'node:url';
 import {encodePaymentSignatureHeader,decodePaymentRequiredHeader,decodePaymentResponseHeader} from '@x402/core/http';
 import {x402Facilitator} from '@x402/core/facilitator';
 import {ExactCardanoScheme} from '@x402/cardano/exact/facilitator';
+import {documentHashOf} from '../verifier/kosit.mjs';
+import {sha256} from './ledger.mjs';
 
 const TX='ab'.repeat(32);
 const PAID=Object.values(JSON.parse(readFileSync(new URL('./fixtures/paid-txs.json',import.meta.url),'utf8'))); // real signed preprod txs, one per test
@@ -30,9 +32,10 @@ const facServer=await listen(async(req,res)=>{
  if(plan==='504'){ res.writeHead(504,{'content-type':'text/html'}); return res.end('<html>504 Gateway Time-out</html>'); }
  json(res,200,{success:true,transaction:TX,network:paymentRequirements.network,payer:'addr_test1_fake_payer'});
 });
-// Fake KoSIT: always acceptable under the XRechnung UBL scenario, counts calls.
+// Fake KoSIT 1.6.3: always acceptable under the XRechnung UBL scenario, names the bytes it got, counts calls.
 const kosit={calls:0};
-const kositServer=await listen(async(req,res)=>{ kosit.calls++; await readBody(req); res.writeHead(200,{'content-type':'application/xml'}); res.end('<rep:report><rep:scenarioMatched><s:scenario><s:name>EN16931 XRechnung (UBL Invoice)</s:name></s:scenario></rep:scenarioMatched></rep:report>'); });
+const kositServer=await listen(async(req,res)=>{ kosit.calls++; const body=await readBody(req); res.writeHead(200,{'content-type':'application/xml'});
+ res.end(`<rep:report><rep:engine><rep:name>KoSIT Validator 1.6.3</rep:name></rep:engine><rep:documentIdentification><rep:documentHash><rep:hashAlgorithm>SHA-256</rep:hashAlgorithm><rep:hashValue>${documentHashOf(body)}</rep:hashValue></rep:documentHash></rep:documentIdentification><rep:scenarioMatched><s:scenario><s:name>EN16931 XRechnung (UBL Invoice)</s:name><s:description><s:p>Schematron rules from EN16931:2017, and XRechnung 3.0.2 </s:p></s:description></s:scenario></rep:scenarioMatched><rep:assessment><rep:accept/></rep:assessment></rep:report>`); });
 
 const ledger=join(mkdtempSync(join(tmpdir(),'gutachter-test-')),'ledger.json');
 const port=await (async()=>{ const s=await listen(()=>{}); const p=s.address().port; s.close(); return p; })();
@@ -65,6 +68,7 @@ test('a resend of the same payment and body returns the cached report: KoSIT and
  const first=await paid(sig,'<Invoice>A</Invoice>');
  const again=await paid(sig,'<Invoice>A</Invoice>');
  assert.equal(first.status,200); assert.equal(first.body.verdict,'ACCEPTABLE'); assert.equal(first.receipt.transaction,TX);
+ assert.equal(first.body.xmlSha256,sha256('<Invoice>A</Invoice>')); assert.equal(first.body.documentHash,documentHashOf('<Invoice>A</Invoice>')); assert.equal(first.body.engine,'KoSIT Validator 1.6.3');
  fac.onChain=true; const late=await paid(sig,'<Invoice>A</Invoice>'); // a replay after the block
  assert.equal(again.status,200); assert.deepEqual(again.body,first.body); assert.equal(again.receipt.transaction,TX);
  assert.equal(late.status,200); assert.deepEqual(late.body,first.body); assert.equal(late.receipt.transaction,TX);

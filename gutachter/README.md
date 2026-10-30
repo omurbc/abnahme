@@ -11,7 +11,7 @@ buy.mjs:   signs a 1 tADA preprod tx (spend cap 1 tADA per payment, 20 charged p
 buy.mjs ── POST /inspect + PAYMENT-SIGNATURE ► seller.mjs ─ /verify ─► facilitator
                                               seller.mjs ─ XML ─────► KoSIT daemon (200 accept / 406 reject)
                                               seller.mjs ─ /settle ─► facilitator ─► chain
-buy.mjs ◄─ 200 {verdict, httpStatus, report} + PAYMENT-RESPONSE (tx hash)
+buy.mjs ◄─ 200 {verdict, httpStatus, scenario, engine, xrechnungVersion, xmlSha256, documentHash, report} + PAYMENT-RESPONSE (tx hash)
 ```
 
 ## Run
@@ -44,12 +44,18 @@ From code (Büro-Agent): `import {buyInspection} from './gutachter/buy.mjs'`, th
 
 | Handler answer | Meaning | Charged? |
 | --- | --- | --- |
-| 200 `{verdict:'ACCEPTABLE', httpStatus:200, report}` | KoSIT accepted | yes |
-| 200 `{verdict:'REJECT', httpStatus:406, report}` | KoSIT rejected; the inspection is complete | yes |
+| 200 `{verdict:'ACCEPTABLE', httpStatus:200, …}` | KoSIT accepted | yes |
+| 200 `{verdict:'REJECT', httpStatus:406, …}` | KoSIT rejected; the inspection is complete | yes |
 | 400 | body is not XML | no |
 | 503 | KoSIT unreachable | no |
-| 502 | KoSIT answered something other than 200/406 | no |
+| 502 | KoSIT answered something other than 200/406, or its report is not from the pinned validator (`KoSIT Validator 1.6.3`, XRechnung 3.0.2) or not about this body (`rep:documentHash`) | no |
 | 409 | this payment was already used for a different body | no |
+
+A 200 body also carries what the buyer needs to bind the verdict to the bytes it sent: `scenario`, `engine` and
+`xrechnungVersion` as the report names them, `xmlSha256` (hex SHA-256 of the UTF-8 body the Gutachter sent to KoSIT, the
+same value its ledger binds) and `documentHash` (KoSIT's `rep:documentHash`, base64 SHA-256 of the same bytes; the
+Gutachter checked that it matches). These are statements of the Gutachter: a buyer re-parses `report` and checks it
+against its own bytes (`assertPinnedValidator`, `assertDocumentHash` in `../verifier/kosit.mjs`).
 
 `@x402/express` runs the handler after `/verify` and before `/settle`, buffers the response, and
 cancels settlement when the handler status is 400 or higher. So a KoSIT outage returns 503 and
@@ -72,15 +78,15 @@ stored payment, which the facilitator resumes without broadcasting again. Differ
 | `GUTACHTER_PORT` | `4021` | seller, buyer |
 | `GUTACHTER_HOST` | `127.0.0.1` | seller (bind address) |
 | `GUTACHTER_LEDGER` | `gutachter/.local/ledger.json` | seller (replay ledger) |
-| `GUTACHTER_URL` | `http://localhost:$GUTACHTER_PORT` | buyer |
+| `GUTACHTER_URL` | `http://127.0.0.1:$GUTACHTER_PORT` (not `localhost`: Node tries `::1` first, which any local process can bind) | buyer |
 | `KOSIT_URL` | `http://127.0.0.1:8090/` | seller |
 | `GUTACHTER_STUB` | unset (`1` = fixed ACCEPTABLE) | seller |
 | `FACILITATOR_URL` | CF hosted preprod facilitator | seller |
-| `GUTACHTER_SELLER_ADDRESS` | from `npm run wallet` | seller (payTo, keyless) |
+| `GUTACHTER_SELLER_ADDRESS` | from `npm run wallet` | seller (payTo, keyless); buyer (pays only this address, refuses to sign otherwise) |
 | `GUTACHTER_SELLER_MNEMONIC` | from `npm run wallet` | nobody at runtime (spends the seller's income); in no generated env file, keep it offline |
 | `GUTACHTER_BUYER_MNEMONIC`, `GUTACHTER_BUYER_ADDRESS` | from `npm run wallet` | buyer |
 | `BLOCKFROST_API_KEY_PREPROD` | required | buyer, balance |
-| `GUTACHTER_MAX_PAYMENTS_PER_DAY` | `20` | buyer (refuses to sign more charged payments per rolling 24 h, counted in `payments.log.json`) |
+| `GUTACHTER_MAX_PAYMENTS_PER_DAY` | `20` | buyer (refuses to sign more charged payments per rolling 24 h, counted in `payments.log.json`; a value that is not a whole number makes `buy.mjs` refuse to load) |
 
 ## Wallets (preprod)
 
@@ -90,7 +96,9 @@ stored payment, which the facilitator resumes without broadcasting again. Differ
 ## Payments
 
 `buy.mjs` signs one payment and writes its tx hash to `payments.log.json` before the first paid send
-(`status: 'sent'`). When the answer says the payment may still settle (`settlement_pending`,
+(`status: 'sent'`). Each call has its own entry (`id`), and calls in one process run one after the other, so the budget
+count and the wallet's UTxOs are never shared by two calls in flight. A 2xx to the unpaid request is refused (no
+inspection without payment). When the answer says the payment may still settle (`settlement_pending`,
 `duplicate_settlement`, a receipt without a tx such as a 504 on the facilitator's `/settle`, a 502/504 or a dropped
 connection), it resends the SAME signed header with backoff (5 s, x1.5, up to 30 s) for up to 3 minutes and never
 signs a new payment. The entry then ends as `settled` (with the verdict), `not-charged` or `unknown`
