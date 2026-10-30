@@ -1082,3 +1082,40 @@ Finding IDs (CAMPAIGN2-n) refer to `audit/raw/e2e-campaign2.md`. Times are UTC; 
 | B | D4b | SIGKILL while `/dispute` is in flight; rerun of the finished job | No second cure; the rerun bought nothing and appended a "(resumed)" delta | **PASS** | Lock [`7880630d…`](https://preprod.cardanoscan.io/transaction/7880630d76fe1938626d6c713ca17973a6301f59a898912dee8023aa0b0fde01), Submit [`21f7c025…`](https://preprod.cardanoscan.io/transaction/21f7c02530f4d870ba7c0a817cb244fb2b98347419a92258e4f5866525bdf66e), Disputed [`a173fb93…`](https://preprod.cardanoscan.io/transaction/a173fb93dea1ef14dddcd196e46388a82f982b58282bcb567953dc550c8f105f), Cure [`91e1b067…`](https://preprod.cardanoscan.io/transaction/91e1b0675b8ffdbf136cf38aa12ae6e929c7341edf8fe18a4819a03e85756305), AuthW [`f8c5881d…`](https://preprod.cardanoscan.io/transaction/f8c5881d7ffb4f0ab703cdc4f7c4fdde0d2acca73f8441a20fc4753089580d74), Withdrawn [`91036f24…`](https://preprod.cardanoscan.io/transaction/91036f24da5a30c34cf4be906d701d4daf3bfd153be65274b839404883d7d246) | 9:39 |
 | B | D5 | Expected 600.00 instead of 527.17 | REFUSED; the loop repaired it 18.8 s after AuthorizeRefund; RefundWithdrawn 2:17 after it | **PASS** | Lock [`95e5a9d0…`](https://preprod.cardanoscan.io/transaction/95e5a9d029d61afff1e8b10d22ef2d709dd47e3f811b09fd0f55ae4a9231f29e), Submit [`b9ac2c85…`](https://preprod.cardanoscan.io/transaction/b9ac2c8507eefd62abdd844b8ac068e8c72dedcd2181c00bc1a62aa0c0096811), Disputed [`2dfb42cb…`](https://preprod.cardanoscan.io/transaction/2dfb42cb0d82e4efc491bbc8dde791e616e3b6fe4d34813fb52f830f9199bbc9), AuthRefund [`d0ecaf0b…`](https://preprod.cardanoscan.io/transaction/d0ecaf0bf56f089934ad347088c9f2cc11dc9aed8d47e9845dc86ca721273dab), RefundWithdrawn [`26c0f8d5…`](https://preprod.cardanoscan.io/transaction/26c0f8d58a2e1b8d83c1a7b1df83bf892db0dd008d8a217b4461ce83129129f3) | 11:52 |
 | B | D6 | Two clean cure runs, one after the other | Both Withdrawn | **PASS** | D6-1: Lock [`5faaab2f…`](https://preprod.cardanoscan.io/transaction/5faaab2f982c6ef40dc6cadfc5e1b8cc16f707719955e6ec305e26e1c73fe733), Submit [`882255ac…`](https://preprod.cardanoscan.io/transaction/882255acb0b07e139614d96aac5e1b2b021cd4c6ae2c29fd8ecd40480cd89f70), Disputed [`c1e6a90a…`](https://preprod.cardanoscan.io/transaction/c1e6a90abe6f58c683e73ad536f0795b37909f3e1816529c43f1048b76ce1057), Cure [`546ecc0a…`](https://preprod.cardanoscan.io/transaction/546ecc0a23fb8c673277936e9e3b19866bed1675950efca49090ad982b2621fe), AuthW [`d1ac23d6…`](https://preprod.cardanoscan.io/transaction/d1ac23d6349216a233397824ff77e2c160ef6acb8f199728934ed7465853cd5f), Withdrawn [`953f86b1…`](https://preprod.cardanoscan.io/transaction/953f86b1f50c88b957b488cf50fd7acaa5fd020e1b59c27c67534c452739f924)<br>D6-2: Lock [`6a2f4388…`](https://preprod.cardanoscan.io/transaction/6a2f438836642c51302493c9e795d549ee22ffa7dbcb303edb14201620381e1f), Submit [`9db1a082…`](https://preprod.cardanoscan.io/transaction/9db1a08293fcd1d4f80d0edff8e0051d3742588d7dc56addb434e8844c2165c3), Disputed [`04e0ee64…`](https://preprod.cardanoscan.io/transaction/04e0ee64e525c4679ed4c3dd608c6a628555d489a3495337d41225144385afc5), Cure [`70a3f176…`](https://preprod.cardanoscan.io/transaction/70a3f176231841750feeccdae5f5a63922a803bd6253257ab1486b949ff99dba), AuthW [`0d897283…`](https://preprod.cardanoscan.io/transaction/0d897283f51296fefb1b89a5f4c5cb32b4d910461bb8742eb74005e1a658f2e5), Withdrawn [`9d8c7f67…`](https://preprod.cardanoscan.io/transaction/9d8c7f67d9027f6e88ee5e46f803d9ab9ebbfb49cd2354f22b03e9b0026b51b9) | 8:26 / 8:19 |
+
+## Escrow run 2026-10-30T21-54-44-942Z-6bde29: ACCEPTED
+
+Invoice `AR-2026-0089` (file `ar-2026-0089.txt`), recipient `bau-isar`, expected 18400.00 EUR, x402 inspection. Finished 2026-10-30T22:04:50.079Z, 10.1 min in this process, job total 10.1 min across processes. Purchase `cmvvifvbs01oq01pgcr20asnb`.
+RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
+
+| Step | Time (UTC) | Tx | Explorer |
+|---|---|---|---|
+| FundsLocked | 2026-10-30T21:56:46.000Z | `fac4e80e38920f2d7c74ce1a959153996a0441471de051a1ce7a92f935b8356f` | https://preprod.cardanoscan.io/transaction/fac4e80e38920f2d7c74ce1a959153996a0441471de051a1ce7a92f935b8356f |
+| ResultSubmitted | 2026-10-30T21:57:45.000Z | `b570cbb76a5da85da1ea1580c51b5ff9974c643e2640b7d61c1ac2a74eafdc37` | https://preprod.cardanoscan.io/transaction/b570cbb76a5da85da1ea1580c51b5ff9974c643e2640b7d61c1ac2a74eafdc37 |
+| Disputed | 2026-10-30T21:59:40.000Z | `d61baca2c8f7dc74cfc8317e35b925437940f186c74c1f4c6be1d100cba201ed` | https://preprod.cardanoscan.io/transaction/d61baca2c8f7dc74cfc8317e35b925437940f186c74c1f4c6be1d100cba201ed |
+| ResultSubmitted (cure) | 2026-10-30T22:00:24.000Z | `a597363ff170b4013d782a3e520f944b7498814ab65db81f34bbd00358b6217e` | https://preprod.cardanoscan.io/transaction/a597363ff170b4013d782a3e520f944b7498814ab65db81f34bbd00358b6217e |
+| AuthorizeWithdrawal | 2026-10-30T22:03:36.000Z | `946dbb3947507ed489a1f2b82caa8f7af96b6522672ade62c1a478daa764a544` | https://preprod.cardanoscan.io/transaction/946dbb3947507ed489a1f2b82caa8f7af96b6522672ade62c1a478daa764a544 |
+| Withdrawn | 2026-10-30T22:04:23.000Z | `324e757fbd400d63fffc546c3622ef5f53a201be68a4cfd52d385521271b9572` | https://preprod.cardanoscan.io/transaction/324e757fbd400d63fffc546c3622ef5f53a201be68a4cfd52d385521271b9572 |
+| x402 inspection 1 |  | `8e677fa9aae9e33b3f894b42a3aba5c1a5ae74c1de3d61beaeeb0aada598ffff` | https://preprod.cardanoscan.io/transaction/8e677fa9aae9e33b3f894b42a3aba5c1a5ae74c1de3d61beaeeb0aada598ffff |
+| x402 inspection 2 |  | `0a65a8b66ac5c68a371eafa55b6ee4002f372583c61a68af600c49352749f557` | https://preprod.cardanoscan.io/transaction/0a65a8b66ac5c68a371eafa55b6ee4002f372583c61a68af600c49352749f557 |
+
+<details><summary>Abnahmeprotokoll</summary>
+
+- Auftrag 2026-10-30T21-54-44-942Z-6bde29: Rechnung für Bau Isar Generalunternehmer GmbH, erwarteter Betrag 18.400,00 €, Prüfprofil e9a2831b3eb0…
+- Angebot von RechnungsMeister (Auftrag ca3f59cf-27c8-412c-8f00-6a05888d9510): 1 tUSDM, Ergebnis bis 23:19, Freigabe ab 23:39. Eingabe-Hash geprüft.
+- Kauf an den Masumi Payment Service übergeben; 1 tUSDM wird in der Escrow auf Cardano gesperrt.
+- Geld gesperrt (FundsLocked). Der RechnungsMeister liest jetzt die Rechnung aus und erstellt die XRechnung; warte auf das Ergebnis.
+- Ergebnis auf Cardano eingereicht (ResultSubmitted). Starte die Abnahmeprüfung.
+- Prüfung 1 (Gutachter über x402, 1 tADA): Ergebnis-Hash (Datum (Blockfrost)) stimmt, KoSIT abgelehnt.
+- Mängel: [BR-AE-02] Bei Steuerschuldnerschaft des Leistungsempfängers (Kategorie „AE“) müssen beim Verkäufer die USt-IdNr. (BT-31), die Steuernummer (BT-32) oder die USt-IdNr. des Steuervertreters (BT-63) und beim Käufer die USt-IdNr. (BT-48) oder die Registernummer (BT-47) angegeben sein. [ABN-BT48] Die USt-IdNr. des Käufers (BT-48) fehlt; bei § 13b muss DE287654321 angegeben sein.
+- Mängelrüge auf Cardano: Rückerstattung verlangt, die Escrow geht in den Streitfall (Disputed).
+- Streitfall bestätigt (Disputed). Das Geld ist eingefroren. Sende das Prüfprotokoll an den RechnungsMeister.
+- RechnungsMeister bessert nach (Versuch 2): buyerVatId = DE287654321 (Quelle: input_data.invoiceText).
+- Nachbesserung 1 auf Cardano eingereicht. Prüfe erneut.
+- Prüfung 2 (Gutachter über x402, 1 tADA): Ergebnis-Hash (Datum (Blockfrost)) stimmt, KoSIT akzeptiert.
+- Nachbesserung besteht die Abnahme. Gebe die Zahlung frei (AuthorizeWithdrawal).
+- Freigabe auf Cardano beauftragt (cancel-refund-request → AuthorizeWithdrawal).
+- Zahlung freigegeben (WithdrawAuthorized). Warte auf die Auszahlung an den RechnungsMeister.
+- ABGENOMMEN. Der RechnungsMeister hat die Zahlung aus der Escrow erhalten (Withdrawn).
+
+</details>
