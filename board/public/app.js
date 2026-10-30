@@ -77,7 +77,7 @@ function agentsOf(t){
   locked:'buys from the RechnungsMeister, locks 1 tUSDM',delivered:'waits for the delivery',inspection1:'has the delivery inspected',inspection2:'inspects the cure',
   disputed:'files the defect notice on Cardano',cure:'sends the inspection report to the seller',accepted:'releases the payment (Abnahme)',paid:'waits for the payout',
   refundAuthorized:'waits for the refund',refunded:'waits for the refund',
- }[act]??(final==='paid'||final==='accepted'?'invoice accepted':final.startsWith('ref')?'invoice refused':final==='alarm'?'alarm: operator needed':'ready');
+ }[act]??(final==='paid'||final==='accepted'?'invoice accepted':final==='payout-stuck'?'invoice accepted, payout stuck at MPS':final.startsWith('ref')?'invoice refused':final==='alarm'?'alarm: operator needed':'ready');
  const rm=act==='locked'?'waits for the escrow payment':act==='delivered'?'builds the XRechnung (KoSIT self-check)':act==='disputed'?'cannot withdraw: the money is disputed':act==='cure'?'cures the defect (§ 635 BGB)'
   :done('paid')?'received 1 tUSDM from the escrow':done('refundAuthorized')?'refunds 1 tUSDM':done('cure')?'cure submitted':done('delivered')?'delivery submitted':'waits for an order';
  const gut=inspecting?'checks against KoSIT 1.6.3 …':t.inspections.length?[x402?`${x402} inspection${x402>1?'s':''} paid · ${x402} tADA`:'',local?`${local}× local KoSIT`:''].filter(Boolean).join(' · '):'waits for a delivery';
@@ -250,7 +250,7 @@ function renderHistory(){
  const jobs=state.jobs,count=f=>jobs.filter(f).length;
  const kpi=(n,label,cls='')=>`<div class="card kpi ${cls}"><b>${n}</b><span>${label}</span></div>`;
  const origin=o=>o?.kind==='sokosumi'?'<span class="chip chip-violet">Sokosumi</span>':o?.kind==='board'?'<span class="chip chip-blue">Board</span>':'<span class="chip chip-grey">CLI</span>';
- el.innerHTML=`<div class="kpis">${kpi(jobs.length,'jobs in the journal')}${kpi(count(j=>j.status.code==='paid'||j.status.code==='accepted'),'accepted (abgenommen)','k-green')}${kpi(count(j=>j.status.code.startsWith('ref')),'refused (abgelehnt)','k-red')}${kpi(count(j=>j.running),'running now','k-blue')}${kpi(jobs.reduce((n,j)=>n+j.inspection.x402,0),'x402 inspections paid','k-violet')}${kpi(count(j=>j.mailed),'e-invoices sent')}</div>
+ el.innerHTML=`<div class="kpis">${kpi(jobs.length,'jobs in the journal')}${kpi(count(j=>['paid','accepted','payout-stuck'].includes(j.status.code)),'accepted (abgenommen)','k-green')}${kpi(count(j=>j.status.code.startsWith('ref')),'refused (abgelehnt)','k-red')}${kpi(count(j=>j.running),'running now','k-blue')}${kpi(jobs.reduce((n,j)=>n+j.inspection.x402,0),'x402 inspections paid','k-violet')}${kpi(count(j=>j.mailed),'e-invoices sent')}</div>
  <div class="card tablecard"><table><thead><tr><th>Status</th><th>Invoice</th><th>Recipient</th><th class="t-r">Amount</th><th>Path</th><th>Inspection</th><th>Origin</th><th>Started</th><th class="t-r">Duration</th></tr></thead><tbody>
  ${jobs.map(j=>`<tr class="rowlink" data-id="${esc(j.id)}" tabindex="0">
   <td class="nw"><span class="chip ${TONE[j.status.tone]} ${j.running?'is-running':''}" title="${esc(j.status.de)}"><i class="dot"></i>${esc(j.status.label)}</span>${j.next?`<small>${esc(j.next)}</small>`:''}</td>
@@ -271,16 +271,17 @@ const runTime=id=>fmtHm(`${id.slice(0,10)}T${id.slice(11,19).replaceAll('-',':')
 function renderEvidence(){
  const el=$('#view-evidence');
  if(!evidence){el.innerHTML='<div class="card empty">Loading transactions …</div>';return;}
- const txs=evidence.txs,by=r=>txs.filter(t=>t.rail===r).length;
+ // A row without url is an x402 payment that never reached the chain: listed, but not counted as a transaction.
+ const txs=evidence.txs,onChain=txs.filter(t=>t.url),by=r=>onChain.filter(t=>t.rail===r).length;
  const shown=evFilter==='all'?txs:txs.filter(t=>t.rail===evFilter);
  const kpi=(n,label,cls='')=>`<div class="card kpi ${cls}"><b>${n}</b><span>${label}</span></div>`;
  const f=(k,label)=>`<button type="button" data-filter="${k}" aria-pressed="${evFilter===k}">${label}</button>`;
- el.innerHTML=`<div class="kpis">${kpi(txs.length,'transactions on Cardano preprod','k-blue')}${kpi(by('escrow'),'Masumi escrow')}${kpi(by('x402'),'x402 inspections','k-violet')}${kpi(by('registry')+by('sokosumi')+by('funding'),'registry, Sokosumi, funding')}</div>
+ el.innerHTML=`<div class="kpis">${kpi(onChain.length,'transactions on Cardano preprod','k-blue')}${kpi(by('escrow'),'Masumi escrow')}${kpi(by('x402'),'x402 inspections','k-violet')}${kpi(by('registry')+by('sokosumi')+by('funding'),'registry, Sokosumi, funding')}</div>
  <div class="filters">${f('all','All')}${f('escrow','Escrow')}${f('x402','x402')}${f('registry','Registry')}${f('sokosumi','Sokosumi')}</div>
  <div class="card tablecard"><table><thead><tr><th>Time (Munich)</th><th>Type</th><th>Transaction</th><th>Rail</th><th>Invoice · run</th><th>Source</th></tr></thead><tbody>
  ${shown.map(t=>`<tr><td class="mono">${t.at?esc(fmtDay(t.at)):'<span class="muted">–</span>'}</td>
   <td><b>${esc(t.name??t.label)}</b>${t.name&&t.name!==t.label?`<small>${esc(t.label)}</small>`:t.section?`<small>${esc(t.section.slice(0,60))}</small>`:''}</td>
-  <td class="nw"><a class="mono" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer" title="${esc(t.hash)}">${esc(t.hash.slice(0,14))}…${esc(t.hash.slice(-6))} ${svg('out','class="ext"')}</a></td>
+  <td class="nw">${t.url?`<a class="mono" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer" title="${esc(t.hash)}">${esc(t.hash.slice(0,14))}…${esc(t.hash.slice(-6))} ${svg('out','class="ext"')}</a>`:`<span class="mono muted" title="${esc(t.hash)}: not on chain">${esc(t.hash.slice(0,14))}…${esc(t.hash.slice(-6))}</span><small>not on chain</small>`}</td>
   <td><span class="chip ${RAIL[t.rail]?.[1]??'chip-grey'}">${esc(RAIL[t.rail]?.[0]??t.rail)}</span></td>
   <td class="nw">${esc(t.invoiceNumber??'')}${t.runs?.length?`<small>run ${esc(runTime(t.runs[0]))}${t.runs.length>1?` +${t.runs.length-1} more (batched tx)`:''}</small>`:''}</td>
   <td><small>${esc(t.sources.join(', '))}</small></td></tr>`).join('')}

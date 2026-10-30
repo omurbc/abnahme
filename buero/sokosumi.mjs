@@ -72,6 +72,13 @@ export function parseTask(description){
  return {kind:'PRUEFEN',recipientProfileId,expectedTotal,invoiceText};
 }
 export const isSenden=description=>/^SENDEN(\s|$)/iu.test(firstLine(description));
+// The input checks pruefen() makes before anything runs. They cost nothing, so the worker makes them before its queue too.
+export function pruefenJob(input){
+ const job=parseTask(input);
+ if(job.kind==='SENDEN')throw new Error('SENDEN-Aufträge laufen nur über den bezahlten Ablauf.');
+ if(job.kind!=='PRUEFEN')throw new Error('Unbekannter Auftrag. Die erste Zeile muss „PRÜFEN“ oder „SENDEN <Rechnungsnummer>“ sein.');
+ return job;
+}
 
 const XML_ENTITIES={amp:'&',lt:'<',gt:'>',quot:'"',apos:"'"};
 const decodeXml=s=>s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/giu,(_,e)=>e[0]==='#'?String.fromCodePoint(/^#x/iu.test(e)?parseInt(e.slice(2),16):Number(e.slice(1))):XML_ENTITIES[e.toLowerCase()]);
@@ -96,12 +103,12 @@ const facts=xml=>{try{return invoiceFacts(xml)}catch{return {taxSubtotals:[]}}};
 const vatShown=xml=>facts(xml).taxSubtotals.some(t=>Number(t.tax)>0);
 const typeCode=xml=>facts(xml).invoiceType;
 // Where the escrow refund of a REFUSED run stands, read from its txs (labels from escrow.mjs). MPS 0.29.0 does not
-// collect a refund whose resultHash is set (upstream #1327); an operator's request-repair completes it.
+// collect a refund whose resultHash is set (upstream #1327); the refund-repair loop (mps/refund-repair.mjs) completes it.
 function refundDe(r){
  const has=label=>(r.txs??[]).some(t=>t.label===label);
  if(!r.purchaseId)return 'Es fallen keine Kosten an.';  // local check: no escrow, nothing was paid
  if(has('RefundWithdrawn'))return 'Rückerstattung abgeschlossen (RefundWithdrawn): die 1 tUSDM sind aus der Escrow an das Büro zurückgegangen.';
- if(has('AuthorizeRefund'))return 'Rückerstattung freigegeben (AuthorizeRefund auf Cardano): die 1 tUSDM gehen aus der Escrow an das Büro zurück. Ist die Rückzahlung nach etwa 20 Minuten nicht auf Cardano, schließt sie ein Betreiber ab (Masumi Payment Service, upstream #1327).';
+ if(has('AuthorizeRefund'))return 'Rückerstattung freigegeben (AuthorizeRefund auf Cardano); sie wird automatisch ausgezahlt (Workaround für Masumi #1327): die 1 tUSDM gehen aus der Escrow an das Büro zurück.';
  return 'Die Rückerstattung ist noch nicht auf Cardano: die 1 tUSDM bleiben in der Escrow gesperrt, der RechnungsMeister wird ohne Freigabe des Büros nicht bezahlt. Ein Betreiber schließt die Rückerstattung ab.';
 }
 const smtpErrorDe=e=>/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|ECONNRESET/u.test(e.message)?'Postausgang (SMTP) nicht erreichbar':/timeout/iu.test(e.message)?'Zeitüberschreitung beim Postausgang (SMTP)':e.message;
@@ -109,7 +116,7 @@ const smtpErrorDe=e=>/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|ECONNRESET/u.test(e.me
 export function txTableDe(txs){
  if(!txs?.length)return 'Transaktionen: keine (lokale Prüfung ohne Escrow-Kauf).';
  return ['Transaktionen (Cardano preprod):','| Schritt | Tx | Explorer |','|---|---|---|',
-  ...txs.map(t=>`| ${t.label} | \`${t.txHash}\` | ${t.explorerUrl} |`)].join('\n');
+  ...txs.map(t=>`| ${t.label} | ${t.txHash?`\`${t.txHash}\``:'–'} | ${t.explorerUrl??'–'} |`)].join('\n');
 }
 
 export function createBuero({runAbnahme,send=smtpSend,probe=probeSmtp,dir='.local',now=()=>new Date()}){
@@ -131,17 +138,16 @@ export function createBuero({runAbnahme,send=smtpSend,probe=probeSmtp,dir='.loca
   `Abgenommen in PRÜFEN-Aufgabe ${accepted.taskId} am ${timeDe(accepted.acceptedAt)}.`].join('\n');
 
  async function pruefen({taskId,userId=null,input,onProgress=async()=>{}}){
-  const job=parseTask(input);
-  if(job.kind==='SENDEN')throw new Error('SENDEN-Aufträge laufen nur über den bezahlten Ablauf.');
-  if(job.kind!=='PRUEFEN')throw new Error('Unbekannter Auftrag. Die erste Zeile muss „PRÜFEN“ oder „SENDEN <Rechnungsnummer>“ sein.');
+  const job=pruefenJob(input);
   const progress=async text=>{try{await onProgress(text)}catch(e){console.error('Progress comment failed',taskId,e.message.slice(0,200))}};
   await progress(`Prüfung gestartet: Empfängerprofil ${job.recipientProfileId}, erwarteter Bruttobetrag ${euro(job.expectedTotal)}. Die Prüfung ist kostenlos.`);
   const r=await runAbnahme({invoiceText:job.invoiceText,recipientProfileId:job.recipientProfileId,expectedTotal:job.expectedTotal,onProgress:progress});
   if(r?.status==='REFUSED'){
-   // A refusal supersedes an earlier acceptance of the same number: SENDEN must not mail the older version.
+   // A refusal supersedes an earlier acceptance of the same number: SENDEN must not mail the older version. It is kept
+   // also without one, so a SENDEN for this number says it was refused (LANE-A2-7).
    let n;try{n=typeof r.xml==='string'?invoiceNumberOf(r.xml):null}catch{n=null}
    const store=read(acceptedPath,{});
-   if(n&&store[n]){store[n]={taskId,userId,refused:true,refusedAt:now().toISOString()};write(acceptedPath,store);}
+   if(n){store[n]={taskId,userId,refused:true,refusedAt:now().toISOString()};write(acceptedPath,store);}
    return [r.protocolDe,'',txTableDe(r.txs),'',`Nicht abgenommen. ${refundDe(r)} Bitte die Mängel beheben und erneut PRÜFEN.`].join('\n');
   }
   // journalId lets the worker resume an escrow run whose journal is still open.

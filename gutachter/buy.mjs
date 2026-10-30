@@ -18,7 +18,7 @@ export const SPEND_CONTROLS={allowedAssets:[{network:'cardano:*',asset:'lovelace
 const cap=process.env.GUTACHTER_MAX_PAYMENTS_PER_DAY||'20';
 if(!/^\d+$/.test(cap)) throw new Error(`GUTACHTER_MAX_PAYMENTS_PER_DAY must be a whole number of payments, got ${JSON.stringify(cap)}: refusing to pay without a daily budget`);
 const MAX_PAYMENTS_PER_DAY=Number(cap);
-const RETRY_DELAY_MS=5000,RESEND_BUDGET_MS=180_000,MAX_DELAY_MS=30_000,OFFER_TIMEOUT_MS=30_000,CONFIRM_WAIT_MS=60_000,CONFIRM_POLL_MS=5000;
+const RETRY_DELAY_MS=5000,RESEND_BUDGET_MS=180_000,MAX_DELAY_MS=30_000,OFFER_TIMEOUT_MS=30_000,CONFIRM_WAIT_MS=90_000,CONFIRM_POLL_MS=5000,SPENT_WINDOW_MS=15*60_000;
 const LOG=fileURLToPath(new URL('./payments.log.json',import.meta.url));
 // 127.0.0.1, not localhost: Node tries ::1 first, and any local process can bind [::1]:4021 next to the seller.
 const sellerUrl=process.env.GUTACHTER_URL??`http://127.0.0.1:${process.env.GUTACHTER_PORT??4021}`;
@@ -43,7 +43,7 @@ function buyer(){
 }
 
 const readLog=logPath=>existsSync(logPath)?JSON.parse(readFileSync(logPath,'utf8')):[];
-// One entry per call (id), not per tx: two calls can sign the same tx when the wallet's last payment is not yet visible.
+// One entry per call (id), not per tx: two calls can sign the same tx when the first one was not charged.
 function writeLog(logPath,id,fields){
  const log=readLog(logPath);
  const entry=log.findLast(e=>e.id===id);
@@ -75,13 +75,19 @@ export function buyInspection(xml,options){
 // before that is in a block, gets HTTP 402 at /verify (LANE-A-3). So a tx is sent only when every input is an unspent
 // output in a block; otherwise the unsent tx is dropped and built again, for at most confirmWaitMs. Nothing was sent, so
 // nothing can be paid twice.
-async function signOnConfirmedInputs(client,required,{inputState,confirmWaitMs,confirmPollMs}){
+// Blockfrost can also still list an input as unspent 20 s after the block that spent it (LANE-A2-1), and the client
+// cannot exclude UTxOs from its selection. So the inputs of our own payments sent in the last 15 min (kept in the
+// payment log, so across processes and restarts) count as spent whatever Blockfrost says. A not-charged payment was
+// never settled; its inputs are free.
+const recentInputs=logPath=>new Set(readLog(logPath).filter(e=>e.status!=='not-charged'&&Date.now()-Date.parse(e.time)<SPENT_WINDOW_MS).flatMap(e=>e.inputs??[]));
+async function signOnConfirmedInputs(client,required,{inputState,confirmWaitMs,confirmPollMs,logPath}){
  const deadline=Date.now()+confirmWaitMs;
  for(;;){
   const payload=await client.createPaymentPayload(required);
   const {txHash,inputs}=decodeCardanoTransaction(String(payload.payload.transaction));
-  const states=inputState?await Promise.all(inputs.map(inputState)):[];
-  if(states.every(s=>s==='unspent')) return {payload,txHash};
+  const spent=recentInputs(logPath);
+  const states=await Promise.all(inputs.map(ref=>spent.has(ref)?'spent by an earlier payment':inputState?.(ref)??'unspent'));
+  if(states.every(s=>s==='unspent')) return {payload,txHash,inputs};
   if(Date.now()+confirmPollMs>deadline) throw new Error(`x402 payment not sent: the wallet's inputs are not confirmed after ${confirmWaitMs/1000} s (${inputs.map((ref,i)=>`${ref.slice(0,12)}…#${ref.split('#')[1]} ${states[i]}`).join(', ')})`);
   await new Promise(r=>setTimeout(r,confirmPollMs));
  }
@@ -101,10 +107,10 @@ async function buyOnce(xml,{client,inputState,logPath=LOG,retryDelayMs=RETRY_DEL
  if(!accepts.length) throw new Error(`The offer pays ${[...new Set(required.accepts.map(a=>a.payTo))].join(', ')}, not GUTACHTER_SELLER_ADDRESS: nothing signed`);
  const charged=readLog(logPath).filter(e=>e.status!=='not-charged'&&Date.now()-Date.parse(e.time)<86_400_000).length; // sent and unknown may have been paid
  if(charged>=MAX_PAYMENTS_PER_DAY) throw new Error(`x402 budget reached: ${charged} payments in the last 24 h (max ${MAX_PAYMENTS_PER_DAY}, GUTACHTER_MAX_PAYMENTS_PER_DAY), see the Gutachter payment log`);
- const {payload,txHash}=await signOnConfirmedInputs(client,{...required,accepts},{inputState,confirmWaitMs,confirmPollMs});
+ const {payload,txHash,inputs}=await signOnConfirmedInputs(client,{...required,accepts},{inputState,confirmWaitMs,confirmPollMs,logPath});
  const headers={...init.headers,...http.encodePaymentSignatureHeader(payload)};
  const id=randomBytes(6).toString('hex');
- writeLog(logPath,id,{txHash,verdict:null,status:'sent'});
+ writeLog(logPath,id,{txHash,inputs,verdict:null,status:'sent'});
  const deadline=Date.now()+budgetMs;
  let last,sends=0,delay=retryDelayMs;
  for(;;){

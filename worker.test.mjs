@@ -222,3 +222,22 @@ test('G1: a FAILED PRÜFEN whose escrow journal is closed is not resumed (a reru
  await polls(worker,3);
  assert.equal(runs.length,1);assert.equal(s.task('p1').status,'FAILED');
 });
+
+test('LANE-A2-3: queued PRÜFEN start oldest first, and a PRÜFEN with an input error fails at once instead of waiting in the queue',async()=>{
+ sandbox();let release;const gate=new Promise(r=>{release=r});
+ const at=m=>`2026-10-30T16:0${m}:00.000Z`;
+ // the CLI lists newest first, like `sokosumi tasks list`
+ const s=fakeSokosumi([task('p4',pruefenInput,{createdAt:at(4)}),task('bad',pruefenInput.replace(/^Betrag: .*\n/mu,''),{createdAt:at(3)}),
+  task('p3',pruefenInput,{createdAt:at(2)}),task('p2',pruefenInput,{createdAt:at(1)}),task('p1',pruefenInput,{createdAt:at(0)})]);
+ const started=[];
+ const {worker}=await setup(s,undefined,{runAbnahme:async a=>{started.push(a);await gate;return accepted()}});
+ await worker.poll();
+ assert.deepEqual([...worker.inflight.keys()],['p1','p2'],'the two oldest run first');
+ assert.equal(s.task('bad').status,'FAILED');assert.match(s.failText('bad'),/Die Zeile „Betrag: <Bruttobetrag>“ fehlt/);
+ assert.equal(s.posted.filter(e=>e.taskId==='bad'&&/Warteschlange/.test(e.comment??'')).length,0,'no queue comment for a bad input');
+ assert.deepEqual(['p3','p4'].map(id=>journal(id).queued),[true,true]);
+ release();await Promise.all(worker.inflight.values());await worker.poll();
+ assert.deepEqual([...worker.inflight.keys()],['p3','p4'],'then the next two, oldest first');
+ await polls(worker,3);
+ assert.deepEqual(['p1','p2','p3','p4'].map(id=>s.task(id).status),['COMPLETED','COMPLETED','COMPLETED','COMPLETED']);
+});

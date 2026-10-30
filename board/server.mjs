@@ -101,7 +101,7 @@ export function createBoard({
    const mail=sent?{to:sent.to,sentAt:sent.sentAt,messageId:sent.messageId,taskId:sent.taskId,subject:`XRechnung ${sent.invoiceNumber}`,
     inMailpit:live.mails?live.mails.some(m=>`<${m.messageId}>`===sent.messageId):null}:null;
    return timeline(j,{rmJob,payments,mail,chainTxs:purchase||payment?chainTxsOf(purchase,payment):null,escrowState:purchase?.onChainState??null,
-    tip:live.tip,heights:live.heights,origin,recipients,now:now()});
+    sellerAction:payment?.NextAction?.requestedAction??null,tip:live.tip,heights:live.heights,origin,recipients,now:now()});
   }).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   return {journals,timelines,payments};
  }

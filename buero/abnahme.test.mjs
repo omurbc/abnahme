@@ -539,6 +539,28 @@ test('LANE-A-4: an x402 failure reaches the customer protocol only as a short Ge
  }
 });
 
+test('LANE-A2-2: an x402 payment that did not settle (the local KoSIT decided) is listed as not charged, without hash or explorer link',async()=>{
+ const w=world({firstDefective:false}),dir=tmp(),unsettled='e'.repeat(64);
+ w.deps={inspect:async(xml,o)=>({...await w.inspect(xml,o),mode:'local',txHash:unsettled,note:'x402 HTTP 402'})};
+ try{
+  const r=await run(w,dir);
+  assert.equal(r.status,'ACCEPTED');
+  assert.deepEqual(r.txs.filter(t=>t.label.startsWith('x402')),[{label:'x402 inspection 1 (not charged, local KoSIT)',txHash:null,explorerUrl:null}]);
+  assert.ok(!JSON.stringify(r.txs).includes(unsettled));
+  assert.equal(journal(dir,r.journalId).attempts[0].inspection.txHash,unsettled,'the hash stays in the journal');
+ }finally{rmSync(dir,{recursive:true})}
+});
+
+test('LANE-A2-4 / LB2-4: the REFUSED line names no operator step; the refund-repair loop pays the refund out (MPS #1327)',async()=>{
+ const w=world({cure:'reject'}),dir=tmp();
+ try{
+  const r=await run(w,dir);
+  assert.equal(r.status,'REFUSED');assert.ok(w.state().resultHash,'the #1327 shape: AuthorizeRefund with a resultHash set');
+  assert.match(r.protocolDe,/Rückerstattung auf Cardano freigegeben \(RefundAuthorized\); das Geld geht an das Büro zurück\. Sie wird automatisch ausgezahlt \(Workaround für Masumi #1327\)\./u);
+  assert.doesNotMatch(r.protocolDe,/Hinweis für den Betreiber|muss ausgelöst werden/);
+ }finally{rmSync(dir,{recursive:true})}
+});
+
 test('escrow tx labels follow the V2 state transitions',()=>{
  const rec={TransactionHistory:[
   {txHash:'a',status:'Confirmed',previousOnChainState:null,newOnChainState:'FundsLocked',createdAt:'1'},

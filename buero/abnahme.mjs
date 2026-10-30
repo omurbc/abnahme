@@ -270,7 +270,10 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
      else{
       try{inspection=await inspect(delivery.xml,{scenario:acceptance.scenario});}
       catch(e){return notInspected('ABN-PRUEFUNG',`Die Abnahmeprüfung ist nicht möglich (${e.message}).`);}
-      if(inspection.txHash)j.inspectionTxs.push({label:`x402 inspection ${j.inspectionTxs.length+1}`,txHash:inspection.txHash,explorerUrl:explorerUrl(inspection.txHash)});
+      // A payment that did not settle (mode local) is no transaction: no hash or link in the tx table (LANE-A2-2); its
+      // hash stays in the attempt for reconciliation.
+      if(inspection.txHash)j.inspectionTxs.push(inspection.mode==='x402'?{label:`x402 inspection ${j.inspectionTxs.length+1}`,txHash:inspection.txHash,explorerUrl:explorerUrl(inspection.txHash)}
+       :{label:`x402 inspection ${j.inspectionTxs.length+1} (not charged, local KoSIT)`,txHash:null,explorerUrl:null});
       j.inspected={resultSha256,inspection};save();
      }
      kosit=inspection.kosit;
@@ -335,7 +338,8 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
     // A refusal ends only when the seller's AuthorizeRefund is on chain; until then the money is frozen in Disputed.
     const p=await read();
     if(['RefundAuthorized','RefundWithdrawn'].includes(p.onChainState)&&confirmed(p,p.onChainState)){
-     const stale=p.onChainState==='RefundAuthorized'&&p.resultHash?' Hinweis für den Betreiber: MPS 0.29.0 holt eine Erstattung mit gesetztem resultHash nicht selbst ab (upstream #1327); WithdrawRefund muss ausgelöst werden.':'';
+     // MPS 0.29.0 does not collect a refund whose resultHash is set (upstream #1327); mps/refund-repair.mjs does (LB2-4).
+     const stale=p.onChainState==='RefundAuthorized'&&p.resultHash?' Sie wird automatisch ausgezahlt (Workaround für Masumi #1327).':'';
      return finish('REFUSED',`Rechnung abgelehnt. Rückerstattung auf Cardano freigegeben (${p.onChainState}); das Geld geht an das Büro zurück.${stale}`);
     }
     j.refundUntil??=now()+20*MINUTE;

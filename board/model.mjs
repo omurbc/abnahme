@@ -119,13 +119,18 @@ const STATUS={
  running:['Running','läuft','blue'],accepted:['Accepted','abgenommen','green'],paid:['Paid','bezahlt','green'],
  refused:['Refused','abgelehnt','red'],refunded:['Refused · refunded','abgelehnt, erstattet','red'],failed:['Failed','abgebrochen','amber'],
  alarm:['Alarm','Betreiber gefragt','amber'],'paid-unaccepted':['Paid without acceptance','ohne Abnahme ausgezahlt','amber'],stale:['Stalled','ohne Fortschritt','grey'],
+ 'payout-stuck':['Payout stuck','Auszahlung hängt','amber'],
 };
 const STALE=45*60000;
+// MPS 0.29.0 can leave the seller's Withdraw unbuilt after a batched tx (CAMPAIGN2-1): its payment record waits for an
+// operator, or WithdrawAuthorized stays on chain with no Withdraw. Past this time an accepted job is an alert (CAMPAIGN2-4).
+const PAYOUT_STUCK=15*60000;
 const STAGE_ORDER=['start','purchase','wait-locked','wait-result','inspect','dispute','wait-disputed','notify','accept','wait-withdrawn','wait-refund','follow','done'];
 
 // ---------- timeline ----------
 // ctx: {rmJob (safeRmJob), payments (Gutachter log), mail ({to,sentAt,messageId,taskId,inMailpit}|null), chainTxs ([{label,txHash,status,at,blockHeight}]
-// from MPS), tip (latest block height), heights ({hash: blockHeight}), escrowState (live MPS state), origin ({kind,taskId}), recipients ({profileHash:{id,name}}), now}
+// from MPS), tip (latest block height), heights ({hash: blockHeight}), escrowState (live MPS state), sellerAction (NextAction.requestedAction
+// of the seller's MPS payment record), origin ({kind,taskId}), recipients ({profileHash:{id,name}}), now}
 export function timeline(j,ctx={}){
  const now=ctx.now??Date.now(),rm=ctx.rmJob??null,payments=ctx.payments??[];
  const escrowState=ctx.escrowState??j.escrowState;
@@ -151,6 +156,10 @@ export function timeline(j,ctx={}){
  let running=j.status?j.stage==='follow'&&!settled:j.stage!=='done';
  let code=!j.status?'running':j.status==='ACCEPTED'?(paid?'paid':'accepted'):j.status==='REFUSED'?(refunded?'refunded':'refused'):j.paidWithoutAcceptance?'paid-unaccepted':alarmLog?'alarm':'failed';
  if(code==='running'&&now-lastActivity>STALE){code='stale';running=false;}
+ const authorizedAt=ms(confirmedTx('accepted')?.at)||(escrowState==='WithdrawAuthorized'?ms(findLog(j,LOG.authorized)?.at):null);
+ const payoutStuck=code==='accepted'&&(ctx.sellerAction==='WaitingForManualAction'?'the seller payment record waits for an operator (WaitingForManualAction)'
+  :authorizedAt&&now-authorizedAt>PAYOUT_STUCK?'WithdrawAuthorized on chain for more than 15 min without the seller\'s Withdraw':null);
+ if(payoutStuck)code='payout-stuck';
  const refusal=j.status==='REFUSED'||j.stage==='wait-refund'||!!noCureLog||!!txFor('refundAuthorized')||!!txFor('refunded');
  const disputedDone=!!(confirmedTx('disputed')||findLog(j,LOG.disputed));
  const path=refusal?'refusal':a0?.passed&&!disputedDone&&!protectiveLog?'deemed':a0||disputedDone||protectiveLog?'cure':'pending';
@@ -277,7 +286,8 @@ export function timeline(j,ctx={}){
   cure,mail:ctx.mail??null,txs:allTxs,
   deadlines:{submitResultTime:iso(j.job.submitResultTime),unlockTime:iso(unlock),externalDisputeUnlockTime:iso(j.job.externalDisputeUnlockTime)},
   // An ALARM counts while it is the job's last word (failed or still running with it among the last lines), not after a later resume settled it.
-  alarm:['alarm','failed','paid-unaccepted'].includes(code)?alarmLog?.line??j.error??findLastLog(j,LOG.abort)?.line??null:running&&alarmLog&&j.log.slice(-3).includes(alarmLog)?alarmLog.line:null,
+  alarm:payoutStuck?`Payout stuck at Masumi Payment Service, operator repair pending: ${payoutStuck}.`
+   :['alarm','failed','paid-unaccepted'].includes(code)?alarmLog?.line??j.error??findLastLog(j,LOG.abort)?.line??null:running&&alarmLog&&j.log.slice(-3).includes(alarmLog)?alarmLog.line:null,
   log:j.log.slice(-40),
  };
 }
@@ -287,7 +297,7 @@ export function summary(t){
  const pathLabel=t.path==='deemed'?'Accepted, no defect':t.path==='refusal'?'Defect → refused':t.path==='pending'?'running'
   :failed?(passedLater?'Defect → cure → accepted':'Defect → cure …'):t.protective?'Protective notice → accepted':'running';
  const active=t.steps.find(s=>s.status==='active')?.title??null;
- const next=t.running&&active?`now: ${active}`:t.status.code==='accepted'?'payout pending':t.status.code==='refused'?'refund pending':null;
+ const next=t.running&&active?`now: ${active}`:t.status.code==='accepted'?'payout pending':t.status.code==='payout-stuck'?'operator repair pending':t.status.code==='refused'?'refund pending':null;
  return {id:t.id,createdAt:t.createdAt,finishedAt:t.finishedAt,durationMs:t.durationMs,running:t.running,status:t.status,path:t.path,pathLabel,next,
   invoice:t.invoice,demo:t.demo,origin:t.origin,stamp:t.stamp,txCount:t.txs.length,mailed:!!t.mail,
   inspection:{x402:t.inspections.filter(r=>r.x402).length,local:t.inspections.filter(r=>!r.x402).length},
@@ -321,7 +331,13 @@ export function evidence({timelines=[],payments=[],docs=[]}){
  const map=new Map();
  const add=(hash,o)=>{if(!HEX64.test(hash))return;const prev=map.get(hash);map.set(hash,prev?{...o,...prev,sources:[...new Set([...prev.sources,...o.sources])],runs:[...new Set([...prev.runs,...o.runs])]}:{hash,url:explorerUrl(hash),...o});};
  for(const t of timelines)for(const tx of t.txs)add(tx.hash,{label:tx.label,name:tx.name,rail:tx.rail,at:tx.at,runs:[t.id],invoiceNumber:t.invoice.number,sources:['Journal']});
- for(const p of payments)if(p.status!=='not-charged')add(p.txHash,{label:'x402 inspection',name:`x402 inspection · ${p.verdict??'no report'}`,rail:'x402',at:iso(p.time),runs:[],invoiceNumber:null,sources:['Gutachter-Log']});
+ // An x402 payment is a tx only when the buyer logged it settled (the first buyer logged only HTTP 200s, without a status);
+ // one that never settled is listed without a link, ahead of any run table that names its hash (CAMPAIGN2-5).
+ for(const p of payments)if(p.status!=='not-charged'){
+  const settled=p.status==='settled'||p.status===undefined&&p.httpStatus===undefined;
+  add(p.txHash,{label:'x402 inspection',name:settled?`x402 inspection · ${p.verdict??'no report'}`:p.status==='sent'?'x402 (payment pending)':'x402 (not charged, local KoSIT)',
+   ...settled?{}:{url:null},rail:'x402',at:iso(p.time),runs:[],invoiceNumber:null,sources:['Gutachter-Log']});
+ }
  for(const d of docs)for(const e of d.entries)add(e.hash,{label:e.label,name:TX_NAME[e.label]??e.label,rail:railOf(`${e.label} ${e.section}`),at:iso(e.at),runs:[],invoiceNumber:null,sources:[e.source],section:e.section});
  return [...map.values()].sort((a,b)=>String(b.at??'').localeCompare(String(a.at??'')));
 }

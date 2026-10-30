@@ -2,7 +2,7 @@ import {execFileSync} from 'node:child_process';
 import {existsSync,readFileSync,writeFileSync,renameSync,realpathSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {acquireWorkerLock} from './worker-lock.mjs';
-import {createBuero,isSenden,sokosumiEvents} from './buero/sokosumi.mjs';
+import {createBuero,isSenden,pruefenJob,sokosumiEvents} from './buero/sokosumi.mjs';
 import {createPaidAdapter,isPaidReady} from './paid-task.mjs';
 import {taskTarget,isTaskForTarget} from './task-target.mjs';
 // The listing carries every Task description. Core answers at most ~4.5 MB, so the pipe must not be the smaller limit.
@@ -72,6 +72,10 @@ export function createWorker({target,cli,buero,paid,events,paidReady=isPaidReady
    if(['gate-failed','fail-pending','failed'].includes(state.paid?.stage))buero.release(t.id);  // a failed SENDEN gives its invoice back
    return;
   }
+  // An input error costs nothing to find: it fails now, not after a wait in the PRÜFEN queue (LANE-A2-3).
+  if(state.phase==='started'&&!stopping&&!(state.resumeAt>Date.now())){
+   try{pruefenJob(state.input)}catch(e){state={...state,phase:'gate-failed',error:e.message};writeJournal(t.id,state);}
+  }
   if(state.phase==='started'){
    if(stopping||state.resumeAt>Date.now())return;
    if(inflight.size>=MAX_PRUEFEN){
@@ -105,7 +109,9 @@ export function createWorker({target,cli,buero,paid,events,paidReady=isPaidReady
  }
  async function poll(){
   const tasks=cli(['tasks','list','--coworker-id',id,...target.taskArgs]).tasks;
-  for(const t of tasks.filter(t=>isTaskForTarget(t,target))){
+  // Oldest first (the listing is newest first), so queued PRÜFEN start in the order they came in (LANE-A2-3).
+  const created=t=>Date.parse(t.createdAt)||0;
+  for(const t of tasks.filter(t=>isTaskForTarget(t,target)).sort((a,b)=>created(a)-created(b))){
    try{await step(t)}catch(e){console.error('Task blocked',t.id,e.message.slice(0,200))}
   }
  }

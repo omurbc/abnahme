@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {parseFixed} from '../einvoice/parse-fixed.mjs';
 import {buildXml} from '../einvoice/build.mjs';
-import {parseTask,parseAmount,isSenden,invoiceNumberOf,createBuero,sha256,SEND_PRICE_DE} from './sokosumi.mjs';
+import {parseTask,parseAmount,isSenden,invoiceNumberOf,createBuero,sha256,SEND_PRICE_DE,txTableDe} from './sokosumi.mjs';
 
 const fixture=name=>readFileSync(new URL(`../fixtures/${name}`,import.meta.url),'utf8');
 const xmlB=await buildXml(parseFixed(fixture('b-abschlag-13b-bau-isar.fixed.txt')));
@@ -36,6 +36,12 @@ test('routing: PRÜFEN parses profile and German total, SENDEN takes the paid ro
  assert.throws(()=>parseAmount('abc'),/kein gültiger/);
 });
 
+test('LANE-A2-2: the customer tx table lists an x402 payment that never settled without hash or link',()=>{
+ const table=txTableDe([tx,{label:'x402 inspection 1 (not charged, local KoSIT)',txHash:null,explorerUrl:null}]);
+ assert.ok(table.includes(`| FundsLocked | \`${tx.txHash}\` | ${tx.explorerUrl} |`));
+ assert.ok(table.includes('| x402 inspection 1 (not charged, local KoSIT) | – | – |'));
+ assert.doesNotMatch(table,/undefined|null/);assert.equal(table.match(/cardanoscan/g).length,1);
+});
 test('invoice number is BT-1 of the real XRechnung build',()=>{assert.equal(invoiceNumberOf(xmlB),'AR-2026-0087')});
 
 test('SENDEN is refused before payment unless a PRÜFEN Task accepted that invoice',async()=>{
@@ -43,7 +49,7 @@ test('SENDEN is refused before payment unless a PRÜFEN Task accepted that invoi
  assert.equal(refused.buero.sendenCheck('SENDEN AR-2026-0087').ok,false);
  const text=await refused.buero.pruefen({taskId:'t1',input:pruefenInput,onProgress:refused.onProgress});
  assert.match(text,/ABN-BT48/);assert.doesNotMatch(text,/keine Kosten/);assert.match(text,/Betreiber/);assert.doesNotMatch(text,/SENDEN AR/);
- assert.match(refused.buero.sendenCheck('SENDEN AR-2026-0087').reasonDe,/nicht in einer PRÜFEN-Aufgabe abgenommen/);
+ assert.match(refused.buero.sendenCheck('SENDEN AR-2026-0087').reasonDe,/in PRÜFEN-Aufgabe t1 abgelehnt/,'LANE-A2-7: a refused invoice is called refused, not "not accepted"');
  await assert.rejects(refused.buero.senden('SENDEN AR-2026-0087',{id:'s1'}),/PRÜFEN/);assert.equal(refused.sent.length,0);
 
  const ok=setup();
@@ -233,9 +239,9 @@ test('PENTEST-2: invoiceNumberOf reads BT-1 with the strict XML reader and refus
 // ---- Fix round 3 (G1, STATEMACHINE-2, EINVOICE-10).
 const refusedWith=txs=>createBuero({dir:mkdtempSync(join(tmpdir(),'buero-')),runAbnahme:async()=>({status:'REFUSED',protocolDe:'Abnahme: ABGELEHNT',xml:xmlB,txs,purchaseId:txs.length?'purchase-1':null})});
 const txOf=label=>({label,txHash:'cd'.repeat(32),explorerUrl:'https://preprod.cardanoscan.io/transaction/x'});
-test('G1: a REFUSED escrow protocol says where the refund stands and that an operator completes a stuck one (MPS #1327)',async()=>{
+test('G1 / LANE-A2-4: a REFUSED escrow protocol says where the refund stands; an authorized one is paid out automatically (MPS #1327 workaround)',async()=>{
  const authorized=await refusedWith([txOf('FundsLocked'),txOf('AuthorizeRefund')]).pruefen({taskId:'t',input:pruefenInput});
- assert.match(authorized,/Rückerstattung freigegeben/);assert.match(authorized,/20 Minuten.*Betreiber.*#1327/su);assert.doesNotMatch(authorized,/keine Kosten/);
+ assert.match(authorized,/Rückerstattung freigegeben.*sie wird automatisch ausgezahlt \(Workaround für Masumi #1327\)/su);assert.doesNotMatch(authorized,/Betreiber|keine Kosten/);
  const withdrawn=await refusedWith([txOf('FundsLocked'),txOf('AuthorizeRefund'),txOf('RefundWithdrawn')]).pruefen({taskId:'t',input:pruefenInput});
  assert.match(withdrawn,/Rückerstattung abgeschlossen/);assert.doesNotMatch(withdrawn,/Betreiber|keine Kosten/);
  const open=await refusedWith([txOf('FundsLocked'),txOf('Disputed')]).pruefen({taskId:'t',input:pruefenInput});
@@ -260,4 +266,14 @@ test('EINVOICE-10: the VOB/B due date moves past weekends and Bavarian public ho
 test('EINVOICE-10: the e-mail says the buyer\'s agent accepted the e-invoice, not that anyone accepted the construction work',async()=>{
  const {buero,sent,accept}=setup2();await accept();await buero.senden('SENDEN AR-2026-0087',s1);
  assert.match(sent[0].text,/e-invoice accepted by the buyer's agent/i);assert.match(sent[0].text,/not the construction work/);assert.doesNotMatch(sent[0].text,/geprüft und abgenommen/);
+});
+
+test('LANE-A2-7: SENDEN for an invoice refused in its first PRÜFEN says it was refused; a later acceptance unlocks it',async()=>{
+ const b=setup({status:'REFUSED'});
+ await b.buero.pruefen({taskId:'t1',userId:'u',input:pruefenInput});
+ const check=b.buero.sendenCheck('SENDEN AR-2026-0087',{userId:'u'});
+ assert.equal(check.ok,false);assert.match(check.reasonDe,/^Rechnung AR-2026-0087 wurde zuletzt in PRÜFEN-Aufgabe t1 abgelehnt\. Bitte die Mängel beheben/);
+ const ok=createBuero({dir:b.dir,runAbnahme:async()=>({status:'ACCEPTED',protocolDe:'Abnahme: ABGENOMMEN',xml:xmlB,txs:[tx],purchaseId:'purchase-2'})});
+ await ok.pruefen({taskId:'t2',userId:'u',input:pruefenInput});ok.confirm('t2');
+ assert.equal(ok.sendenCheck('SENDEN AR-2026-0087',{userId:'u'}).ok,true);
 });

@@ -179,3 +179,34 @@ test('evidence: run tables, numbered README rows and journals merge into one row
  assert.equal(new Set(ev.map(e=>e.hash)).size,ev.length);
  assert.ok(!ev.some(e=>e.hash==='1482258bad80ee9f5432465174ae0e545511f6c6758572168c5c820dcda66dd0'),'a not-charged x402 attempt is no evidence');
 });
+
+test('CAMPAIGN2-5: an x402 payment that never settled is listed as not charged, without a link; settled ones (also the first log format without a status) keep theirs',()=>{
+ const h=c=>c.repeat(64);
+ const pays=[{time:'2026-10-30T16:04:27.725Z',id:'d4',txHash:h('7'),verdict:null,status:'unknown',httpStatus:402,sends:9,error:'invalid_exact_cardano_payload_nonce_not_on_chain'},
+  {time:'2026-10-30T16:30:00.000Z',id:'s1',txHash:h('8'),verdict:null,status:'sent'},
+  {time:'2026-10-30T08:58:42.481Z',txHash:h('9'),verdict:'ACCEPTABLE'},
+  {time:'2026-10-30T16:37:20.935Z',id:'01',txHash:h('a'),verdict:'REJECT',status:'settled'}];
+ // a run table elsewhere that still lists the unsettled hash does not bring its link back
+ const docs=[{name:'plan/EVIDENCE.md',entries:[{hash:h('7'),label:'x402 inspection 1',section:'x',at:null,source:'plan/EVIDENCE.md'}]}];
+ const ev=evidence({timelines:[],payments:pays,docs}),by=c=>ev.find(e=>e.hash===h(c));
+ assert.deepEqual([by('7').url,by('7').name,by('7').rail],[null,'x402 (not charged, local KoSIT)','x402']);
+ assert.deepEqual([by('8').url,by('8').name],[null,'x402 (payment pending)']);
+ assert.equal(by('9').url,explorerUrl(h('9')));assert.equal(by('a').url,explorerUrl(h('a')));
+});
+
+// D1-2, D3, D4 in campaign 2: AuthorizeWithdrawal on chain, the seller's MPS payment record in WaitingForManualAction.
+const stuckPayout=()=>{const j=raw('cure');return {...j,escrowState:'WithdrawAuthorized',txs:j.txs.filter(t=>t.label!=='Withdrawn'),
+ log:[...j.log.slice(0,-1),{at:'2026-10-30T14:22:06.000Z',line:'ABGENOMMEN. Zahlung freigegeben (WithdrawAuthorized); die Auszahlung an den RechnungsMeister steht noch aus.'}]};};
+test('CAMPAIGN2-4: an accepted job whose payout is stuck at MPS is an amber alert, not a green "payout pending"',()=>{
+ const authorizedAt=Date.parse('2026-10-30T13:56:49.000Z'),MIN=60000;
+ const fresh=build('cure',{now:authorizedAt+8*MIN},stuckPayout());
+ assert.deepEqual([fresh.status.code,fresh.status.tone,fresh.alarm,summary(fresh).next],['accepted','green',null,'payout pending'],'right after the release the payout is just pending');
+ for(const [why,t] of [['WithdrawAuthorized for more than 15 min without a Withdraw',build('cure',{now:authorizedAt+16*MIN},stuckPayout())],
+  ['the seller payment record waits for an operator',build('cure',{now:authorizedAt+8*MIN,sellerAction:'WaitingForManualAction'},stuckPayout())]]){
+  assert.equal(t.status.code,'payout-stuck',why);assert.equal(t.status.tone,'amber',why);
+  assert.match(t.alarm,/^Payout stuck at Masumi Payment Service, operator repair pending/,why);
+  assert.notEqual(summary(t).next,'payout pending',why);assert.equal(t.stamp,'abgenommen',why);
+ }
+ const paid=build('cure',{now:authorizedAt+60*MIN,escrowState:'Withdrawn'},stuckPayout());
+ assert.deepEqual([paid.status.code,paid.alarm],['paid',null],'once MPS reports the Withdraw, the alert is gone');
+});

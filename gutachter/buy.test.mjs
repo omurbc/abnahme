@@ -12,7 +12,10 @@ import {encodePaymentRequiredHeader,encodePaymentResponseHeader} from '@x402/cor
 
 delete process.env.GUTACHTER_BUYER_MNEMONIC; // a test must never reach the real wallet
 const TX='5820e591b57f7baac9ea31818499dc37615a9697032919da83d183a0039ac4a9';
-const TX_B64=JSON.parse(readFileSync(new URL('./fixtures/paid-txs.json',import.meta.url),'utf8'))[TX]; // the real signed tx, never sent anywhere real
+const PAID_TXS=JSON.parse(readFileSync(new URL('./fixtures/paid-txs.json',import.meta.url),'utf8'));
+const TX_B64=PAID_TXS[TX]; // the real signed tx, never sent anywhere real
+const TX_INPUT='db265614caeac14c2f20a168386b85e8619c87b95306f1107a95ccb55d7fb45b#0';
+const TX2='7dc0c48aeea27ad28af8329a6eab14730aa77756ca1f4e95d6261293034ced60',TX2_B64=PAID_TXS[TX2]; // spends TX's change, TX#1
 const NETWORK='cardano:preprod';
 const accepts=[{scheme:'exact',network:NETWORK,amount:'1000000',asset:'lovelace',payTo:'addr_test1qzmzrgq7ux2zmn2gn8g7ddwnewu2cuwpluxf9aatn6yjeyfv68x94frsck5pt7hgq5pjk7edjxshy5ep46aw09cuex4qg6x5ce',maxTimeoutSeconds:300,extra:{areFeesSponsored:false}}];
 
@@ -47,14 +50,15 @@ async function loadWith(env,tag){
  finally{ for(const [k,v] of Object.entries(saved)) v===undefined?delete process.env[k]:process.env[k]=v; }
 }
 
-let signs=0,signDelayMs=0;
+// The stub wallet builds the next tx from `builds` (the last one repeats), like a wallet whose UTxO view is what it is.
+let signs=0,signDelayMs=0,builds=[TX_B64];
 function stubClient(){
  const c=new x402Client().setSpendControls(SPEND_CONTROLS);
- c.register('cardano:*',{scheme:'exact',createPaymentPayload:async()=>{ signs++; await new Promise(r=>setTimeout(r,signDelayMs)); return {x402Version:2,payload:{transaction:TX_B64,nonce:'db265614ca'.padEnd(64,'0')+'#0'}}; }});
+ c.register('cardano:*',{scheme:'exact',createPaymentPayload:async()=>{ signs++; await new Promise(r=>setTimeout(r,signDelayMs)); return {x402Version:2,payload:{transaction:builds.length>1?builds.shift():builds[0],nonce:'db265614ca'.padEnd(64,'0')+'#0'}}; }});
  return c;
 }
 function setup(answers){
- plan=answers; paidHeaders=[]; logAtFirstPaid=null; logAtPaid=[]; unpaidAnswer=null; hangUnpaid=0; signs=0; signDelayMs=0;
+ plan=answers; paidHeaders=[]; logAtFirstPaid=null; logAtPaid=[]; unpaidAnswer=null; hangUnpaid=0; signs=0; signDelayMs=0; builds=[TX_B64];
  logPath=join(mkdtempSync(join(tmpdir(),'gutachter-buy-')),'payments.log.json');
  return {client:stubClient(),logPath,retryDelayMs:5,budgetMs:500,inputState:async()=>'unspent'};
 }
@@ -147,12 +151,12 @@ test('daily budget: two concurrent calls with one slot left, exactly one signs',
  assert.equal(signs,1);
  assert.deepEqual(results.map(r=>r.status),['fulfilled','rejected']); assert.match(results[1].reason.message,/budget/);
 });
-test('concurrent calls run one after the other, and each call has its own log entry even when the wallet builds the same tx',async()=>{
- const opts=setup([settled,{status:409,body:{error:'This payment was already used for a different invoice'}}]); signDelayMs=30;
+test('concurrent calls run one after the other, and each call has its own log entry even when the wallet builds the same tx (after an uncharged one)',async()=>{
+ const opts=setup([{status:503,body:{error:'KoSIT unreachable'}},settled]); signDelayMs=30;
  const [a,b]=await Promise.all([buyInspection('<Invoice>A</Invoice>',opts),buyInspection('<Invoice>B</Invoice>',opts)]);
- assert.equal(a.verdict,'ACCEPTABLE'); assert.equal(a.txHash,TX); assert.equal(b.httpStatus,409); assert.equal(b.txHash,null);
- assert.deepEqual(log().map(e=>[e.txHash,e.status,e.verdict]),[[TX,'settled','ACCEPTABLE'],[TX,'not-charged',null]]);
- assert.match(logAtPaid[1],/"status": "settled"/,'the second payment was sent only after the first one had finished');
+ assert.equal(a.httpStatus,503); assert.equal(a.txHash,null); assert.equal(b.verdict,'ACCEPTABLE'); assert.equal(b.txHash,TX);
+ assert.deepEqual(log().map(e=>[e.txHash,e.status,e.verdict]),[[TX,'not-charged',null],[TX,'settled','ACCEPTABLE']]);
+ assert.match(logAtPaid[1],/"status": "not-charged"/,'the second payment was sent only after the first one had finished');
 });
 test('a seller that never answers the unpaid request fails that call and does not hold up the next one',{timeout:5000},async()=>{
  const opts={...setup([settled]),offerTimeoutMs:100}; hangUnpaid=1;
@@ -174,6 +178,31 @@ test('LANE-A-3: inputs still unconfirmed after the bounded wait: nothing is sent
  assert.ok(signs>=2); assert.equal(paidHeaders.length,0); assert.equal(existsSync(logPath),false);
  const r=await buyInspection('<Invoice/>',{...opts,inputState:async()=>'unspent'});
  assert.equal(r.httpStatus,200); assert.equal(paidHeaders.length,1);
+});
+test('LANE-A2-1: right after a settled payment Blockfrost still lists its input as unspent; the next payment never re-spends it and is built on the change once the wallet sees it',async()=>{
+ const opts={...setup([settled,{...settled,receipt:{success:true,transaction:TX2}}]),confirmPollMs:5,confirmWaitMs:1000};
+ const a=await buyInspection('<Invoice>A</Invoice>',opts);
+ assert.equal(a.txHash,TX);
+ builds=[TX_B64,TX_B64,TX2_B64]; // the lagging wallet view offers TX's input twice more, then TX's change output
+ const b=await buyInspection('<Invoice>B</Invoice>',opts);
+ assert.equal(b.txHash,TX2); assert.equal(b.verdict,'ACCEPTABLE');
+ assert.equal(signs,4); assert.equal(paidHeaders.length,2);
+ assert.deepEqual(log().map(e=>[e.txHash,e.status,e.inputs]),[[TX,'settled',[TX_INPUT]],[TX2,'settled',[`${TX}#1`]]]);
+});
+test('LANE-A2-1: the spent inputs persist in the payment log, so another process or a restart does not re-spend them for 15 min; after the bounded wait nothing is sent',{timeout:5000},async()=>{
+ const prior=(minutesAgo,status)=>({time:new Date(Date.now()-minutesAgo*60_000).toISOString(),id:'other',txHash:TX,inputs:[TX_INPUT],verdict:null,status});
+ for(const status of ['sent','unknown','settled']){
+  const opts={...setup([settled]),confirmPollMs:5,confirmWaitMs:50};
+  writeFileSync(logPath,JSON.stringify([prior(1,status)]));
+  await assert.rejects(buyInspection('<Invoice/>',opts),e=>/not sent/.test(e.message)&&/spent by an earlier payment/.test(e.message),status);
+  assert.ok(signs>=2,status); assert.equal(paidHeaders.length,0,status); assert.equal(log().length,1,status);
+ }
+ for(const entry of [prior(16,'settled'),prior(1,'not-charged')]){
+  const opts={...setup([settled]),confirmPollMs:5,confirmWaitMs:50};
+  writeFileSync(logPath,JSON.stringify([entry]));
+  const r=await buyInspection('<Invoice/>',opts);
+  assert.equal(r.txHash,TX,entry.status); assert.equal(paidHeaders.length,1,entry.status);
+ }
 });
 test('the CLI prints its usage and exits 2 without a file (also on Node without import.meta.main)',()=>{
  const r=spawnSync(process.execPath,[fileURLToPath(new URL('./buy.mjs',import.meta.url))],{encoding:'utf8',env:{PATH:process.env.PATH}});
