@@ -1,0 +1,23 @@
+{
+  "name": "abnahme-gutachter",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "wallet": "node --env-file-if-exists=../.env wallet.mjs",
+    "seller": "node --env-file-if-exists=../.env seller.mjs",
+    "buy": "node --env-file-if-exists=../.env buy.mjs",
+    "balance": "node --env-file-if-exists=../.env balance.mjs",
+    "test": "node --env-file-if-exists=../.env --test *.test.mjs"
+  },
+  "dependencies": {
+    "@evolution-sdk/evolution": "0.5.14",
+    "@x402/cardano": "2.26.0",
+    "@x402/core": "2.26.0",
+    "@x402/express": "2.26.0",
+    "@x402/fetch": "2.26.0",
+    "express": "^4.21.0"
+  }
+}
