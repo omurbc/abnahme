@@ -1,7 +1,7 @@
 // Buyer: pays the Gutachter 1 tADA over x402 (Cardano preprod) for one KoSIT inspection.
 // node buy.mjs <file.xml>   prints the verdict and the settlement tx, appends to payments.log.json.
-// It signs ONE payment. While the answer says that payment may still settle, it resends the same signed header
-// (backoff, up to 3 min); it never signs a second payment. The tx hash is logged before the first paid send.
+// It sends ONE signed payment. While the answer says that payment may still settle, it resends the same signed header
+// (backoff, up to 3 min); it never signs a second payment once one was sent. The tx hash is logged before the first paid send.
 // It pays only GUTACHTER_SELLER_ADDRESS, and one call at a time per process (one buyer wallet).
 import {randomBytes} from 'node:crypto';
 import {readFileSync,writeFileSync,existsSync,realpathSync} from 'node:fs';
@@ -18,7 +18,7 @@ export const SPEND_CONTROLS={allowedAssets:[{network:'cardano:*',asset:'lovelace
 const cap=process.env.GUTACHTER_MAX_PAYMENTS_PER_DAY||'20';
 if(!/^\d+$/.test(cap)) throw new Error(`GUTACHTER_MAX_PAYMENTS_PER_DAY must be a whole number of payments, got ${JSON.stringify(cap)}: refusing to pay without a daily budget`);
 const MAX_PAYMENTS_PER_DAY=Number(cap);
-const RETRY_DELAY_MS=5000,RESEND_BUDGET_MS=180_000,MAX_DELAY_MS=30_000,OFFER_TIMEOUT_MS=30_000;
+const RETRY_DELAY_MS=5000,RESEND_BUDGET_MS=180_000,MAX_DELAY_MS=30_000,OFFER_TIMEOUT_MS=30_000,CONFIRM_WAIT_MS=60_000,CONFIRM_POLL_MS=5000;
 const LOG=fileURLToPath(new URL('./payments.log.json',import.meta.url));
 // 127.0.0.1, not localhost: Node tries ::1 first, and any local process can bind [::1]:4021 next to the seller.
 const sellerUrl=process.env.GUTACHTER_URL??`http://127.0.0.1:${process.env.GUTACHTER_PORT??4021}`;
@@ -30,7 +30,16 @@ function buyer(){
  const client=new x402Client().setSpendControls(SPEND_CONTROLS);
  const signer=toClientCardanoSigner({mnemonic,network:NETWORK,provider:{blockfrost:{baseUrl:BLOCKFROST,projectId}}});
  client.register('cardano:*',new ExactCardanoScheme(signer));
- return {client,address:signer.getAddress()};
+ // 'unspent' only for an output in a block that no tx has spent; Blockfrost does not know a tx still in the mempool.
+ const inputState=async ref=>{
+  const [hash,index]=ref.split('#');
+  const r=await fetch(`${BLOCKFROST}/txs/${hash}/utxos`,{headers:{project_id:projectId},signal:AbortSignal.timeout(20_000)});
+  if(r.status===404) return 'unconfirmed';
+  if(!r.ok) throw new Error(`Blockfrost /txs/${hash.slice(0,12)}…/utxos HTTP ${r.status}`);
+  const o=(await r.json()).outputs.find(o=>o.output_index===Number(index)&&!o.collateral);
+  return o?.consumed_by_tx===null?'unspent':o?.consumed_by_tx?'spent':'unknown';
+ };
+ return {client,address:signer.getAddress(),inputState};
 }
 
 const readLog=logPath=>existsSync(logPath)?JSON.parse(readFileSync(logPath,'utf8')):[];
@@ -62,9 +71,25 @@ export function buyInspection(xml,options){
  return call;
 }
 
-async function buyOnce(xml,{client,logPath=LOG,retryDelayMs=RETRY_DELAY_MS,budgetMs=RESEND_BUDGET_MS,offerTimeoutMs=OFFER_TIMEOUT_MS}={}){
+// The wallet view (Blockfrost) can lag the previous payment by a block: a tx built on its spent inputs, or on its change
+// before that is in a block, gets HTTP 402 at /verify (LANE-A-3). So a tx is sent only when every input is an unspent
+// output in a block; otherwise the unsent tx is dropped and built again, for at most confirmWaitMs. Nothing was sent, so
+// nothing can be paid twice.
+async function signOnConfirmedInputs(client,required,{inputState,confirmWaitMs,confirmPollMs}){
+ const deadline=Date.now()+confirmWaitMs;
+ for(;;){
+  const payload=await client.createPaymentPayload(required);
+  const {txHash,inputs}=decodeCardanoTransaction(String(payload.payload.transaction));
+  const states=inputState?await Promise.all(inputs.map(inputState)):[];
+  if(states.every(s=>s==='unspent')) return {payload,txHash};
+  if(Date.now()+confirmPollMs>deadline) throw new Error(`x402 payment not sent: the wallet's inputs are not confirmed after ${confirmWaitMs/1000} s (${inputs.map((ref,i)=>`${ref.slice(0,12)}…#${ref.split('#')[1]} ${states[i]}`).join(', ')})`);
+  await new Promise(r=>setTimeout(r,confirmPollMs));
+ }
+}
+
+async function buyOnce(xml,{client,inputState,logPath=LOG,retryDelayMs=RETRY_DELAY_MS,budgetMs=RESEND_BUDGET_MS,offerTimeoutMs=OFFER_TIMEOUT_MS,confirmWaitMs=CONFIRM_WAIT_MS,confirmPollMs=CONFIRM_POLL_MS}={}){
  let address=null;
- if(!client) ({client,address}=buyer());
+ if(!client) ({client,address,inputState}=buyer());
  const http=new x402HTTPClient(client);
  const url=`${sellerUrl}/inspect`,init={method:'POST',headers:{'content-type':'application/xml'},body:xml};
  const offer=await fetch(url,{...init,signal:AbortSignal.timeout(offerTimeoutMs)}); // bounded: later calls wait for this one
@@ -76,8 +101,7 @@ async function buyOnce(xml,{client,logPath=LOG,retryDelayMs=RETRY_DELAY_MS,budge
  if(!accepts.length) throw new Error(`The offer pays ${[...new Set(required.accepts.map(a=>a.payTo))].join(', ')}, not GUTACHTER_SELLER_ADDRESS: nothing signed`);
  const charged=readLog(logPath).filter(e=>e.status!=='not-charged'&&Date.now()-Date.parse(e.time)<86_400_000).length; // sent and unknown may have been paid
  if(charged>=MAX_PAYMENTS_PER_DAY) throw new Error(`x402 budget reached: ${charged} payments in the last 24 h (max ${MAX_PAYMENTS_PER_DAY}, GUTACHTER_MAX_PAYMENTS_PER_DAY), see the Gutachter payment log`);
- const payload=await client.createPaymentPayload({...required,accepts});
- const txHash=decodeCardanoTransaction(String(payload.payload.transaction)).txHash;
+ const {payload,txHash}=await signOnConfirmedInputs(client,{...required,accepts},{inputState,confirmWaitMs,confirmPollMs});
  const headers={...init.headers,...http.encodePaymentSignatureHeader(payload)};
  const id=randomBytes(6).toString('hex');
  writeLog(logPath,id,{txHash,verdict:null,status:'sent'});

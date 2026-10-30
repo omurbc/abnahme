@@ -56,7 +56,7 @@ function stubClient(){
 function setup(answers){
  plan=answers; paidHeaders=[]; logAtFirstPaid=null; logAtPaid=[]; unpaidAnswer=null; hangUnpaid=0; signs=0; signDelayMs=0;
  logPath=join(mkdtempSync(join(tmpdir(),'gutachter-buy-')),'payments.log.json');
- return {client:stubClient(),logPath,retryDelayMs:5,budgetMs:500};
+ return {client:stubClient(),logPath,retryDelayMs:5,budgetMs:500,inputState:async()=>'unspent'};
 }
 const settled={status:200,receipt:{success:true,transaction:TX},body:{verdict:'ACCEPTABLE',httpStatus:200,report:'<r/>'}};
 const log=()=>JSON.parse(readFileSync(logPath,'utf8'));
@@ -158,6 +158,22 @@ test('a seller that never answers the unpaid request fails that call and does no
  const opts={...setup([settled]),offerTimeoutMs:100}; hangUnpaid=1;
  const [a,b]=await Promise.allSettled([buyInspection('<Invoice>A</Invoice>',opts),buyInspection('<Invoice>B</Invoice>',opts)]);
  assert.equal(a.status,'rejected'); assert.equal(b.value?.verdict,'ACCEPTABLE'); assert.equal(signs,1);
+});
+test('LANE-A-3: a tx built on an input that is not yet in a block (or already spent) is never sent; it is built again once the wallet view caught up',async()=>{
+ const states=['unconfirmed','spent','unspent'],asked=[];
+ const opts={...setup([settled]),inputState:async ref=>{asked.push(ref);return states.length>1?states.shift():states[0];},confirmPollMs:5,confirmWaitMs:1000};
+ const r=await buyInspection('<Invoice/>',opts);
+ assert.equal(r.httpStatus,200); assert.equal(r.txHash,TX);
+ assert.equal(signs,3); assert.equal(paidHeaders.length,1);
+ assert.deepEqual(asked,Array(3).fill('db265614caeac14c2f20a168386b85e8619c87b95306f1107a95ccb55d7fb45b#0'));
+ assert.deepEqual(log().map(e=>[e.txHash,e.status]),[[TX,'settled']]);
+});
+test('LANE-A-3: inputs still unconfirmed after the bounded wait: nothing is sent or logged, and the next call is not held up',{timeout:5000},async()=>{
+ const opts={...setup([settled]),inputState:async()=>'unconfirmed',confirmPollMs:5,confirmWaitMs:50};
+ await assert.rejects(buyInspection('<Invoice/>',opts),/not confirmed/);
+ assert.ok(signs>=2); assert.equal(paidHeaders.length,0); assert.equal(existsSync(logPath),false);
+ const r=await buyInspection('<Invoice/>',{...opts,inputState:async()=>'unspent'});
+ assert.equal(r.httpStatus,200); assert.equal(paidHeaders.length,1);
 });
 test('the CLI prints its usage and exits 2 without a file (also on Node without import.meta.main)',()=>{
  const r=spawnSync(process.execPath,[fileURLToPath(new URL('./buy.mjs',import.meta.url))],{encoding:'utf8',env:{PATH:process.env.PATH}});

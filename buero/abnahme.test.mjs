@@ -26,7 +26,7 @@ const TOKEN='ab'.repeat(32);
 // A fake MPS + RechnungsMeister on one simulated chain and clock (every sleep advances it by one poll). Every getPurchase
 // is one "block": queued actions land. Like rechnungsmeister/server.mjs, the seller authorizes the refund itself when it
 // rejects a cure or has no cure left. Options are hooks on the world `w`, so a test can switch failures on and off.
-function world({firstDefective=true,firstXml=null,firstResult=null,cure='ok',cheat=false,statusFails=()=>false,inspectFails=()=>false,mpsDownPolls=0,manualPolls=0,
+function world({firstDefective=true,firstXml=null,firstResult=null,cure='ok',cheat=false,statusFails=()=>false,disputeFails=()=>false,inspectFails=()=>false,mpsDownPolls=0,manualPolls=0,
  refundLands=true,authorizeLands=true,deliverAt=null,visibleAt=null,lateAt=null,rotateBeforeAccept=false,rotateAfterUnlock=false,quote={},startJob429=0,disputeMode=null,chainResultHash=null}={}){
  const calls=[],times={},tokens=[];let p=null,nonce,result,attempt=0,refund=false,refunded=false,silent=false,phase='result-confirmed';
  const clock={t:Date.now()},t0=clock.t;
@@ -41,6 +41,7 @@ function world({firstDefective=true,firstXml=null,firstResult=null,cure='ok',che
   async status(jobId,token){call('status');tokens.push(['status',token]);if(statusFails(w))return {httpStatus:500,body:{error:'Request failed'}};return {httpStatus:200,body:{status:'completed',phase,result}};},
   async dispute(body,token){
    call(`dispute#${body.round}`);tokens.push(['dispute',token]);
+   if(disputeFails(w))return {httpStatus:500,body:{error:'lane-b proxy: injected /dispute failure'}};
    if(disputeMode==='409')return {httpStatus:409,body:{error:'Dispute outcome requires inspection'}};
    if(disputeMode==='401once'){disputeMode=null;return {httpStatus:401,body:{error:'Missing or wrong job token'}};}
    const refuse=(httpStatus,body)=>{if(!refunded){refunded=refund=true;phase='refund-authorized';}return {httpStatus,body};};
@@ -347,6 +348,29 @@ test('ESCROW-3: a seller that answers every /dispute with 409 leaves a FAILED wi
  }finally{rmSync(dir,{recursive:true})}
 });
 
+test('LB-1: /dispute failing for half an hour (far more than 12 errors) still delivers the defect list before the cure cutoff; the cure is accepted',async()=>{
+ const w=world({disputeFails:w=>w.clock.t<w.job.externalDisputeUnlockTime-35*MIN}),dir=tmp();
+ try{
+  const r=await run(w,dir);
+  assert.ok(count(w,'dispute#1')>12);
+  assert.equal(r.status,'ACCEPTED');
+  assert.equal(w.state().onChainState,'Withdrawn');
+ }finally{rmSync(dir,{recursive:true})}
+});
+
+test('LB-1: /dispute failing for good ends FAILED with the alarm only at the seller\'s cure cutoff, with backoff, and the journal stays open',async()=>{
+ const w=world({disputeFails:()=>true}),dir=tmp();
+ try{
+  const r=await run(w,dir);
+  assert.equal(r.status,'FAILED');assert.match(r.protocolDe,/ALARM/);assert.match(r.protocolDe,/eingefroren/);
+  const j=onlyJournal(dir),cutoff=w.job.externalDisputeUnlockTime-30*MIN;
+  assert.notEqual(j.stage,'done');
+  assert.ok(Date.parse(j.log.at(-1).at)>=cutoff,'not before the cure cutoff');
+  assert.ok(Date.parse(j.log.at(-1).at)<cutoff+2*MIN,'soon after it');
+  assert.ok(count(w,'dispute#1')<(cutoff-w.times['dispute#1'])/10000,'backoff: fewer calls than one per poll');
+ }finally{rmSync(dir,{recursive:true})}
+});
+
 // ---------- acceptance bound to what was inspected (ESCROW-6, -7, STATEMACHINE-5) ----------
 
 test('ESCROW-6: a result_hash changed after the cure was inspected is never authorized; the new result is inspected first',async()=>{
@@ -488,6 +512,31 @@ test('ESCROW-2: an x402 answer without a settled payment is no inspection; the l
   const x=await inspectXml(goodXml,{scenario:XRECHNUNG_UBL_SCENARIO,buyInspection:paid});
   assert.equal(x.mode,'x402');assert.equal(x.kosit.accepted,true);
  }finally{server.close();for(const [k,v] of Object.entries(saved))if(v===undefined)delete process.env[k];else process.env[k]=v;}
+});
+
+test('LANE-A-4: an x402 failure reaches the customer protocol only as a short German reason; the raw one (English, local paths) stays in the journal',async()=>{
+ const cases=[
+  ['x402: x402 budget reached: 20 payments in the last 24 h (max 20, GUTACHTER_MAX_PAYMENTS_PER_DAY), see /Users/someone/Desktop/omur/gutachter/payments.log.json','x402-Budget für heute erreicht'],
+  ['x402 HTTP 402','x402: Zahlung nicht bestätigt'],
+  ['x402: Antwort ohne bezahlte Quittung, keine Prüfung','x402: Zahlung nicht bestätigt'],
+  ["x402: x402 payment not sent: the wallet's inputs are not confirmed after 60 s (db265614caea…#0 unconfirmed)",'x402: Zahlung nicht bestätigt'],
+  ['x402: fetch failed','x402: Gutachter nicht erreichbar'],
+  ['x402: The operation was aborted due to timeout','x402: Gutachter nicht erreichbar'],
+  ['x402 HTTP 503','x402: Gutachter nicht erreichbar'],
+  ['x402: Bericht stammt nicht vom vereinbarten Prüfer; die Rechnung wurde nicht beurteilt.','x402: Gutachter-Prüfung nicht verwertbar'],
+ ];
+ for(const [raw,de] of cases){
+  const w=world({firstDefective:false}),dir=tmp();
+  w.deps={inspect:async(xml,o)=>({...await w.inspect(xml,o),mode:'local',txHash:null,note:raw})};
+  try{
+   const r=await run(w,dir);
+   assert.equal(r.status,'ACCEPTED',raw);
+   assert.ok(r.protocolDe.includes(`Prüfung 1 (lokaler KoSIT-Prüfer, ${de})`),raw);
+   assert.ok(!r.protocolDe.includes(raw.replace(/^x402:? /,'')),`raw reason in the protocol: ${raw}`);
+   assert.doesNotMatch(r.protocolDe,/\/Users\/|budget reached|fetch failed|not confirmed/);
+   assert.equal(journal(dir,r.journalId).attempts[0].inspection.note,raw,'the raw reason stays in the journal');
+  }finally{rmSync(dir,{recursive:true})}
+ }
 });
 
 test('escrow tx labels follow the V2 state transitions',()=>{

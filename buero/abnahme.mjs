@@ -73,6 +73,14 @@ export async function inspectXml(xml,{scenario,buyInspection}){
  }
  return {mode:'local',txHash,note,kosit:await validate(xml,{scenario})};
 }
+// The protocol goes to the customer (Sokosumi Task): a short German reason for the fallback. The raw note (English, may
+// name local files) stays in the journal (LANE-A-4).
+export function x402NoteDe(note){
+ if(/budget/i.test(note))return 'x402-Budget für heute erreicht';
+ if(/HTTP 402|Quittung|not confirmed/i.test(note))return 'x402: Zahlung nicht bestätigt';
+ if(/fetch failed|ECONN|timeout|aborted|socket|HTTP 5\d\d/i.test(note))return 'x402: Gutachter nicht erreichbar';
+ return 'x402: Gutachter-Prüfung nicht verwertbar';
+}
 
 export function defaultDeps(){
  return {rm:rmClient(),escrow:createEscrow(),inspect:inspectXml,now:()=>Date.now(),sleep:ms=>new Promise(r=>setTimeout(r,ms)),journalDir:'.local/abnahme-journal',pollMs:10000};
@@ -129,6 +137,8 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
  const jobId=()=>j.startJob.job_id??j.startJob.id;
  const token=()=>j.startJob.job_token;
  const unlock=()=>Number(j.startJob.unlockTime);
+ // RechnungsMeister cures only until externalDisputeUnlockTime - 30 min (rechnungsmeister/server.mjs cureCutoff).
+ const cureCutoff=()=>Number(j.startJob.externalDisputeUnlockTime)-30*MINUTE;
  const exposed=()=>!SAFE.has(j.escrowState);
  const paidOut=()=>`Die Escrow zahlt den RechnungsMeister ohne Abnahme aus (Fristablauf ${time(unlock())}): die 1 tUSDM sind bezahlt, die Rechnung ist nicht abgenommen. Ein erneutes PRÜFEN mit demselben Text kauft nicht erneut.`;
  const held=()=>`${j.escrowState==='Disputed'?`Das Geld ist in der Escrow eingefroren (Disputed): der RechnungsMeister wird ohne Freigabe des Büros nicht bezahlt; er kann erstatten, sonst entscheidet die Masumi-Schlichtung ab ${time(j.startJob.externalDisputeUnlockTime)}.`:`Escrow: ${j.escrowState??'Stand unbekannt'}.`} Erneutes PRÜFEN mit demselben Text setzt diesen Auftrag fort, es wird nicht erneut gekauft.`;
@@ -141,11 +151,14 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
    if(e.permanent){j.error=e.message;finish('FAILED',`Abbruch: ${e.message}`);break;}
    errors++;j.lastError=e.message;save();
    const stuck=`Abnahme ${j.id} hängt nach ${errors} Fehlern (${e.message}); Journal ${journalPath(journalDir,j.id)} bleibt zum Fortsetzen erhalten.`;
+   // The defect list can still reach the seller until its cure cutoff: /dispute is retried with backoff until then, so an
+   // outage does not turn a curable defect into a refund (LB-1).
+   const deliverable=j.stage==='notify'&&now()<cureCutoff();
    // Nothing bought yet: give up. No longer paid out on its own: stop, journal open. Else retry past unlockTime.
    if(errors>=12&&j.stage==='start')throw new Error(stuck);
-   if(errors>=12&&!exposed()){finish('FAILED',`ALARM: ${stuck} ${held()}`,{open:true});break;}
+   if(errors>=12&&!exposed()&&!deliverable){finish('FAILED',`ALARM: ${stuck} ${held()}`,{open:true});break;}
    if(exposed()&&j.startJob&&now()>unlock()+5*MINUTE){finish('FAILED',`ALARM: ${stuck} Die Freigabezeit ${time(unlock())} ist vorbei; die Escrow hat den RechnungsMeister möglicherweise ohne Abnahme ausgezahlt.`,{open:true});break;}
-   await sleep(pollMs);
+   await sleep(deliverable&&errors>12?Math.min(pollMs*2**(errors-12),6*pollMs):pollMs);
   }
  }
  await refreshTxs().catch(()=>{});save();
@@ -270,7 +283,7 @@ async function abnahme({invoiceText,recipientProfileId,expectedTotal,onProgress,
     const passed=!!kosit?.accepted&&!failures.length;
     j.lastResultHash=p.resultHash;
     j.attempts.push({round:j.round,attempt:delivery.manifest?.attempt??null,onChainHash,hashSource,passed,failures,minor:checks.minor.map(m=>m.code),inspection:inspection&&{mode:inspection.mode,txHash:inspection.txHash,note:inspection.note,httpStatus:kosit.httpStatus,scenario:kosit.scenario}});
-    say(`Prüfung ${j.attempts.length} (${inspection?.mode==='x402'?'Gutachter über x402, 1 tADA':'lokaler KoSIT-Prüfer'}${inspection?.note?`, ${inspection.note}`:''}): Ergebnis-Hash (${hashSource}) ${delivery.failures.some(f=>f.code==='ABN-HASH')?'stimmt NICHT':'stimmt'}, KoSIT ${kosit?(kosit.accepted?'akzeptiert':'abgelehnt'):'nicht geprüft'}.`);
+    say(`Prüfung ${j.attempts.length} (${inspection?.mode==='x402'?'Gutachter über x402, 1 tADA':'lokaler KoSIT-Prüfer'}${inspection?.note?`, ${x402NoteDe(inspection.note)}`:''}): Ergebnis-Hash (${hashSource}) ${delivery.failures.some(f=>f.code==='ABN-HASH')?'stimmt NICHT':'stimmt'}, KoSIT ${kosit?(kosit.accepted?'akzeptiert':'abgelehnt'):'nicht geprüft'}.`);
     if(passed){
      if(!disputed)return finish('ACCEPTED',`ABGENOMMEN. Die Escrow zahlt den RechnungsMeister automatisch nach der Freigabezeit (${time(j.startJob.unlockTime)}) aus.`);
      j.stage='accept';say(`${j.round?'Nachbesserung':'Lieferung'} besteht die Abnahme. Gebe die Zahlung frei (AuthorizeWithdrawal).`);return;
