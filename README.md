@@ -654,7 +654,7 @@ Hashes are filled in from preprod as each run lands; rows still marked TBD have 
 | 9 | x402 re-inspection → ACCEPTABLE | x402 | The cure passes | TBD |
 | 10 | `AuthorizeWithdrawal` → `WithdrawAuthorized` | Masumi V2 escrow | Abnahme, §640(1) BGB | TBD |
 | 11 | `Withdraw` → `Withdrawn` | Masumi V2 escrow | Payment on acceptance, §641(1) BGB | TBD |
-| 12 | Sokosumi paid Task `FundsLocked` | Masumi V2 escrow (Sokosumi) | Frau Berger's Task paid in credits | TBD |
+| 12 | Sokosumi paid Task `FundsLocked` | Masumi V2 escrow (Sokosumi) | Frau Berger's Task paid in credits (SENDEN AR-2026-0087, 1 tUSDM) | [`d9c69f508f1f…`](https://preprod.cardanoscan.io/transaction/d9c69f508f1f15299cdd3cc056ff4444b9ba0fcadf00e197cd14f7286c952859) |
 | 13 | Sokosumi paid Task `Withdrawn` + seller receipt check | Masumi V2 escrow (Sokosumi) | Abnahme-Büro paid, checked by `settlement.mjs` | TBD |
 
 Addresses to watch on [preprod.cardanoscan.io](https://preprod.cardanoscan.io) (from [`plan/MPS.md`](plan/MPS.md) and [`plan/FUNDING.md`](plan/FUNDING.md)):

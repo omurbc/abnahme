@@ -17,7 +17,7 @@ export async function runAbnahme({invoiceText,recipientProfileId,expectedTotal,o
   const kosit=await validate(xml,{scenario:acceptance.scenario});
   await onProgress(`KoSIT ${acceptance.validator.version}: HTTP ${kosit.httpStatus}, Szenario „${kosit.scenario??'keins'}“.`);
   const checks=runChecks({xml,kosit,acceptance,recipient,expectedTotal});
-  const protocolDe=summaryDe({acceptance,recipient,profileHash,fields:{...fields,grossTotal:expectedTotal},xml,kosit,checks});
+  const protocolDe=`Modus: LOKALE Prüfung ohne Escrow-Kauf bei RechnungsMeister (ABNAHME_IMPL=local).\n${summaryDe({acceptance,recipient,profileHash,fields:{...fields,grossTotal:expectedTotal},xml,kosit,checks})}`;
   return {status:checks.passed?'ACCEPTED':'REFUSED',protocolDe,xml,kositReport:kosit.reportXml??null,txs:[],purchaseId:null};
  }catch(error){
   return {status:'FAILED',protocolDe:`Prüfung nicht durchführbar: ${error.message}`,xml:null,kositReport:null,txs:[],purchaseId:null};
