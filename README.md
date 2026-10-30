@@ -25,7 +25,7 @@ A defect freezes the converter's money on chain until the converter fixes it.
 
 > [!IMPORTANT]
 > **Build status, Fri 30 Oct 2026 (hackathon day 1, afternoon).** All three agents are built and run on Cardano preprod. The refuse → cure → accept loop ran end to end through the Masumi V2 escrow (8 min 9 s from payment request to `Withdrawn`), with both inspections paid to the x402 Gutachter. A paid Sokosumi Task settled on chain and e-mailed an accepted XRechnung to the Mailpit inbox. These are separate recorded runs, each labelled under [Recorded runs](#recorded-runs). Every hash under [On-chain evidence](#on-chain-evidence) is a confirmed preprod transaction.
-> `npm test` runs 261 tests (260 pass, 1 opt-in Claude test is skipped), and [CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml) runs them against a live KoSIT validator on every push. A two-part internal [security review](#security-review) (not a third-party audit) was followed by two fix rounds. Pins and accepted risks are in [SECURITY.md](SECURITY.md). What is still open is under [Status](#status), and what is mocked is under [What this proves](#what-this-proves-and-what-it-doesnt).
+> `npm test` runs 297 tests (296 pass, 1 opt-in Claude test is skipped), and [CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml) runs them against a live KoSIT validator on every push. A two-part internal [security review](#security-review) (not a third-party audit) was followed by two fix rounds. Pins and accepted risks are in [SECURITY.md](SECURITY.md). What is still open is under [Status](#status), and what is mocked is under [What this proves](#what-this-proves-and-what-it-doesnt).
 
 ## Contents
 
@@ -203,7 +203,7 @@ sequenceDiagram
     BA->>BI: E-mails the accepted XRechnung
 ```
 
-The code runs all 14 steps, but no single recorded run covers them: steps 2-12 ran on preprod from the command line (escrow runs 09:06 and 11:50), a Sokosumi PRÜFEN ran steps 1-12 with its inspections falling back to local KoSIT (10:13), and steps 13-14 ran as a separate paid SENDEN Task into Mailpit, which stands in for Bau Isar's inbox (see [Recorded runs](#recorded-runs)).
+Campaign run A1 → A1-S (Fri 30 Oct, 13:47–14:46 UTC) covers all 14 steps: a Sokosumi PRÜFEN with the escrow and two paid x402 inspections (REJECT, then ACCEPTABLE), then the paid SENDEN Task that e-mailed the accepted XRechnung into Mailpit, which stands in for Bau Isar's inbox, and settled (see [Recorded runs](#recorded-runs) and [`audit/raw/e2e-campaign.md`](audit/raw/e2e-campaign.md)).
 
 ### 2. The converter cannot fix it
 
@@ -233,7 +233,7 @@ sequenceDiagram
     Note over FB: Frau Berger pays nothing
 ```
 
-No recorded run has this exact defect: the 09:17 refusal run reached the same refund with a forged result hash (`CHEAT=1`), and with MPS 0.29.0 the refunded 1 tUSDM reaches the Büro-Agent only after an operator `request-repair` ([#1327](https://github.com/masumi-network/masumi-payment-service/issues/1327)).
+Campaign run A4 (Fri afternoon) is this story: an invoice without BT-10 was refused and refunded. On MPS 0.29.0 the refund stays in `RefundAuthorized` until an operator `request-repair` ([#1327](https://github.com/masumi-network/masumi-payment-service/issues/1327)); after the repair, WithdrawRefund [`3278fb11…`](https://preprod.cardanoscan.io/transaction/3278fb112d2c43858294e1a2cf43abe876bd30585ca7e158078e0367c506540b) returned the 1 tUSDM. [`mps/refund-repair.mjs`](mps/refund-repair.mjs) now does this repair automatically after checking the escrow datum on chain.
 
 ### 3. The converter goes silent
 
@@ -423,7 +423,7 @@ What the demo does not prove, stated plainly:
 - **Sokosumi credits are not on-chain refunds.** When an escrow refunds on chain, Sokosumi does not give the credits back. "Pay only after acceptance" is enforced on the **agent-to-agent** hop (Büro-Agent → RechnungsMeister), not on Frau Berger's credits.
 - **The team runs every agent.** Büro-Agent, RechnungsMeister, the Gutachter, KoSIT and one Masumi Payment Service run on one machine. Buyer and seller are different wallets on the same MPS, both registry entries point to `127.0.0.1`, and the x402 payer and payee are both team wallets. One paid hop crosses an ownership boundary: Sokosumi's own preprod wallet locked 1 tUSDM for the Abnahme-Büro (`d9c69f50…`), which withdrew it after `unlock_time` (`5d61bf3f…`, deemed acceptance).
 - **The first-pass defect is seeded.** The demo runs RechnungsMeister with `DEMO_SEED_DEFECT=1`: its first delivery drops the buyer VAT ID (BT-48). Only a §13b recipient (bau-isar) rejects that; a hv-giesing invoice passes on the first try even in demo mode. The cure restores the VAT ID from RechnungsMeister's own first extraction, where it appears verbatim in the invoice text. The refusal demo uses `CHEAT=1`, which submits a result hash that does not match the delivered bytes. `/status` reports both switches as `demo`.
-- **The recorded evidence comes from several runs.** No single recorded run goes from Sokosumi through the escrow and x402 to the e-mail. The e-mailed invoice was accepted by a PRÜFEN in local mode (no escrow). The byte-identical XML passed the escrow 46 minutes later, in a separate Sokosumi run whose inspections fell back to local KoSIT. See [Recorded runs](#recorded-runs).
+- **Recorded evidence.** Campaign run A1 → A1-S goes from Sokosumi through the escrow and two paid x402 inspections to the e-mail and the payout. Earlier runs cover parts of the flow. See [Recorded runs](#recorded-runs).
 - **Follow-up comments are not answered.** The worker posts progress and queue comments only. A comment on a finished Task gets no reply.
 - **Mailpit stands in for the accounts-payable inbox.** No real general contractor receives anything.
 - **People and firms are fictional.** Toni Huber and Frau Berger are composite personas. Bau Isar and Hausverwaltung Giesing are invented. All e-mail domains in the fixtures end in `.example`.
@@ -522,7 +522,7 @@ flowchart LR
 <details>
 <summary><b>One job, end to end: every call (target flow)</b></summary>
 
-This is the flow the code implements, drawn as one job: a §13b progress invoice to Bau Isar whose first delivery is missing the buyer's VAT ID. **No single recorded run covers all of it.** The recorded runs cover it in parts. For example, the e-mailed invoice was accepted by a PRÜFEN in local mode, without an escrow. Each run is listed under [Recorded runs](#recorded-runs).
+This is the flow the code implements, drawn as one job: a §13b progress invoice to Bau Isar whose first delivery is missing the buyer's VAT ID. **Campaign run A1 → A1-S covers all of it**, as two Sokosumi Tasks (PRÜFEN, then the paid SENDEN). Each run is listed under [Recorded runs](#recorded-runs).
 
 ```mermaid
 sequenceDiagram
@@ -758,7 +758,7 @@ sequenceDiagram
 
     B->>G: POST /inspect with raw XML, no payment
     G-->>B: 402 Payment Required with PAYMENT-REQUIRED<br/>(scheme exact, cardano:preprod, 1000000 lovelace, payTo)
-    Note over B: spend control: lovelace only, at most 1 tADA per payment,<br/>at most 20 charged payments per 24 h,<br/>pays only GUTACHTER_SELLER_ADDRESS. Signs ONE payment.
+    Note over B: spend control: lovelace only, at most 1 tADA per payment,<br/>at most 20 charged payments per 24 h,<br/>pays only GUTACHTER_SELLER_ADDRESS. Sends ONE payment.
     B->>G: POST /inspect with PAYMENT-SIGNATURE
     G->>F: /verify
     F-->>G: payment valid
@@ -1016,7 +1016,7 @@ Live test campaign (Fri afternoon): see [`plan/EVIDENCE.md`](plan/EVIDENCE.md).
 
 ### Recorded runs
 
-Each run is separate. No run below goes all the way from Sokosumi through the escrow and x402 to the e-mail. Times are UTC on 30 Oct.
+Each run is separate. Before the live test campaign, no run went all the way from Sokosumi through the escrow and x402 to the e-mail; in the campaign, A1 (PRÜFEN with two x402 inspections) and A1-S (SENDEN of that invoice into Mailpit) did. Times are UTC on 30 Oct.
 
 | Run | Started from | Escrow | Inspections | Profile at lock | Outcome | Txs |
 |---|---|---|---|---|---|---|
@@ -1028,6 +1028,7 @@ Each run is separate. No run below goes all the way from Sokosumi through the es
 | Sokosumi PRÜFEN with escrow, 10:13 | Task `01a18c4b…` | V2: dispute → cure → accept | local KoSIT. Two x402 calls returned no report but were charged on chain (`9d022f95…`, `8f4755d3…`, fixed in `4621ab5`). | `0d799b13…` | ABGENOMMEN, the byte-identical XML to the e-mailed one, 46 min after the e-mail | [`e88c7599…`](https://preprod.cardanoscan.io/transaction/e88c7599eb2a2dd42127fd1ee182ebbb5d4418923548fa070a8ec9c00fdea0c1) → [`378ee7a6…`](https://preprod.cardanoscan.io/transaction/378ee7a6d7d3ab70f62be5e519a70e00ca24d5a17d12e88ab9ac85b141abb5a9) |
 | Deemed acceptance, 11:46 (audit) | CLI, fixture a, `hv-giesing` | V2: no dispute | local KoSIT | `a9c6f943…` | ACCEPTED on the first delivery; MPS withdrew for RechnungsMeister about 10 min after `unlock_time` | [`bdb84f45…`](https://preprod.cardanoscan.io/transaction/bdb84f45e8cf1720bf29cc0adf31d2bc12dbfd7bfd99fc27190aaed12971f253) → [`1ec56faf…`](https://preprod.cardanoscan.io/transaction/1ec56faf0d1167beb8d7b3b2e6388bd5d3cea39ee86a3a7e5cc7a5d3fdbc3dd1) |
 | Escrow run, 11:50 (audit) | CLI, `DEMO_SEED_DEFECT=1` | V2: dispute → cure → accept | x402 [`4991bca3…`](https://preprod.cardanoscan.io/transaction/4991bca3b5c973dc74fdfe3ec8761620a5ec44e9efa6480d4c96907806af3743), [`138b9c0a…`](https://preprod.cardanoscan.io/transaction/138b9c0a11d991f1306277a23e2273bcd60ac5c75d92e9944df4d24684714a4e) | `64a8294c…` (current) | ACCEPTED; the audit recomputed `input_hash` from the datum | [`470f87f0…`](https://preprod.cardanoscan.io/transaction/470f87f0e958b03880e2b9f70b3d17de559bfdffc06e87987679c4cbccaf78cd) → [`49fa546b…`](https://preprod.cardanoscan.io/transaction/49fa546bc27f522e70b48cfe68742e44be98eb1dd7da41065aff09a00e2432f7) |
+| Live test campaign 1, 13:47-15:14 | 17 Sokosumi Tasks through the live worker (lane A) and 11 `buero/run.mjs` processes with fault injection (lane B), code `2bafa11` | 21 escrows: 19 RechnungsMeister purchases, 2 paid SENDEN | 12 paid x402 inspections; the rest local KoSIT | | 22 scenarios: 20 PASS, 1 FAIL (A3: the test expectation was wrong; the cure from the recipient profile is by design), 1 PARTIAL (A12). All 5 refusals needed an operator refund repair ([#1327](https://github.com/masumi-network/masumi-payment-service/issues/1327)) | 88 txs, all `valid_contract: true`; [`audit/raw/e2e-campaign.md`](audit/raw/e2e-campaign.md), [`plan/EVIDENCE.md`](plan/EVIDENCE.md) |
 
 Sokosumi records: Coworker *Abnahme-Büro* `01a18c0c-c2b5-72ea-93e6-a678359b9cc2`. Tasks `01a18c29-f636-7378-aa12-8a4eb654a255` (PRÜFEN), `01a18c2a-6912-7478-9755-8872eb2ff753` (SENDEN, paid), `01a18c2e-6de2-76ca-b42e-5d48cbef591e` (second SENDEN), `01a18c4b-3a89-717e-905d-6fd3d92b67c5` (PRÜFEN with escrow). The audit's live scenario matrix (lying delivery, x402 replay, concurrent purchases, late dispute) is in [`plan/EVIDENCE.md`](plan/EVIDENCE.md).
 
@@ -1085,11 +1086,11 @@ Hackathon build, Cardano preprod only. Build window Fri 30 Oct 09:00 → Sat 31 
 - [x] E-mail of an accepted XRechnung to Mailpit
 - [x] Internal security review in two parts and two fix rounds; CI green on `main`
 - [x] Upstream issue and fix for MPS (#1327, #1328)
-- [x] `npm test`: 261 tests, 260 pass, 1 opt-in Claude test skipped
+- [x] Live test campaign 1 (Fri afternoon, code `2bafa11`): 22 scenarios, 20 PASS, 1 FAIL (A3: the test expectation was wrong; the cure from the recipient profile is by design), 1 PARTIAL; 88 transactions, all `valid_contract: true`. It includes the chained run: PRÜFEN A1 with two x402 inspections, then SENDEN of that invoice into Mailpit. See [`audit/raw/e2e-campaign.md`](audit/raw/e2e-campaign.md) and [`plan/EVIDENCE.md`](plan/EVIDENCE.md)
+- [x] `npm test`: 297 tests, 296 pass, 1 opt-in Claude test skipped
 
 **Open:**
 
-- [ ] One chained run on the current code: a Sokosumi PRÜFEN with x402 inspections, then SENDEN of that invoice (live test campaign, Fri afternoon, results in [`plan/EVIDENCE.md`](plan/EVIDENCE.md))
 - [ ] The compiled audit report [`audit/abnahme-audit.md`](audit/abnahme-audit.md) (Sat morning)
 - [ ] Public repository
 - [ ] Demo video (Sat)
