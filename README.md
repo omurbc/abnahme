@@ -43,6 +43,7 @@ A defect freezes the converter's money on chain until the converter fixes it.
 - [Reality check](#reality-check)
 - [Technical details](#technical-details)
 - [Run it yourself](#run-it-yourself)
+- [Live console (Abnahme-Board)](#live-console-abnahme-board)
 - [Repo map](#repo-map)
 - [Tech stack](#tech-stack)
 - [On-chain evidence](#on-chain-evidence)
@@ -118,7 +119,7 @@ Abnahme writes as little as possible itself. Rule checking, XML rendering, escro
 
 **What we write ourselves** is the part none of these pieces provide: an acceptance profile that is hashed and pinned before money moves, the semantic checks against the recipient's own master data, the German defect texts, and the buyer loop that turns a verdict into an on-chain refusal or acceptance.
 
-**Cut on purpose** (from [`plan/BUILD_PLAN.md`](plan/BUILD_PLAN.md)): a web dashboard (this README and explorer links replace it), a custom Aiken validator, a second payment service with our own arbitrators, ZUGFeRD/Factur-X hybrid PDFs, and a live VIES VAT-ID check.
+**Cut on purpose**: a custom Aiken validator, a second payment service with our own arbitrators, ZUGFeRD/Factur-X hybrid PDFs, and a live VIES VAT-ID check.
 
 ---
 
@@ -315,7 +316,7 @@ What each piece does, and where it lives:
 
 | Step | File | Detail |
 |---|---|---|
-| Profile hash | [`verifier/profile.mjs`](verifier/profile.mjs) | `profileHash = sha256(canonicalJson({acceptance, recipient}))`. JCS sorts keys by UTF-16 code units, so key order cannot change the hash. A test pins both hashes, so any change to a profile file is deliberate. The hashes changed in `a1a4f73`, when six checks were added (bau-isar `0d799b13…` → `64a8294c…`, hv-giesing → `a9c6f943…`), while the profile id stayed `abnahme-xrechnung-v1`. The hash, not the id, says which test graded an invoice. |
+| Profile hash | [`verifier/profile.mjs`](verifier/profile.mjs) | `profileHash = sha256(canonicalJson({acceptance, recipient}))`. JCS sorts keys by UTF-16 code units, so key order cannot change the hash. A test pins both hashes, so any change to a profile file is deliberate. The hashes changed in `0cff46a`, when six checks were added (bau-isar `0d799b13…` → `64a8294c…`, hv-giesing → `a9c6f943…`), while the profile id stayed `abnahme-xrechnung-v1`. The hash, not the id, says which test graded an invoice. |
 | Extraction | [`einvoice/extract.mjs`](einvoice/extract.mjs) | Claude with a strict JSON schema of flat fields (`invoiceNumber`, `buyerVatId`, `buyerReference`, `lines`, `reverseCharge`, ...). The prompt says to copy values as printed and return `null` for missing ones. Text over 16,000 characters is refused before any model call. The call times out after 120 s and is retried once. `EXTRACT_MODE=fixed` uses a deterministic parser for our own fixed-layout format instead ([`parse-fixed.mjs`](einvoice/parse-fixed.mjs)). |
 | Build | [`einvoice/build.mjs`](einvoice/build.mjs) | Computes line, tax and total amounts in cents. Sets VAT category `AE` with exemption code `VATEX-EU-AE` for §13b. Leaves `cbc:CustomizationID` out so the library writes the XRechnung 3.0 ID. A plain EN 16931 ID would skip every BR-DE rule. |
 | KoSIT client | [`verifier/kosit.mjs`](verifier/kosit.mjs) | `accepted` needs HTTP 200, a KoSIT `accept` assessment **and** the matched scenario `EN16931 XRechnung (UBL Invoice)`. A report from another engine or XRechnung release counts as "not inspected". A 5xx means the invoice was not inspected, never that it is defective. XML over 5 MB is a `KOSIT-SIZE` defect and is never posted. |
@@ -374,7 +375,7 @@ A REJECT is a finished, paid inspection, so it comes back as HTTP 200. `@x402/ex
 
 Two limits:
 
-- **A facilitator timeout can still charge without an answer.** If the facilitator stops waiting before the block lands, the buyer gets no report for a payment that may be on chain. `buy.mjs` therefore resends the same signed payment for up to 3 minutes and never signs a second one. On 30 Oct, before that fix (`72dee3a`), two inspections during the Sokosumi PRÜFEN escrow run were paid on chain without a report reaching the buyer (`9d022f95…`, `8f4755d3…`), and the Büro-Agent fell back to its local KoSIT. An entry the payment log leaves `unknown` must be checked on the explorer before paying again.
+- **A facilitator timeout can still charge without an answer.** If the facilitator stops waiting before the block lands, the buyer gets no report for a payment that may be on chain. `buy.mjs` therefore resends the same signed payment for up to 3 minutes and never signs a second one. On 30 Oct, before that fix (`4621ab5`), two inspections during the Sokosumi PRÜFEN escrow run were paid on chain without a report reaching the buyer (`9d022f95…`, `8f4755d3…`), and the Büro-Agent fell back to its local KoSIT. An entry the payment log leaves `unknown` must be checked on the explorer before paying again.
 - **The Gutachter checks only what KoSIT checks.** ACCEPTABLE needs HTTP 200 and the pinned XRechnung UBL scenario. The semantic checks against the recipient profile run on the buyer's side ([`buero/abnahme.mjs`](buero/abnahme.mjs) with [`verifier/`](verifier)), not in the Gutachter.
 
 ---
@@ -444,11 +445,11 @@ These findings come from building it, from the validator itself, from reading th
 | The seller can rotate `result_hash` while `Disputed` until `external_dispute_unlock_time`. That is the cure window. | Same README, `SubmitResult` |
 | MPS's V2 CI job does not run the `cancel-refund-request` flow, so the refuse → cure → accept loop on V2 has no upstream test. We ran it on preprod ([Recorded runs](#recorded-runs)). | [`plan/MPS.md`](plan/MPS.md), [`plan/EVIDENCE.md`](plan/EVIDENCE.md) |
 | One payment service can buy from its own registered agent. The MPS V2 e2e suite does exactly that, and so do our runs (`a57c43ee…`). | [`plan/MPS.md`](plan/MPS.md) |
-| MPS batches several escrows into one tx: two concurrent purchases had both locks and both `SubmitResult`s in one tx each. A buyer must read its own escrow output, picked by the datum's `input_hash`. Reading output #0 gave a false `ABN-HASH` in the audit's live run (fixed in `c39f6a9`). | [`plan/EVIDENCE.md`](plan/EVIDENCE.md) (audit scenario 5), [`buero/escrow.mjs`](buero/escrow.mjs) |
+| MPS batches several escrows into one tx: two concurrent purchases had both locks and both `SubmitResult`s in one tx each. A buyer must read its own escrow output, picked by the datum's `input_hash`. Reading output #0 gave a false `ABN-HASH` in the audit's live run (fixed in `ca81443`). | [`plan/EVIDENCE.md`](plan/EVIDENCE.md) (audit scenario 5), [`buero/escrow.mjs`](buero/escrow.mjs) |
 | MPS 0.29.0 builds a refund request only while `unlock_time` is more than 3 min away. A later request still gets HTTP 200, and the tx is never built. The Büro-Agent therefore sends none in the last 5 min and raises an alarm if a dispute is not confirmed 3 min before unlock. | [`plan/EVIDENCE.md`](plan/EVIDENCE.md) (audit scenario 6), [`buero/abnahme.mjs`](buero/abnahme.mjs) |
 | Measured on preprod (block times): dispute → cure → accept took 8 min 9 s from payment request to `Withdrawn`. A deemed acceptance waits for `unlock_time`: the paid Sokosumi Task took 44 min from FundsLocked to `Withdrawn`. The refusal run reached `RefundAuthorized` after 22 min; its refund came only after a manual repair, 78 min after FundsLocked. | [`plan/EVIDENCE.md`](plan/EVIDENCE.md), [`audit/raw/part2-claims.md`](audit/raw/part2-claims.md) |
 | Both registry NFTs carry an `api_base_url` on `127.0.0.1` (ports 21950 and 21951), so no agent outside this machine can reach them. | [`plan/MPS.md`](plan/MPS.md), [`audit/raw/part2-claims.md`](audit/raw/part2-claims.md) |
-| Preprod has two tUSDM tokens: `16a55b2a…` (Masumi dispenser, used by the template) and `e675b46e…` (x402 SDK default). The Gutachter prices in lovelace to avoid the mix-up. | [`plan/BUILD_PLAN.md`](plan/BUILD_PLAN.md), [`gutachter/seller.mjs`](gutachter/seller.mjs) |
+| Preprod has two tUSDM tokens: `16a55b2a…` (Masumi dispenser, used by the template) and `e675b46e…` (x402 SDK default). The Gutachter prices in lovelace to avoid the mix-up. | [`plan/FUNDING.md`](plan/FUNDING.md), [`gutachter/seller.mjs`](gutachter/seller.mjs) |
 | The MPS 0.29.0 image cannot seed its own database. A one-shot setup container builds the same release from source to do it. | [`mps/docker-compose.yml`](mps/docker-compose.yml) |
 
 ---
@@ -931,6 +932,18 @@ The CLI commands to create Tasks and read their events and receipts are in [`pla
 
 ---
 
+## Live console (Abnahme-Board)
+
+<img src="assets/board-live.jpg" alt="Abnahme-Board: product header, agents and money flow, the escrow steps on Cardano with BGB mapping, the MANGEL and ABGENOMMEN stamps and the cure diff" width="100%" />
+
+[`board/`](board) is a read-only console for a customer and for live judging. It shows each job as it runs: who hires whom and who pays whom (Masumi escrow 1 tUSDM, x402 1 tADA), the escrow steps with their legal meaning, time, preprod transaction and confirmations, the KoSIT defects (MANGEL / DEFECT), the cure diff, acceptance (ABGENOMMEN / ACCEPTED), the payout and the e-mailed XRechnung. *History* lists every job, *Evidence* every preprod transaction.
+
+```sh
+node --env-file=.local/env/board.env --import=./scripts/env-guard.mjs board/server.mjs   # http://127.0.0.1:8787
+```
+
+It listens on 127.0.0.1 only, checks the Host header, returns no keys, tokens or local paths, and its only write is a guarded "Start demo" button that runs one fresh escrow job at a time (1 tUSDM on preprod). The marketing site is in [`site/`](site), the business case in [`docs/business.md`](docs/business.md).
+
 ## Repo map
 
 | Path | What it is | Status |
@@ -950,7 +963,10 @@ The CLI commands to create Tasks and read their events and receipts are in [`pla
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | CI: pins, `npm ci`, KoSIT, `npm test`, CLI verdicts, clean checkout | green on `main` |
 | [`SECURITY.md`](SECURITY.md) | What is pinned, accepted risks for the demo, upgrade paths | |
 | [`audit/`](audit) | `abnahme-audit.md` (compiled report, lands Sat 31 Oct) and `raw/` (the auditors' own reports) | |
-| [`plan/`](plan) | `BUILD_PLAN.md` (scope, gates), `MPS.md` (payment service), `SOKOSUMI.md` (Coworker runbook), `FUNDING.md` (wallets), `EVIDENCE.md` (every recorded run), `AUDIT_PLAN.md` | |
+| [`plan/`](plan) | `MPS.md` (payment service), `SOKOSUMI.md` (Coworker runbook), `FUNDING.md` (wallets), `EVIDENCE.md` (every recorded run) | |
+| [`board/`](board) | Abnahme-Board, the live console (`server.mjs`, `model.mjs`, `public/`) | 15 tests |
+| [`site/`](site) | Static marketing site (landing, security, imprint) | |
+| [`docs/business.md`](docs/business.md) | Business case with sources: market, pricing, unit economics, go-to-market | |
 | Root `*.mjs`, [`agent/`](agent) | The rest of the Masumi TUM quickstart template: `agent-api.mjs` (the Abnahme-Büro's MIP-003 API, not needed for Sokosumi), `payment-registration.mjs`, the Eve agent (`start.mjs`, not used) | template |
 | [`docs/masumi-quickstart.md`](docs/masumi-quickstart.md) | The template's original README | |
 | [`assets/hero.svg`](assets/hero.svg) | The banner above | |
@@ -978,7 +994,7 @@ The CLI commands to create Tasks and read their events and receipts are in [`pla
 
 ## On-chain evidence
 
-Every row is a confirmed preprod transaction. The audit's forensics and claims auditors checked each one on Blockfrost: all are `valid_contract: true` and move what the row says. Rows 4-11 were graded under the earlier profile `0d799b13…` (commit `e7d132b`). The `input_hash` pins whichever profile was current at lock time. The run under the current profile `64a8294c…` is listed under [Recorded runs](#recorded-runs).
+Every row is a confirmed preprod transaction. The audit's forensics and claims auditors checked each one on Blockfrost: all are `valid_contract: true` and move what the row says. Rows 4-11 were graded under the earlier profile `0d799b13…` (commit `8bd1f9a`). The `input_hash` pins whichever profile was current at lock time. The run under the current profile `64a8294c…` is listed under [Recorded runs](#recorded-runs).
 
 | # | Transaction | Rail | What it shows | Tx hash |
 |---|---|---|---|---|
@@ -1009,7 +1025,7 @@ Each run is separate. No run below goes all the way from Sokosumi through the es
 | Sokosumi PRÜFEN, 09:35 | Task `01a18c29…` | none (`ABNAHME_IMPL=local`) | local KoSIT | (no lock) | ABGENOMMEN AR-2026-0087, 0 credits | none |
 | Sokosumi SENDEN, 09:38 | Task `01a18c2a…`, paid | Sokosumi's escrow for the Abnahme-Büro | none | | E-mailed the XML accepted by the 09:35 PRÜFEN to Mailpit (`<1bc07905…@abnahme.local>`). `Withdrawn` after `unlock_time`. | rows 12-13 |
 | Second SENDEN, Doppelversand | Task `01a18c2e…` | none | none | | FAILED before any payment request, 0 credits | none |
-| Sokosumi PRÜFEN with escrow, 10:13 | Task `01a18c4b…` | V2: dispute → cure → accept | local KoSIT. Two x402 calls returned no report but were charged on chain (`9d022f95…`, `8f4755d3…`, fixed in `72dee3a`). | `0d799b13…` | ABGENOMMEN, the byte-identical XML to the e-mailed one, 46 min after the e-mail | [`e88c7599…`](https://preprod.cardanoscan.io/transaction/e88c7599eb2a2dd42127fd1ee182ebbb5d4418923548fa070a8ec9c00fdea0c1) → [`378ee7a6…`](https://preprod.cardanoscan.io/transaction/378ee7a6d7d3ab70f62be5e519a70e00ca24d5a17d12e88ab9ac85b141abb5a9) |
+| Sokosumi PRÜFEN with escrow, 10:13 | Task `01a18c4b…` | V2: dispute → cure → accept | local KoSIT. Two x402 calls returned no report but were charged on chain (`9d022f95…`, `8f4755d3…`, fixed in `4621ab5`). | `0d799b13…` | ABGENOMMEN, the byte-identical XML to the e-mailed one, 46 min after the e-mail | [`e88c7599…`](https://preprod.cardanoscan.io/transaction/e88c7599eb2a2dd42127fd1ee182ebbb5d4418923548fa070a8ec9c00fdea0c1) → [`378ee7a6…`](https://preprod.cardanoscan.io/transaction/378ee7a6d7d3ab70f62be5e519a70e00ca24d5a17d12e88ab9ac85b141abb5a9) |
 | Deemed acceptance, 11:46 (audit) | CLI, fixture a, `hv-giesing` | V2: no dispute | local KoSIT | `a9c6f943…` | ACCEPTED on the first delivery; MPS withdrew for RechnungsMeister about 10 min after `unlock_time` | [`bdb84f45…`](https://preprod.cardanoscan.io/transaction/bdb84f45e8cf1720bf29cc0adf31d2bc12dbfd7bfd99fc27190aaed12971f253) → [`1ec56faf…`](https://preprod.cardanoscan.io/transaction/1ec56faf0d1167beb8d7b3b2e6388bd5d3cea39ee86a3a7e5cc7a5d3fdbc3dd1) |
 | Escrow run, 11:50 (audit) | CLI, `DEMO_SEED_DEFECT=1` | V2: dispute → cure → accept | x402 [`4991bca3…`](https://preprod.cardanoscan.io/transaction/4991bca3b5c973dc74fdfe3ec8761620a5ec44e9efa6480d4c96907806af3743), [`138b9c0a…`](https://preprod.cardanoscan.io/transaction/138b9c0a11d991f1306277a23e2273bcd60ac5c75d92e9944df4d24684714a4e) | `64a8294c…` (current) | ACCEPTED; the audit recomputed `input_hash` from the datum | [`470f87f0…`](https://preprod.cardanoscan.io/transaction/470f87f0e958b03880e2b9f70b3d17de559bfdffc06e87987679c4cbccaf78cd) → [`49fa546b…`](https://preprod.cardanoscan.io/transaction/49fa546bc27f522e70b48cfe68742e44be98eb1dd7da41065aff09a00e2432f7) |
 
@@ -1040,15 +1056,15 @@ While building the refusal path we found that MPS 0.28.0 (the first release with
 
 ## Security review
 
-Abnahme went through an internal security review during the hackathon, in two parts ([`plan/AUDIT_PLAN.md`](plan/AUDIT_PLAN.md)). It is not a third-party audit.
+Abnahme went through an internal security review during the hackathon, in two parts (full report: [`audit/abnahme-audit.md`](audit/abnahme-audit.md)). It is not a third-party audit.
 
 | Part | Review tracks | Findings |
 |---|---|---|
 | 1 | 8: x402 payments, keys and secrets, LLM and prompt injection, e-invoice and German tax, QA of every user path, clean-clone reproducibility, dependencies and supply chain, local API penetration test | 88 |
-| 2 (after fix round 1, at `beca8f3`) | 6: Masumi V2 escrow and eUTXO, escrow state machine and journal, live preprod scenarios, on-chain forensics, RechnungsMeister and Büro API penetration test, claims vs reality | 59 |
+| 2 (after fix round 1, at `1814dbc`) | 6: Masumi V2 escrow and eUTXO, escrow state machine and journal, live preprod scenarios, on-chain forensics, RechnungsMeister and Büro API penetration test, claims vs reality | 59 |
 
 - **14 review tracks, 147 findings (88 + 59).** Every HIGH and MEDIUM finding went to 2 adversarial refuters before it counted.
-- **2 fix rounds.** Round 1: `72dee3a`, `a1a4f73`, `9f8c3cf`, `a6db873`, `beca8f3`, then CI in `3ddf73f`. Round 2: `3314e46`, `e73121f`, `c39f6a9`. Every fix came with a regression test that failed first.
+- **2 fix rounds.** Round 1: `4621ab5`, `0cff46a`, `ab937bd`, `c006ffe`, `1814dbc`, then CI in `324b035`. Round 2: `7b6acd8`, `f53d11d`, `ca81443`. Every fix came with a regression test that failed first.
 - **The full report** is [`audit/abnahme-audit.md`](audit/abnahme-audit.md), which lands on Saturday 31 Oct, in the morning. The status of each finding is in its fix ledger. The raw reports of the review tracks go into [`audit/raw/`](audit/raw) with it.
 - **Pins, accepted risks and upgrade paths** are in [`SECURITY.md`](SECURITY.md).
 
