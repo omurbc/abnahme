@@ -115,3 +115,42 @@ test('keys leave the process only as GETs to their own service, and never appear
  const bodies=await Promise.all(['/','/api/state','/api/evidence','/api/jobs/2026-10-30T13-47-45-967Z-28273e'].map(p=>call('GET',p).then(r=>r.text)));
  for(const b of bodies){assert.ok(!b.includes(READ)&&!b.includes(BF));assert.doesNotMatch(b,/job_token|Lindwurmstraße/);}
 });
+
+// ---- Fix round 5 (delta review).
+function rootCopy(){
+ const r=mkdtempSync(join(tmpdir(),'abnahme-board-test-'));
+ for(const d of ['.local/abnahme-journal','.local/rechnungsmeister-jobs','gutachter','fixtures','plan'])mkdirSync(join(r,d),{recursive:true});
+ cpSync(new URL('journals/',FX),join(r,'.local/abnahme-journal'),{recursive:true});
+ cpSync(new URL('rm-jobs/',FX),join(r,'.local/rechnungsmeister-jobs'),{recursive:true});
+ cpSync(new URL('sent-ledger.json',FX),join(r,'.local/sent-ledger.json'));
+ cpSync(new URL('abnahmen.json',FX),join(r,'.local/abnahmen.json'));
+ cpSync(new URL('payments.log.json',FX),join(r,'gutachter/payments.log.json'));
+ return r;
+}
+const offline=async()=>new Response('{}',{status:503});
+test('DELTA-BOARD-1: wrong-typed fields in the source files make one job "unreadable"; the board keeps building and serving',async()=>{
+ const r=rootCopy();
+ const rmPath=join(r,'.local/rechnungsmeister-jobs/3676f1ca-de40-44b3-8136-08102e381baf.json'),rm=JSON.parse(readFileSync(rmPath,'utf8'));
+ rm.refundReasons='not a list';writeFileSync(rmPath,JSON.stringify(rm));  // the refused run: rm.refundReasons.join threw in the model
+ writeFileSync(join(r,'.local/sent-ledger.json'),JSON.stringify({entries:'not a list'}));
+ writeFileSync(join(r,'gutachter/payments.log.json'),'{}');
+ let b;const srv=createServer((q,s)=>b.handler(q,s));await new Promise(ok=>srv.listen(0,'127.0.0.1',ok));
+ try{
+  b=createBoard({root:r,port:srv.address().port,env:{},fetchImpl:offline,runDemo:()=>{throw new Error('no demo in this test')}});
+  const {state}=b.build();
+  assert.equal(state.jobs.length,5);
+  assert.deepEqual(state.jobs.filter(j=>j.status.code==='unreadable').map(j=>j.id),['2026-10-30T13-49-02-329Z-74c5a8']);
+  assert.ok(state.jobs.some(j=>j.status.code==='paid'),'the other jobs are still read');
+  const base=`http://127.0.0.1:${srv.address().port}`;
+  assert.equal((await fetch(`${base}/api/state`)).status,200);
+  const job=await (await fetch(`${base}/api/jobs/2026-10-30T13-49-02-329Z-74c5a8`)).json();
+  assert.equal(job.status.tone,'amber');assert.match(job.alarm,/cannot read this job/);assert.doesNotMatch(JSON.stringify(job),/not a list|\/Users\/|\/tmp\//);
+ }finally{srv.close();}
+});
+test('DELTA-BOARD-1: an exception in a timer tick is logged and never becomes an unhandled rejection that ends the process',async()=>{
+ let boom=false;const b=createBoard({root:rootCopy(),port:0,env:{},fetchImpl:offline,runDemo:()=>{throw new Error('no demo in this test')},now:()=>{if(boom)throw new Error('clock failed');return Date.parse('2026-10-30T16:00:00Z');}});
+ const rejected=[],on=e=>rejected.push(e);process.on('unhandledRejection',on);
+ boom=true;
+ try{b.start();await new Promise(ok=>setTimeout(ok,50));}finally{b.stop();process.off('unhandledRejection',on);}
+ assert.deepEqual(rejected.map(e=>e.message),[]);
+});

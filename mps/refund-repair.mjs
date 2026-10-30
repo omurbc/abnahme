@@ -7,13 +7,22 @@
 // POST /request-repair with the preview's requestVersion. MPS then sends WithdrawRefund by itself (45 s to 3:23 live).
 // Idempotent: a repaired purchase has resultHash null and is skipped. One log line per action, no keys.
 // The same pass also runs repairStuckWithdrawals (LB2-1, below) for the seller side. From the repo root:
-//   node --env-file=.local/env/mps-admin.env mps/refund-repair.mjs          # one pass; exit 1 if a request failed
-//   node --env-file=.local/env/mps-admin.env mps/refund-repair.mjs --loop   # a pass every 60 s
+//   node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs mps/refund-repair.mjs          # one pass; exit 1 if a request failed
+//   node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs mps/refund-repair.mjs --loop   # a pass every 60 s
+// Exactly one at a time: both take the lock .local/refund-repair.lock (DELTA-OPERATOR-3).
 import {realpathSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {decodeHash} from '../buero/escrow.mjs';
+import {acquireWorkerLock} from '../worker-lock.mjs';
 
 const NETWORK='Preprod',PAGE=100,LOOP_MS=60000,STALE_MS=15*60000;
+// A payment MPS parks again after a repair (for example a collection failure, DELTA-OPERATOR-1) is repaired at most once
+// per RETRY_MS and MAX_REPAIRS times per loop process, then reported once as an alarm.
+const RETRY_MS=60*60000,MAX_REPAIRS=3;
+// The fields a repair decides on. A re-read after the preview that differs means another actor moved the record since the
+// listing; the write is then skipped (DELTA-OPERATOR-3). A change after the re-read fails with the preview's requestVersion.
+const shape=r=>[r.onChainState,r.NextAction?.requestedAction,!!r.NextAction?.errorType,!!r.resultHash,r.CurrentTransaction?.txHash,r.CurrentTransaction?.status,r.CurrentTransaction?.newOnChainState].join('|');
+const movedTo=r=>`changed after the listing (now ${r.NextAction?.requestedAction} on ${r.CurrentTransaction?.status} ${String(r.CurrentTransaction?.txHash).slice(0,12)}…); not repaired`;
 const BLOCKFROST='https://cardano-preprod.blockfrost.io/api/v0';
 // V2 datum (utils/converter/string-datum-convert decodeV2ContractDatum @0.29.0): 10 input_hash, 11 result_hash,
 // 18 state; constructor 4 is WithdrawAuthorized, 5 is RefundAuthorized.
@@ -67,6 +76,8 @@ export async function repairStuckRefunds({url=process.env.MPS_URL,adminKey=proce
    const request={kind:'Purchase',network:NETWORK,blockchainIdentifier:p.blockchainIdentifier,txHash};
    const preview=await mps('/request-repair/preview',request);
    if(preview.derivedOnChainState!=='RefundAuthorized'||preview.resultHash!==null){log(`skip ${who}: MPS preview derives ${preview.derivedOnChainState} with resultHash ${preview.resultHash}`);done.skipped.push(p.id);continue;}
+   const fresh=await mps('/purchase/resolve-blockchain-identifier',{blockchainIdentifier:p.blockchainIdentifier,network:NETWORK,includeHistory:'false'});
+   if(shape(fresh)!==shape(p)){log(`skip ${who}: MPS record ${movedTo(fresh)}`);done.skipped.push(p.id);continue;}
    const r=await mps('/request-repair',{...request,requestVersion:preview.requestVersion});
    log(`repaired ${who}: resultHash ${p.resultHash.slice(0,12)}… -> null (${r.newOnChainState}, forced ${r.forced}); MPS sends WithdrawRefund by itself`);
    done.repaired.push(p.id);
@@ -105,7 +116,7 @@ export async function repairStuckRefunds({url=process.env.MPS_URL,adminKey=proce
 //      that updatedAt and without retryPreviousAction (a retry would submit the cure again). It clears to WaitingForExternalAction.
 // MPS then sends Withdraw by itself (live: on chain 33 s to 58 s after the clear). Other shapes unchanged for more than 15 min
 // are only reported.
-export async function repairStuckWithdrawals({url=process.env.MPS_URL,adminKey=process.env.ADMIN_KEY,blockfrostKey=process.env.BLOCKFROST_API_KEY_PREPROD,fetchImpl=fetch,log=console.log,now=Date.now}={}){
+export async function repairStuckWithdrawals({url=process.env.MPS_URL,adminKey=process.env.ADMIN_KEY,blockfrostKey=process.env.BLOCKFROST_API_KEY_PREPROD,fetchImpl=fetch,log=console.log,now=Date.now,attempts=new Map()}={}){
  const {mps,list,ownOutputs}=clients({url,adminKey,blockfrostKey,fetchImpl});
  const payments=await list(`/payment?network=${NETWORK}&filterPaymentSourceType=Web3CardanoV2&filterOnChainState=WithdrawAuthorized`,'Payments');
  const done={checked:payments.length,repaired:[],skipped:[],failed:[]};
@@ -115,6 +126,10 @@ export async function repairStuckWithdrawals({url=process.env.MPS_URL,adminKey=p
   if(!manual&&!(idleMs>STALE_MS))continue;
   const txHash=p.CurrentTransaction?.txHash,who=`${p.id} (AuthorizeWithdrawal ${String(txHash).slice(0,12)}…)`,idleFor=`${Math.floor(idleMs/60000)} min`;
   const skip=why=>{log(`skip ${who}: ${why}`);done.skipped.push(p.id);};
+  const mpsError=next?.errorType?` (${next.errorType}: ${String(next.errorNote??'no error note').slice(0,200)})`:'';
+  const tried=attempts.get(p.id);
+  if(tried?.count>=MAX_REPAIRS){if(!tried.alarmed){tried.alarmed=true;log(`alarm ${who}: MPS left this payment stuck again after ${tried.count} automatic repairs${mpsError}; no further automatic repair, an operator must look at it`);done.skipped.push(p.id);}continue;}
+  if(tried&&now()-tried.at<RETRY_MS)continue;
   try{
    if(!manual&&(next?.requestedAction!=='WaitingForExternalAction'||next.errorType)){skip(`MPS next action ${next?.requestedAction}${next?.errorType?` (${next.errorType})`:''} unchanged for ${idleFor}; no automatic repair for this`);continue;}
    const chain=await onChain(p);
@@ -123,6 +138,9 @@ export async function repairStuckWithdrawals({url=process.env.MPS_URL,adminKey=p
    const request={kind:'Payment',network:NETWORK,blockchainIdentifier:p.blockchainIdentifier,txHash};
    const preview=await mps('/request-repair/preview',request);
    if(preview.derivedOnChainState!=='WithdrawAuthorized'||preview.outputIndex!==chain.outputIndex||preview.resultHash!==chain.resultHash){skip(`MPS preview derives ${preview.derivedOnChainState} at #${preview.outputIndex} with resultHash ${String(preview.resultHash).slice(0,12)}…`);continue;}
+   const before=await mps('/payment/resolve-blockchain-identifier',{blockchainIdentifier:p.blockchainIdentifier,network:NETWORK,includeHistory:'false'});
+   if(shape(before)!==shape(p)){skip(`MPS record ${movedTo(before)}`);continue;}
+   attempts.set(p.id,{count:(tried?.count??0)+1,at:now()});
    await mps('/request-repair',{...request,requestVersion:preview.requestVersion});
    if(!manual){log(`repaired ${who}: resultHash null -> ${chain.resultHash.slice(0,12)}… from the datum; MPS sends Withdraw by itself`);done.repaired.push(p.id);continue;}
    const fresh=await mps('/payment/resolve-blockchain-identifier',{blockchainIdentifier:p.blockchainIdentifier,network:NETWORK,includeHistory:'true'});
@@ -131,7 +149,7 @@ export async function repairStuckWithdrawals({url=process.env.MPS_URL,adminKey=p
    if(fresh.NextAction?.requestedAction!=='WaitingForManualAction'||!fresh.NextAction.errorType){skip(`MPS next action changed to ${fresh.NextAction?.requestedAction} meanwhile; not cleared`);continue;}
    const cleared=await mps('/payment/error-state-recovery',{blockchainIdentifier:p.blockchainIdentifier,network:NETWORK,updatedAt:fresh.updatedAt});
    if(cleared.NextAction?.requestedAction!=='WaitingForExternalAction'||cleared.CurrentTransaction?.txHash!==txHash)throw new Error(`error-state-recovery left ${cleared.NextAction?.requestedAction} on ${String(cleared.CurrentTransaction?.txHash).slice(0,12)}…`);
-   log(`repaired ${who}: WaitingForManualAction (${next.errorType}) cleared to WaitingForExternalAction on this AuthorizeWithdrawal; MPS sends Withdraw by itself`);
+   log(`repaired ${who}: WaitingForManualAction${mpsError} cleared to WaitingForExternalAction on this AuthorizeWithdrawal; MPS sends Withdraw by itself`);
    done.repaired.push(p.id);
   }catch(e){log(`error ${who}: ${e.message}`);done.failed.push(p.id);}
  }
@@ -154,13 +172,18 @@ export async function repairStuckWithdrawals({url=process.env.MPS_URL,adminKey=p
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(realpathSync(process.argv[1])).href){
- const loop=process.argv.includes('--loop');
+ let releaseLock;
+ try{releaseLock=acquireWorkerLock('.local/refund-repair.lock');}
+ catch(e){console.error(`refund-repair is already running or its lock is unclear (.local/refund-repair.lock: ${e.message.replace(/^Worker /,'')}). Run exactly one: the --loop, or a one-off pass while the loop is stopped.`);process.exit(1);}
+ process.once('exit',releaseLock);
+ const loop=process.argv.includes('--loop'),attempts=new Map();
+ for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>process.exit(loop?0:1));  // through 'exit', so the lock is released
  const log=line=>console.log(`${new Date().toISOString()} ${line}`);
  const shown=(r,first)=>r&&(!loop||first||r.repaired.length||r.skipped.length||r.failed.length);
  for(let first=true;;first=false){
   const r=await repairStuckRefunds({log}).catch(e=>{log(`error: ${e.message}`);return null;});
   if(shown(r,first))log(`pass: ${r.checked} RefundAuthorized purchase(s), ${r.repaired.length} repaired, ${r.skipped.length} skipped, ${r.failed.length} failed`);
-  const w=await repairStuckWithdrawals({log}).catch(e=>{log(`error: ${e.message}`);return null;});
+  const w=await repairStuckWithdrawals({log,attempts}).catch(e=>{log(`error: ${e.message}`);return null;});
   if(shown(w,first))log(`pass: ${w.checked} WithdrawAuthorized payment(s), ${w.repaired.length} repaired, ${w.skipped.length} skipped, ${w.failed.length} failed`);
   if(!loop)process.exit(r&&!r.failed.length&&w&&!w.failed.length?0:1);
   await new Promise(resolve=>setTimeout(resolve,LOOP_MS));

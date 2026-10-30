@@ -21,6 +21,15 @@ curl -s http://127.0.0.1:38127/api/v1/health      # {"status":"success","data":{
 - Postgres `abnahme-mps-postgres` is not published on the host. To inspect it: `docker exec -it abnahme-mps-postgres psql -U postgres`.
 - The service image is amd64-only and runs under OrbStack/Rosetta. The setup image `masumi-payment-setup:0.29.0` is built locally from the 0.29.0 source.
 
+**Start procedure: the repair loop belongs to MPS.** Once MPS answers the health check, start exactly one refund-repair loop and
+leave it running beside the worker. Without it, the refund of a refused PRÜFEN stays `RefundAuthorized` (#1327) and a payout after a
+batched cure stays `WaitingForManualAction` (LB2-1); see the two sections below. A second instance, or a one-off pass while the loop
+runs, is refused by its lock `.local/refund-repair.lock`.
+
+```sh
+node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs mps/refund-repair.mjs --loop   # exactly one, next to the worker
+```
+
 ## Env files per process (audit SECRETS-1)
 
 No long-running process and no root `npm` script loads the whole `.env` (only `npm run wallet` in `gutachter/` reads it, to append the new wallets). `node scripts/env-split.mjs` (rerun after every change to `.env` or a key file) writes
@@ -35,7 +44,7 @@ when a project secret outside the profile is present (for example when `.env` is
 | `rechnungsmeister` | Anthropic, RM `MPS_RUNTIME_TOKEN` | `rechnungsmeister/server.mjs` |
 | `buero` | `MPS_BUYER_TOKEN`, `MPS_READ_TOKEN`, Blockfrost, Gutachter buyer mnemonic | `worker.mjs`, `buero/run.mjs` |
 | `buero-local` | Anthropic, Blockfrost | `worker.mjs` with `ABNAHME_IMPL=local` |
-| `mps-admin` | `ADMIN_KEY`, Blockfrost | one-shot operator scripts (`mps/*.mjs`, registration scripts) |
+| `mps-admin` | `ADMIN_KEY`, Blockfrost | one-shot operator scripts (`mps/*.mjs`, registration scripts); the long-running `mps/refund-repair.mjs --loop` |
 | `buero-api` | Büro selling `MPS_RUNTIME_TOKEN` | template `agent-api.mjs` |
 | `eve` | `ZAI_API_KEY` | template `start.mjs` |
 | `board` | Blockfrost, `MPS_READ_TOKEN` | `board/server.mjs` (read-only demo board) |
@@ -130,8 +139,8 @@ Campaign 1 hit it on all 5 refusals. The workaround runs with the admin profile:
 
 ```sh
 export PATH="/opt/homebrew/opt/node@24/bin:$PATH"
-node --env-file=.local/env/mps-admin.env mps/refund-repair.mjs          # one pass; exit 1 if a request failed
-node --env-file=.local/env/mps-admin.env mps/refund-repair.mjs --loop   # a pass every 60 s, next to the worker
+node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs mps/refund-repair.mjs          # one pass; exit 1 if a request failed
+node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs mps/refund-repair.mjs --loop   # a pass every 60 s, next to the worker
 ```
 
 Each pass:
@@ -142,6 +151,10 @@ Each pass:
 4. Calls `POST /request-repair/preview {kind: Purchase, network, blockchainIdentifier, txHash}`. Only if MPS derives `RefundAuthorized` with `resultHash: null`
    does it call `POST /request-repair` with the preview's `requestVersion`, never with `force`. MPS then sends WithdrawRefund by itself (45 s to 3:23 in the campaign).
 
+Between the preview and each write it re-reads the record (`POST /purchase/resolve-blockchain-identifier`, for payments
+`/payment/…`). If MPS state, next action, result hash or current tx changed since the listing (another actor, or a one-off pass),
+it writes nothing and logs `skip … changed after the listing`; a change after the re-read fails on the preview's `requestVersion`.
+Only one instance runs: the pass and the loop both take `.local/refund-repair.lock` and refuse to start beside each other.
 It is idempotent: a repaired purchase has `resultHash: null` and is not picked again. It prints one line per action (`repaired`, `skip`, `error`)
 plus a pass summary, and never prints a key. The Büro's REFUSED protocol still names the operator step ("Hinweis für den Betreiber … #1327").
 Done by hand before the script existed: A8, B5 and B3 (campaign 1), then A4 and A9b (both refunded in one WithdrawRefund,
@@ -185,6 +198,11 @@ submit the cure again. So the script does, per payment:
    `Confirmed` history row is the AuthorizeWithdrawal does it call `POST /payment/error-state-recovery {blockchainIdentifier, network, updatedAt}`
    (no `retryPreviousAction`). The response must show `WaitingForExternalAction` on the AuthorizeWithdrawal.
 6. MPS's auto-withdraw then queues `WithdrawRequested` and sends the Withdraw by itself.
+
+If MPS parks the same payment again after a repair (for example a per-item collection failure, which MPS 0.29.0 records in the
+same `WaitingForManualAction` shape), the loop does not clear it every minute: it repairs one payment at most once per hour and
+three times per loop process, then logs one `alarm …` line with MPS's `errorType` and `errorNote` and leaves it to an operator
+(DELTA-OPERATOR-1). Every `repaired` line carries the error note it cleared. A restart of the loop resets the count.
 
 Side effect: request-repair rewrites the payment's AuthorizeWithdrawal row to `WithdrawAuthorized>WithdrawAuthorized`, so the seller
 history shows that label for this tx (the buyer side keeps `Disputed>WithdrawAuthorized`).

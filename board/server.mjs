@@ -17,7 +17,7 @@ import {escrowTxs} from '../buero/escrow.mjs';
 import {parseTask} from '../buero/sokosumi.mjs';
 import {canonicalJson,loadProfile,recipientIds} from '../verifier/profile.mjs';
 import {sha256} from '../standard-hash.mjs';
-import {safeJournal,safeRmJob,safeLedger,timeline,summary,evidence,parseEvidenceMd} from './model.mjs';
+import {safeJournal,safeRmJob,safeLedger,timeline,unreadable,summary,evidence,parseEvidenceMd} from './model.mjs';
 
 const ROOT=fileURLToPath(new URL('..',import.meta.url));
 const PUBLIC=fileURLToPath(new URL('./public/',import.meta.url));
@@ -80,8 +80,9 @@ export function createBoard({
  // ---------- snapshot of every source ----------
  function snapshot(){
   const journals=list(p('.local/abnahme-journal'),/^[0-9T-]+Z-[0-9a-f]{6}\.json$/).map(f=>read(p(`.local/abnahme-journal/${f}`),t=>safeJournal(JSON.parse(t)))).filter(j=>j&&JOURNAL_ID.test(j.id));
-  const payments=read(p('gutachter/payments.log.json'),JSON.parse)??[];
-  const ledger=safeLedger(read(p('.local/sent-ledger.json'),t=>JSON.parse(t).entries));
+  // Shape errors count as unreadable like a parse error: the last good value stays (DELTA-BOARD-1).
+  const payments=read(p('gutachter/payments.log.json'),t=>{const v=JSON.parse(t);if(!Array.isArray(v))throw new Error('not a list');return v;})??[];
+  const ledger=read(p('.local/sent-ledger.json'),t=>safeLedger(JSON.parse(t).entries))??[];
   // The worker's store of accepted invoices: which PRÜFEN (purchase) accepted the XML that a SENDEN mailed.
   const accepted=read(p('.local/abnahmen.json'),t=>Object.fromEntries(Object.entries(JSON.parse(t)).map(([n,v])=>[n,{purchaseId:v.purchaseId??null,xmlSha256:v.xmlSha256??null,acceptedAt:v.acceptedAt??null}])))??{};
   // Sokosumi Tasks the worker keeps in .local/<taskId>.json: completed ones name their journal, running ones match by input.
@@ -90,7 +91,7 @@ export function createBoard({
    let inputKey=null,kind=null;try{const job=parseTask(task.input);kind=job.kind;if(job.kind==='PRUEFEN')inputKey=inputKeyOf(job);}catch{}
    return {taskId:f.slice(0,-5),kind,inputKey,journalId:/^Auftrag (\S+):/.exec(task.completion?.result??'')?.[1]??null};
   })).filter(Boolean);
-  const timelines=journals.map(j=>{
+  const timelines=journals.map(j=>{try{
    const rmJob=UUID.test(j.job.id??'')?read(p(`.local/rechnungsmeister-jobs/${j.job.id}.json`),t=>safeRmJob(JSON.parse(t))):null;
    const purchase=live.purchases.get(j.job.blockchainIdentifier),payment=live.payments.get(j.job.blockchainIdentifier);
    const task=tasks.find(t=>t.journalId===j.id)??(j.stage!=='done'?tasks.find(t=>!t.journalId&&t.inputKey&&t.inputKey===j.inputKey):null);
@@ -102,7 +103,7 @@ export function createBoard({
     inMailpit:live.mails?live.mails.some(m=>`<${m.messageId}>`===sent.messageId):null}:null;
    return timeline(j,{rmJob,payments,mail,chainTxs:purchase||payment?chainTxsOf(purchase,payment):null,escrowState:purchase?.onChainState??null,
     sellerAction:payment?.NextAction?.requestedAction??null,tip:live.tip,heights:live.heights,origin,recipients,now:now()});
-  }).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  }catch(e){console.error('board: job unreadable',j.id,e.message.slice(0,200));return unreadable(j);}}).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   return {journals,timelines,payments};
  }
 
@@ -235,7 +236,8 @@ export function createBoard({
  const timers=[];
  function start(){
   build();
-  const every=(ms,fn)=>{let busy=false;const run=async()=>{if(busy)return;busy=true;try{await fn();}finally{busy=false;}};run();timers.push(setInterval(run,ms));};
+  // A failing tick is logged; unhandled, its rejection would end the process (DELTA-BOARD-1).
+  const every=(ms,fn)=>{let busy=false;const run=async()=>{if(busy)return;busy=true;try{await fn();}catch(e){console.error('board tick failed',e.message.slice(0,200));}finally{busy=false;}};run();timers.push(setInterval(run,ms));};
   every(2000,()=>{watchDemo();broadcast();});
   every(10000,pollMailpit);
   let mpsAt=0;every(3000,async()=>{if(now()-mpsAt<(anyRunning()?6000:60000))return;mpsAt=now();await pollMps();});

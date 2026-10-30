@@ -119,7 +119,7 @@ const STATUS={
  running:['Running','läuft','blue'],accepted:['Accepted','abgenommen','green'],paid:['Paid','bezahlt','green'],
  refused:['Refused','abgelehnt','red'],refunded:['Refused · refunded','abgelehnt, erstattet','red'],failed:['Failed','abgebrochen','amber'],
  alarm:['Alarm','Betreiber gefragt','amber'],'paid-unaccepted':['Paid without acceptance','ohne Abnahme ausgezahlt','amber'],stale:['Stalled','ohne Fortschritt','grey'],
- 'payout-stuck':['Payout stuck','Auszahlung hängt','amber'],
+ 'payout-stuck':['Payout stuck','Auszahlung hängt','amber'],unreadable:['Unreadable','nicht lesbar','amber'],
 };
 const STALE=45*60000;
 // MPS 0.29.0 can leave the seller's Withdraw unbuilt after a batched tx (CAMPAIGN2-1): its payment record waits for an
@@ -156,13 +156,15 @@ export function timeline(j,ctx={}){
  let running=j.status?j.stage==='follow'&&!settled:j.stage!=='done';
  let code=!j.status?'running':j.status==='ACCEPTED'?(paid?'paid':'accepted'):j.status==='REFUSED'?(refunded?'refunded':'refused'):j.paidWithoutAcceptance?'paid-unaccepted':alarmLog?'alarm':'failed';
  if(code==='running'&&now-lastActivity>STALE){code='stale';running=false;}
- const authorizedAt=ms(confirmedTx('accepted')?.at)||(escrowState==='WithdrawAuthorized'?ms(findLog(j,LOG.authorized)?.at):null);
- const payoutStuck=code==='accepted'&&(ctx.sellerAction==='WaitingForManualAction'?'the seller payment record waits for an operator (WaitingForManualAction)'
-  :authorizedAt&&now-authorizedAt>PAYOUT_STUCK?'WithdrawAuthorized on chain for more than 15 min without the seller\'s Withdraw':null);
- if(payoutStuck)code='payout-stuck';
  const refusal=j.status==='REFUSED'||j.stage==='wait-refund'||!!noCureLog||!!txFor('refundAuthorized')||!!txFor('refunded');
  const disputedDone=!!(confirmedTx('disputed')||findLog(j,LOG.disputed));
  const path=refusal?'refusal':a0?.passed&&!disputedDone&&!protectiveLog?'deemed':a0||disputedDone||protectiveLog?'cure':'pending';
+ const authorizedAt=ms(confirmedTx('accepted')?.at)||(escrowState==='WithdrawAuthorized'?ms(findLog(j,LOG.authorized)?.at):null);
+ // Deemed acceptance has no AuthorizeWithdrawal: the seller may withdraw from unlock_time on (DELTA-BOARD-2).
+ const payoutStuck=code==='accepted'&&(ctx.sellerAction==='WaitingForManualAction'?'the seller payment record waits for an operator (WaitingForManualAction)'
+  :authorizedAt&&now-authorizedAt>PAYOUT_STUCK?'WithdrawAuthorized on chain for more than 15 min without the seller\'s Withdraw'
+  :path==='deemed'&&j.job.unlockTime&&now-j.job.unlockTime>PAYOUT_STUCK?'unlock_time passed more than 15 min ago without the seller\'s Withdraw (deemed acceptance)':null);
+ if(payoutStuck)code='payout-stuck';
  const ended=!running;
 
  const step=(key,o)=>({key,term:null,law:null,status:'pending',tone:null,at:null,tx:null,amount:null,note:null,conditional:false,...o});
@@ -185,6 +187,8 @@ export function timeline(j,ctx={}){
   note:rm?.attempts[0]?.seededDefect&&(!a0||a0.failures.some(f=>f.code==='ABN-BT48'))?'Demo: BT-48 left out on purpose':deliveredDone?'XRechnung (UBL), result hash on chain':'RechnungsMeister builds the XRechnung'});
 
  const paymentOf=hash=>payments.find(p=>p.txHash===hash)??null;
+ // CAMPAIGN2-14: Confirmed only with a known block; otherwise what the Gutachter buyer logged (the first log format had no status).
+ const x402Status=tx=>{const p=paymentOf(tx.hash);return tx.confirmations!=null?'Confirmed':!p?null:p.status==='settled'||p.status===undefined&&p.httpStatus===undefined?'Settled':p.status==='sent'?'Pending':'Not settled';};
  const inspections=j.attempts.map((a,i)=>{
   const x402=a.inspection?.mode==='x402',hash=a.inspection?.txHash??null,pay=hash?paymentOf(hash):null,line=findLog(j,LOG.inspection(i+1));
   return {n:i+1,round:a.round,passed:a.passed,mode:a.inspection?.mode??null,x402,httpStatus:a.inspection?.httpStatus??null,scenario:a.inspection?.scenario??null,
@@ -268,7 +272,7 @@ export function timeline(j,ctx={}){
  const finished=ended?Math.max(...steps.filter(s=>s.status==='done'||s.status==='failed').map(s=>ms(s.at)).filter(t=>Number.isFinite(t)&&t<=now),lastActivity):null;
  const created=ms(j.createdAt);
  const allTxs=[...txs.map(t=>({label:t.label,name:TX_NAME[t.label]??t.label,rail:'escrow',...txRef(t.txHash,t.label),at:iso(t.at),status:t.status})),
-  ...inspections.filter(r=>r.tx).map(r=>({label:`x402 inspection ${r.n}`,name:`x402 inspection ${r.n} (Prüfung)`,rail:'x402',...r.tx,at:iso(r.at),status:'Confirmed'}))]
+  ...inspections.filter(r=>r.tx).map(r=>({label:`x402 inspection ${r.n}`,name:`x402 inspection ${r.n} (Prüfung)`,rail:'x402',...r.tx,at:iso(r.at),status:x402Status(r.tx)}))]
   .sort((a,b)=>String(a.at).localeCompare(String(b.at)));
  const [label,de,tone]=STATUS[code];
  return {
@@ -290,6 +294,15 @@ export function timeline(j,ctx={}){
    :['alarm','failed','paid-unaccepted'].includes(code)?alarmLog?.line??j.error??findLastLog(j,LOG.abort)?.line??null:running&&alarmLog&&j.log.slice(-3).includes(alarmLog)?alarmLog.line:null,
   log:j.log.slice(-40),
  };
+}
+
+// A job whose source files have a field of an unexpected type: listed as unreadable instead of ending the board (DELTA-BOARD-1).
+export function unreadable(j){
+ const [label,de,tone]=STATUS.unreadable;
+ return {id:j.id,createdAt:j.createdAt,finishedAt:null,durationMs:null,running:false,status:{code:'unreadable',label,de,tone},path:'pending',stage:j.stage,escrowState:j.escrowState,
+  invoice:{number:null,recipientId:null,recipientName:null,amount:null,buyerVatId:null},demo:{seedDefect:false,seedSwitch:false,cheat:false},origin:{kind:'cli'},stamp:null,
+  steps:[],inspections:[],defects:[],protective:null,cure:null,mail:null,txs:[],deadlines:{submitResultTime:null,unlockTime:null,externalDisputeUnlockTime:null},
+  alarm:'The board cannot read this job\'s files (a field has an unexpected type); see the board log. The job itself is not affected.',log:[]};
 }
 
 export function summary(t){

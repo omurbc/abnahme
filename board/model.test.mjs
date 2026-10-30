@@ -210,3 +210,27 @@ test('CAMPAIGN2-4: an accepted job whose payout is stuck at MPS is an amber aler
  const paid=build('cure',{now:authorizedAt+60*MIN,escrowState:'Withdrawn'},stuckPayout());
  assert.deepEqual([paid.status.code,paid.alarm],['paid',null],'once MPS reports the Withdraw, the alert is gone');
 });
+
+// ---- Fix round 5 (delta review).
+const deemedUnpaid=()=>{const j=raw('deemed');return {...j,escrowState:'ResultSubmitted',txs:j.txs.filter(t=>!t.label.startsWith('Withdrawn')),log:j.log.filter(l=>!/Withdrawn/.test(l.line))};};
+test('DELTA-BOARD-2: deemed acceptance without a payout well after unlock_time is the same amber alert',()=>{
+ const unlock=Number(raw('deemed').startJob.unlockTime),MIN=60000;
+ for(const now of [unlock-10*MIN,unlock+5*MIN]){
+  const t=build('deemed',{now},deemedUnpaid());
+  assert.deepEqual([t.path,t.status.code,t.alarm,summary(t).next],['deemed','accepted',null,'payout pending'],new Date(now).toISOString());
+ }
+ for(const after of [60,6*60,24*60]){
+  const t=build('deemed',{now:unlock+after*MIN},deemedUnpaid());
+  assert.equal(t.status.code,'payout-stuck',`${after} min`);assert.equal(t.status.tone,'amber');
+  assert.match(t.alarm,/^Payout stuck at Masumi Payment Service, operator repair pending: .*unlock_time.*deemed acceptance/,`${after} min`);
+ }
+ assert.equal(build('deemed',{now:unlock+24*60*MIN}).status.code,'paid','once Withdrawn, no alert');
+});
+test('CAMPAIGN2-14: x402 rows carry their real status and confirmations, not a hard-coded Confirmed',()=>{
+ const x402=t=>t.txs.filter(r=>r.rail==='x402').map(r=>[r.hash.slice(0,8),r.status,r.confirmations]);
+ assert.deepEqual(x402(build('cure')),[['06203bd1','Settled',null],['c0d8679b','Settled',null]],'settled in the Gutachter log, block not known to the board');
+ const first=build('cure').inspections[0].tx.hash;
+ assert.deepEqual(x402(build('cure',{tip:110,heights:{[first]:100}}))[0],['06203bd1','Confirmed',11],'block height known');
+ assert.deepEqual(x402(build('cure',{payments:[]})).map(([,s])=>s),[null,null],'no Gutachter log entry: unknown, not Confirmed');
+ assert.deepEqual(x402(build('cure',{payments:payments.map(p=>p.txHash===first?{...p,status:'sent'}:p)}))[0][1],'Pending');
+});

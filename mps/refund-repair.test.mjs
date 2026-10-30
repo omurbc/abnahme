@@ -20,7 +20,7 @@ function stuck(n,over={}){
 // consumed 'absent': Blockfrost did not report the field at all.
 const chainFor=(p,{datumOver={},consumed=null,address=CONTRACT}={})=>({[p.CurrentTransaction.txHash]:[{address:BUYER,output_index:0,data_hash:null,consumed_by_tx:null},{address,output_index:1,data_hash:`dh-${p.id}`,...consumed==='absent'?{}:{consumed_by_tx:consumed},datum:datum({inputHash:p.inputHash,...datumOver})}]});
 
-function world(purchases,{chain=Object.assign({},...purchases.map(p=>chainFor(p))),preview=()=>({}),blockfrostDown=new Set()}={}){
+function world(purchases,{chain=Object.assign({},...purchases.map(p=>chainFor(p))),preview=()=>({}),blockfrostDown=new Set(),beforePreview=()=>{}}={}){
  const calls=[];
  const ok=data=>Response.json({status:'success',data});
  const fetchImpl=async(url,init={})=>{
@@ -46,7 +46,9 @@ function world(purchases,{chain=Object.assign({},...purchases.map(p=>chainFor(p)
   const p=purchases.find(x=>x.blockchainIdentifier===body?.blockchainIdentifier);
   if(!p)return Response.json({status:'error',error:{message:'not found'}},{status:404});
   const version=`v-${p.id}-${p.resultHash}`;
+  if(path==='/purchase/resolve-blockchain-identifier')return ok(structuredClone(p));
   if(path==='/request-repair/preview'){
+   beforePreview(p);
    const out=chain[body.txHash]?.find(o=>o.address===CONTRACT);
    return ok({txHash:body.txHash,outputIndex:out.output_index,derivedOnChainState:'RefundAuthorized',resultHash:out.datum.fields[11].bytes||null,currentOnChainState:p.onChainState,requestVersion:version,...preview(p)});
   }
@@ -163,7 +165,7 @@ const awChainFor=(p,{datumOver={},consumed=null,address=CONTRACT}={})=>({[p.Curr
  {address,output_index:1,data_hash:`dh-${p.id}`,...consumed==='absent'?{}:{consumed_by_tx:consumed},datum:datum({inputHash:p.inputHash,resultHash:hex('7'),state:4,...datumOver})}]});
 const STATES=['FundsLocked','ResultSubmitted','RefundRequested','Disputed','WithdrawAuthorized','RefundAuthorized'];
 
-function payWorld(payments,{chain=Object.assign({},...payments.map(p=>awChainFor(p))),preview=()=>({}),blockfrostDown=new Set(),beforeRecovery=()=>{}}={}){
+function payWorld(payments,{chain=Object.assign({},...payments.map(p=>awChainFor(p))),preview=()=>({}),blockfrostDown=new Set(),beforeRecovery=()=>{},beforePreview=()=>{}}={}){
  const calls=[];
  const ok=data=>Response.json({status:'success',data});
  const fail=(status,message)=>Response.json({status:'error',error:{message}},{status});
@@ -198,6 +200,7 @@ function payWorld(payments,{chain=Object.assign({},...payments.map(p=>awChainFor
    return ok(r);
   }
   if(path==='/request-repair/preview'){
+   beforePreview(p);
    const out=ownOut(body.txHash,p);
    return ok({txHash:body.txHash,outputIndex:out.output_index,derivedOnChainState:STATES[out.datum.fields[18].constructor],resultHash:out.datum.fields[11].bytes||null,currentOnChainState:p.onChainState,requestVersion:version(p),...preview(p)});
   }
@@ -225,7 +228,7 @@ function payWorld(payments,{chain=Object.assign({},...payments.map(p=>awChainFor
   return fail(404,'no route');
  };
  const lines=[];
- const pass=()=>repairStuckWithdrawals({url:'http://mps.test',adminKey:ADMIN,blockfrostKey:BF,fetchImpl,log:l=>lines.push(l),now:()=>NOW});
+ const pass=(o={})=>repairStuckWithdrawals({url:'http://mps.test',adminKey:ADMIN,blockfrostKey:BF,fetchImpl,log:l=>lines.push(l),now:()=>NOW,...o});
  const at=path=>calls.filter(c=>c.path===`/api/v1${path}`);
  return {calls,lines,pass,at,writes:()=>[...at('/request-repair'),...at('/payment/error-state-recovery')],chainCalls:()=>calls.filter(c=>c.host==='cardano-preprod.blockfrost.io')};
 }
@@ -237,7 +240,7 @@ test('LB2-1: WaitingForManualAction over an unspent WithdrawAuthorized escrow: p
  assert.deepEqual(r,{checked:2,repaired:['payment-1'],skipped:[],failed:[]});
  const [list]=w.at('/payment');
  assert.equal(list.query.filterPaymentSourceType,'Web3CardanoV2');assert.equal(list.query.filterOnChainState,'WithdrawAuthorized');assert.equal(list.query.network,'Preprod');
- assert.deepEqual(w.calls.filter(c=>c.method==='POST').map(c=>c.path),['/api/v1/request-repair/preview','/api/v1/request-repair','/api/v1/payment/resolve-blockchain-identifier','/api/v1/payment/error-state-recovery']);
+ assert.deepEqual(w.calls.filter(c=>c.method==='POST').map(c=>c.path),['/api/v1/request-repair/preview','/api/v1/payment/resolve-blockchain-identifier','/api/v1/request-repair','/api/v1/payment/resolve-blockchain-identifier','/api/v1/payment/error-state-recovery']);
  const [preview]=w.at('/request-repair/preview'),[repair]=w.at('/request-repair'),[recover]=w.at('/payment/error-state-recovery');
  assert.deepEqual(preview.body,{kind:'Payment',network:'Preprod',blockchainIdentifier:'pay-bcid-1',txHash:aw});
  assert.deepEqual(repair.body,{kind:'Payment',network:'Preprod',blockchainIdentifier:'pay-bcid-1',txHash:aw,requestVersion:`v-payment-1-${before}-tx-aw-1-${hex('7')}`});
@@ -340,4 +343,43 @@ test('LB2-1: one failing payment (Blockfrost 500, a payment changed before the c
 
 test('repairStuckWithdrawals refuses to run without the admin profile',async()=>{
  await assert.rejects(repairStuckWithdrawals({url:'http://mps.test',adminKey:ADMIN,blockfrostKey:undefined,fetchImpl:async()=>{throw new Error('no call expected');}}),/mps-admin\.env/);
+});
+
+// ---- Fix round 5 (delta review).
+test('DELTA-OPERATOR-1: a payment MPS parks again after every clear is repaired at most once an hour and three times in all, then raises one alarm with the MPS error',async()=>{
+ const parked={requestedAction:'WaitingForManualAction',errorType:'Unknown',errorNote:'Collecting payments failed: Insufficient collateral'};
+ const p=stuckPay(40,{NextAction:{...parked}}),w=payWorld([p]),attempts=new Map();
+ let t=NOW;
+ for(let i=0;i<10;i++){  // a pass every 30 min for 5 hours; MPS parks the payment again after each one
+  await w.pass({now:()=>t,attempts});
+  p.NextAction={...parked};p.updatedAt=new Date(Date.parse(p.updatedAt)+1000).toISOString();t+=30*MIN;
+ }
+ assert.equal(w.at('/request-repair').length,3);assert.equal(w.at('/payment/error-state-recovery').length,3);
+ const repaired=w.lines.filter(l=>/^repaired payment-40/.test(l)),alarms=w.lines.filter(l=>/^alarm payment-40/.test(l));
+ assert.equal(repaired.length,3);for(const l of repaired)assert.match(l,/Collecting payments failed: Insufficient collateral/);
+ assert.equal(alarms.length,1);assert.match(alarms[0],/3 automatic repairs.*Collecting payments failed: Insufficient collateral/s);
+});
+test('DELTA-OPERATOR-3: a record that changed after the listing is re-read after the preview and not written to (purchase and payment)',async()=>{
+ const p=stuck(50),w=world([p],{beforePreview:x=>{x.resultHash=null;x.NextAction={requestedAction:'WithdrawRefundInitiated',errorType:null};x.CurrentTransaction={txHash:hex('b'),status:'Pending',previousOnChainState:'RefundAuthorized',newOnChainState:'RefundWithdrawn'};}});
+ const r=await w.pass();
+ assert.deepEqual([r.repaired,r.skipped,w.writes().length],[[],['purchase-50'],0]);
+ assert.match(w.lines.find(l=>/^skip purchase-50/.test(l)),/changed after the listing/);
+ const q=stuckPay(51),v=payWorld([q],{beforePreview:x=>{x.NextAction={requestedAction:'WithdrawInitiated',errorType:null};x.CurrentTransaction={id:'tx-wd',txHash:hex('5'),status:'Pending',previousOnChainState:'WithdrawAuthorized',newOnChainState:'Withdrawn',createdAt:ago(0)};x.updatedAt=ago(0);}});
+ const s=await v.pass();
+ assert.deepEqual([s.repaired,s.skipped,v.writes().length],[[],['payment-51'],0]);
+ assert.match(v.lines.find(l=>/^skip payment-51/.test(l)),/changed after the listing/);
+});
+test('DELTA-OPERATOR-3: one instance at a time: a second pass or loop is refused by the lock in .local/, and a pass releases it',async()=>{
+ const {spawnSync}=await import('node:child_process');const {mkdtempSync,mkdirSync,writeFileSync,existsSync}=await import('node:fs');const {tmpdir}=await import('node:os');const {join}=await import('node:path');const {fileURLToPath}=await import('node:url');
+ const cli=fileURLToPath(new URL('./refund-repair.mjs',import.meta.url));
+ const env={PATH:process.env.PATH,MPS_URL:'http://127.0.0.1:1',ADMIN_KEY:'x',BLOCKFROST_API_KEY_PREPROD:'y'};
+ const locked=mkdtempSync(join(tmpdir(),'repair-'));mkdirSync(join(locked,'.local'),{mode:0o700});writeFileSync(join(locked,'.local/refund-repair.lock'),String(process.pid));
+ for(const args of [[],['--loop']]){
+  const r=spawnSync(process.execPath,[cli,...args],{cwd:locked,env,encoding:'utf8',timeout:20000});
+  assert.equal(r.status,1,args.join(' '));assert.match(r.stderr,/already running/,args.join(' '));assert.doesNotMatch(r.stdout,/pass:/);
+ }
+ const free=mkdtempSync(join(tmpdir(),'repair-'));
+ const r=spawnSync(process.execPath,[cli],{cwd:free,env,encoding:'utf8',timeout:20000});
+ assert.equal(r.status,1,'MPS is not reachable, so the pass fails');assert.match(r.stdout,/error: /);
+ assert.equal(existsSync(join(free,'.local/refund-repair.lock')),false,'the lock is released on exit');
 });
