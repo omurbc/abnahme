@@ -40,3 +40,20 @@ test('buyer flags swapped XML bytes and a foreign profile',()=>{
  assert.deepEqual(verifyDelivery({result,nonce,onChainHash:resultHash(result,nonce),profileHash:'cd'.repeat(32)}).failures.map(f=>f.code),['ABN-PROFIL']);
  assert.deepEqual(verifyDelivery({result:undefined,nonce,onChainHash:'x',profileHash}).failures.map(f=>f.code),['ABN-LIEFERUNG']);
 });
+
+test('ESCROW-7: the committed result must be canonical JCS, so one on-chain hash commits to one readable invoice',()=>{
+ const good=buildResult({xml,kosit,profileHash,attempt:1});
+ const bad=buildResult({xml:'<Invoice>ohne BT-48</Invoice>',kosit,profileHash,attempt:1});
+ const m=r=>JSON.stringify(JSON.parse(r.result).manifest),x=r=>JSON.stringify(JSON.parse(r.result).xmlBase64);
+ const variants={
+  duplicateKeys:`{"manifest":${m(bad)},"manifest":${m(good)},"xmlBase64":${x(bad)},"xmlBase64":${x(good)}}`,
+  whitespace:good.result.replace('{"manifest":','{ "manifest": '),
+  reordered:`{"xmlBase64":${x(good)},"manifest":${m(good)}}`,
+  looseBase64:good.result.replace(/"xmlBase64":"(.{8})/,(_,b)=>`"xmlBase64":"${b}\\n`),
+ };
+ for(const [name,result] of Object.entries(variants)){
+  const v=verifyDelivery({result,nonce,onChainHash:resultHash(result,nonce),profileHash});
+  assert.ok(v.failures.some(f=>f.code==='ABN-MANIFEST'),name);
+  assert.equal(v.xml,null,`${name}: nothing is inspected from an ambiguous delivery`);
+ }
+});

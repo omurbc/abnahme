@@ -14,7 +14,7 @@ if(process.argv[2]==='key'){
  const key=await request('/api-key',{usageLimited:'false',UsageCredits:[],NetworkLimit:['Preprod'],ChainIdLimit:[],canRead:true,canPay:true,canAdmin:false,walletScopeEnabled:true,WalletScopeHotWalletIds:[payment.walletId],x402WalletScopeEnabled:true,X402WalletScopeEvmWalletIds:[]});
  state.runtimeKeyId=key.id;state.keyWritePending=false;save();
  if(typeof key.token!=='string'||key.token.startsWith('*****'))throw Error('Created key token was not revealed; key ID preserved for supported token update');
- fs.writeFileSync('.local/mps-runtime.env',`MPS_RUNTIME_TOKEN=${key.token}\n`,{mode:0o600});
+ fs.writeFileSync('.local/mps-runtime.env',`MPS_RUNTIME_TOKEN=${key.token}\n`,{mode:0o600});fs.chmodSync('.local/mps-runtime.env',0o600);
  state.runtimeKeyId=key.id;state.keyWritePending=false;state.keyEvidence={canRead:key.canRead,canPay:key.canPay,canAdmin:key.canAdmin,NetworkLimit:key.NetworkLimit,walletScopeEnabled:key.walletScopeEnabled,WalletScopeHotWalletIds:key.WalletScopeHotWalletIds};save();console.log('Runtime key created',key.id,JSON.stringify(state.keyEvidence));
 }else if(process.argv[2]==='register'){
  const author=requireAgentAuthor(process.env.AGENT_AUTHOR);

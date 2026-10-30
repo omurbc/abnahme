@@ -5,8 +5,8 @@
 // Demo switches (disclosed, read at job start): DEMO_SEED_DEFECT=1 drops the buyer VAT ID (BT-48) on the first
 // attempt only. CHEAT=1 submits a result hash that does not match the delivered bytes (refund demo).
 import {createServer} from 'node:http';
-import {randomUUID} from 'node:crypto';
-import {existsSync,readFileSync,writeFileSync,mkdirSync,readdirSync} from 'node:fs';
+import {randomUUID,randomBytes,timingSafeEqual} from 'node:crypto';
+import {existsSync,readFileSync,writeFileSync,mkdirSync,readdirSync,renameSync} from 'node:fs';
 import {sha256} from '../standard-hash.mjs';
 import {confirmedState,USDM} from '../paid-task.mjs';
 import {extract} from '../einvoice/extract.mjs';
@@ -22,9 +22,23 @@ const token=process.env.MPS_RUNTIME_TOKEN;
 const MINUTE=60000;
 const MAX_ATTEMPTS=2; // first delivery + one cure; a further dispute is answered with AuthorizeRefund
 const registry=()=>JSON.parse(readFileSync('docs/rechnungsmeister-registration-state.json','utf8'));
-const save=job=>writeFileSync(`${jobsDir}/${job.id}.json`,JSON.stringify(job),{mode:0o600});
+const CURE_WAIT=20*MINUTE; // the buyer waits 20 min for a cure to land (buero/abnahme.mjs cureDeadline)
+// From Disputed the buyer has no exit of its own. RM cures only until cureCutoff, so the buyer can still inspect and
+// accept, and authorizes the refund itself at refundAt, before Masumi admin arbitration could start.
+const cureCutoff=job=>Number(job.payment.externalDisputeUnlockTime)-30*MINUTE;
+const refundAt=job=>Number(job.payment.externalDisputeUnlockTime)-10*MINUTE;
+const FINAL=['WithdrawAuthorized','Withdrawn','RefundAuthorized','RefundWithdrawn','DisputedWithdrawn'];
+const NEW_JOBS={max:10,windowMs:10*MINUTE};const recentJobs=[]; // unauthenticated /start_job: new payment requests per window
+const save=job=>{const path=`${jobsDir}/${job.id}.json`;writeFileSync(`${path}.tmp`,JSON.stringify(job),{mode:0o600});renameSync(`${path}.tmp`,path);};
 const load=id=>JSON.parse(readFileSync(`${jobsDir}/${id}.json`,'utf8'));
-const allJobs=()=>readdirSync(jobsDir).filter(x=>/^[0-9a-f-]{36}\.json$/.test(x)).map(x=>load(x.replace('.json','')));
+// An unreadable job file is reported once and skipped; it must not stop every other job.
+const broken=new Set();
+const allJobs=()=>readdirSync(jobsDir).filter(x=>/^[0-9a-f-]{36}\.json$/.test(x)).flatMap(x=>{
+ try{return [load(x.replace('.json',''))];}catch(e){if(!broken.has(x)){broken.add(x);console.error('RechnungsMeister job file unreadable, skipped',x,e.message);}return [];}
+});
+// The job token from /start_job is the buyer's credential for /dispute and for the delivered result on /status.
+const bearer=req=>/^Bearer ([0-9a-f]{64})$/.exec(req.headers.authorization??'')?.[1]??null;
+const authorized=(job,token)=>typeof job.token==='string'&&typeof token==='string'&&timingSafeEqual(Buffer.from(sha256(job.token)),Buffer.from(sha256(token)));
 async function mps(path,body){
  const response=await fetch(process.env.MPS_URL+'/api/v1'+path,{method:body?'POST':'GET',headers:{token,'content-type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});
  const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(`Payment service ${path} HTTP ${response.status}: ${JSON.stringify(data.error??data.message??'')}`);return data.data;
@@ -66,39 +80,57 @@ export async function produceAttempt(job,attempt,fields){
  return {attempt,fields,manifest,result,resultHash:submitted,honestHash:honest,selfCheck:{passed:checks.passed,failures:checks.failures.map(f=>f.code)}};
 }
 
-const respond=(res,status,data)=>{res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify(data))};
+const respond=(res,status,data,headers)=>{res.writeHead(status,{'content-type':'application/json',...headers});res.end(JSON.stringify(data))};
 const readBody=async(req,limit)=>{let bytes=0,body='';for await(const part of req){bytes+=part.length;if(bytes>limit)return null;body+=part}return body};
 const inFlight=new Set();
 const port=Number(process.env.AGENT_API_PORT||21950);
 
 async function startJob(input){
- const nonce=input.identifier_from_purchaser??input.identifierFromPurchaser;
+ const nonce=input?.identifier_from_purchaser??input?.identifierFromPurchaser;
  if(!/^[a-fA-F0-9]{14,26}$/.test(nonce||''))return [400,{error:'Expected hex purchaser nonce (14-26 chars)'}];
  const invalid=validateInput(input.input_data);if(invalid)return [400,{error:invalid}];
  const reg=registry();if(reg.registrationState!=='RegistrationConfirmed'&&reg.registration?.state!=='RegistrationConfirmed')return [503,{error:'Registration not confirmed'}];
  const sourceIndex=Number.isInteger(reg.supportedPaymentSourceIndex)?reg.supportedPaymentSourceIndex:reg.request?.supportedPaymentSources?.length===1?0:null;
  if(sourceIndex==null)return [503,{error:'supportedPaymentSourceIndex unknown'}];
- // Persist before the payment write. Unknown outcomes require inspection, never automatic replay.
+ // Persist before the payment write. A job saved without a payment answer gets a fresh payment request when the
+ // same nonce and input come again: the buyer only ever pays the blockchainIdentifier it was given.
  const key=sha256(nonce);const hash=inputHashFor(input.input_data,nonce);let job=allJobs().find(j=>j.nonceKey===key);
- if(job){if(job.inputHash!==hash)return [409,{error:'Nonce already used with another input'}];return job.response?[200,job.response]:[409,{error:'Payment outcome requires inspection'}];}
- job={id:randomUUID(),nonceKey:key,nonce,input:input.input_data,inputHash:hash,status:'awaiting_payment',phase:'payment-pending',attempts:[],disputes:[],
-  demo:{seedDefect:process.env.DEMO_SEED_DEFECT==='1',cheat:process.env.CHEAT==='1'}};save(job);
+ if(job){
+  if(job.inputHash!==hash)return [409,{error:'Nonce already used with another input'}];
+  if(job.response)return [200,job.response];
+  if(inFlight.has(job.id))return [409,{error:'Payment request in progress, retry'}];
+ }else{
+  const now=Date.now();while(recentJobs.length&&recentJobs[0]<=now-NEW_JOBS.windowMs)recentJobs.shift();
+  if(recentJobs.length>=NEW_JOBS.max)return [429,{error:'Too many new jobs, retry later'},{'retry-after':String(Math.ceil((recentJobs[0]+NEW_JOBS.windowMs-now)/1000))}];
+  recentJobs.push(now);
+  job={id:randomUUID(),nonceKey:key,nonce,token:randomBytes(32).toString('hex'),input:input.input_data,inputHash:hash,status:'awaiting_payment',phase:'payment-pending',attempts:[],disputes:[],
+   demo:{seedDefect:process.env.DEMO_SEED_DEFECT==='1',cheat:process.env.CHEAT==='1'}};save(job);
+ }
+ job.token??=randomBytes(32).toString('hex');
+ inFlight.add(job.id);
+ try{
  const payment=await mps('/payment',{network:'Preprod',paymentSourceType:'Web3CardanoV2',supportedPaymentSourceIndex:sourceIndex,inputHash:hash,agentIdentifier:reg.agentIdentifier,identifierFromPurchaser:nonce,
   RequestedFunds:[{unit:USDM,amount:'1000000'}],...deadlines(Date.now()),metadata:JSON.stringify({rechnungsmeisterJob:job.id})});
  job.payment=payment;job.phase='waiting-payment';
- job.response={id:job.id,job_id:job.id,status:'awaiting_payment',input_hash:hash,identifierFromPurchaser:nonce,blockchainIdentifier:payment.blockchainIdentifier,agentIdentifier:reg.agentIdentifier,
+ job.response={id:job.id,job_id:job.id,job_token:job.token,status:'awaiting_payment',input_hash:hash,identifierFromPurchaser:nonce,blockchainIdentifier:payment.blockchainIdentifier,agentIdentifier:reg.agentIdentifier,
   sellerVKey:payment.SmartContractWallet?.walletVkey??reg.sellerVkey,paymentSourceType:'Web3CardanoV2',supportedPaymentSourceIndex:sourceIndex,smartContractAddress:payment.PaymentSource?.smartContractAddress,
   amounts:payment.RequestedFunds.map(({amount,unit})=>({amount,unit})),
   payByTime:Number(payment.payByTime),submitResultTime:Number(payment.submitResultTime),unlockTime:Number(payment.unlockTime),externalDisputeUnlockTime:Number(payment.externalDisputeUnlockTime)};
  save(job);console.log(`job ${job.id} payment requested`,payment.blockchainIdentifier.slice(0,24));
  return [200,job.response];
+ }finally{inFlight.delete(job.id)}
 }
 
 async function submit(job,produced){
+ produced.submittedAt=Date.now();
  job.attempts.push(produced);job.result=produced.result;job.resultHash=produced.resultHash;job.phase='submit-pending';save(job);
- await mps('/payment/submit-result',{network:'Preprod',blockchainIdentifier:job.payment.blockchainIdentifier,submitResultHash:produced.resultHash});
- job.phase='awaiting-result';save(job);
+ await sendResult(job);
  console.log(`job ${job.id} attempt ${produced.attempt} submitted${job.demo.cheat?' (CHEAT hash)':''}, self-check ${produced.selfCheck.passed?'passed':produced.selfCheck.failures.join(',')}`);
+}
+
+async function sendResult(job){
+ await mps('/payment/submit-result',{network:'Preprod',blockchainIdentifier:job.payment.blockchainIdentifier,submitResultHash:job.resultHash});
+ job.phase='awaiting-result';save(job);
 }
 
 async function authorizeRefund(job,reasons){
@@ -107,10 +139,12 @@ async function authorizeRefund(job,reasons){
  job.phase='refund-authorized';job.status='failed';save(job);console.log(`job ${job.id} refund authorized: ${reasons.join(' ')}`);
 }
 
-// POST /dispute {jobId, round, failures:[{code,textDe}], kositReport}
-async function dispute(body){
+// POST /dispute {jobId, round, failures:[{code,textDe}], kositReport} with Authorization: Bearer <job_token>
+async function dispute(body,token){
  const {jobId,round,failures}=body??{};
  if(!/^[0-9a-f-]{36}$/.test(jobId||'')||!existsSync(`${jobsDir}/${jobId}.json`))return [404,{error:'Job not found'}];
+ // The defect list decides between a cure and the irreversible AuthorizeRefund: only the buyer holding the job token.
+ if(!authorized(load(jobId),token))return [401,{error:'Missing or wrong job token (Authorization: Bearer <job_token from /start_job>)'}];
  if(!Number.isInteger(round)||round<1)return [400,{error:'round must be a positive integer'}];
  if(inFlight.has(jobId))return [409,{error:'Job busy, retry'}];
  inFlight.add(jobId);
@@ -118,6 +152,7 @@ async function dispute(body){
   let job=load(jobId);
   const seen=job.disputes.find(d=>d.round===round);
   if(seen)return seen.response?[seen.status,seen.response]:[409,{error:'Dispute outcome requires inspection'}];
+  if(job.phase==='refund-authorized')return [200,{status:'refund-authorized',reasons:job.refundReasons??[]}];
   if(job.phase!=='result-confirmed')return [409,{error:`Job is ${job.phase}, retry when the result is confirmed on chain`}];
   const payment=await resolvePayment(job.payment.blockchainIdentifier);
   if(payment.onChainState!=='Disputed'||payment.NextAction?.requestedAction!=='WaitingForExternalAction')return [409,{error:`Escrow is ${payment.onChainState}/${payment.NextAction?.requestedAction}, retry when Disputed`}];
@@ -126,6 +161,7 @@ async function dispute(body){
   const finish=(status,response)=>{Object.assign(entry,{status,response});save(job);return [status,response]};
   const last=job.attempts.at(-1);
   if(job.attempts.length>=MAX_ATTEMPTS){await authorizeRefund(job,['Nachbesserung ausgeschöpft.']);return finish(200,{status:'refund-authorized',reasons:job.refundReasons});}
+  if(Date.now()>=cureCutoff(job)){await authorizeRefund(job,['Die Frist für eine Nachbesserung ist abgelaufen.']);return finish(422,{status:'cure-rejected',reasons:job.refundReasons});}
   const {recipient}=loadProfile(job.input.recipientProfileId);
   const plan=planCure({failures:entry.failures,current:last.fields,fields0:job.fields0,inputData:job.input,recipient});
   if(!plan.ok){await authorizeRefund(job,plan.reasons);return finish(422,{status:'cure-rejected',reasons:plan.reasons});}
@@ -137,8 +173,7 @@ async function dispute(body){
  }finally{inFlight.delete(jobId)}
 }
 
-if(import.meta.main){
- createServer(async(req,res)=>{
+export async function handler(req,res){
   try{
    const url=new URL(req.url,'http://127.0.0.1');
    if(req.method==='GET'&&url.pathname==='/availability')return respond(res,200,{status:'available',type:'masumi-agent',message:'RechnungsMeister: Rechnung → XRechnung, KoSIT-geprüft'});
@@ -146,32 +181,66 @@ if(import.meta.main){
    if(req.method==='GET'&&url.pathname==='/status'){
     const id=url.searchParams.get('job_id');if(!/^[0-9a-f-]{36}$/.test(id||''))return respond(res,400,{error:'Invalid job_id'});
     if(!existsSync(`${jobsDir}/${id}.json`))return respond(res,404,{error:'Job not found'});
-    const job=load(id);const delivered=['awaiting-result','result-confirmed','refund-pending','refund-authorized'].includes(job.phase)&&job.result;
+    const job=load(id),token=bearer(req);
+    if(req.headers.authorization!==undefined&&!authorized(job,token))return respond(res,401,{error:'Wrong job token'});
+    const delivered=authorized(job,token)&&['awaiting-result','result-confirmed','refund-pending','refund-authorized'].includes(job.phase)&&job.result;
     return respond(res,200,{id,job_id:id,status:job.status,phase:job.phase,attempt:job.attempts.at(-1)?.attempt??0,result:delivered?job.result:undefined,demo:job.demo});
    }
    if(req.method!=='POST'||!['/start_job','/dispute'].includes(url.pathname))return respond(res,404,{error:'Route not found'});
+   // No web page may drive payments or refunds: refuse browser requests, and require application/json, which a
+   // cross-origin page cannot send without a CORS preflight (this server answers none).
+   if(req.headers.origin!==undefined||(req.headers['sec-fetch-site']??'none')!=='none')return respond(res,403,{error:'Browser requests are not accepted'});
+   if(String(req.headers['content-type']??'').split(';')[0].trim().toLowerCase()!=='application/json')return respond(res,415,{error:'Content-Type must be application/json'});
    const body=await readBody(req,url.pathname==='/dispute'?2_000_000:40000);if(body==null)return respond(res,413,{error:'Request too large'});
    let parsed;try{parsed=JSON.parse(body)}catch{return respond(res,400,{error:'Invalid JSON'})}
-   const [status,data]=url.pathname==='/start_job'?await startJob(parsed):await dispute(parsed);
-   return respond(res,status,data);
+   const [status,data,headers]=url.pathname==='/start_job'?await startJob(parsed):await dispute(parsed,bearer(req));
+   return respond(res,status,data,headers);
   }catch(e){console.error('request failed',e.message);respond(res,500,{error:'Request failed. Inspect the saved job state before retrying.'})}
- }).listen(port,'127.0.0.1',()=>console.log('RechnungsMeister API running',port,`(seed defect ${process.env.DEMO_SEED_DEFECT==='1'?'on':'off'}, cheat ${process.env.CHEAT==='1'?'on':'off'})`));
+}
 
- let busy=false;
- setInterval(async()=>{
-  if(busy)return;busy=true;
-  try{for(const {id} of allJobs()){
+// A dispute round whose outcome the timer decided gets that outcome as its cached answer.
+const answerOpen=(job,status,response)=>{for(const d of job.disputes)if(!d.response)Object.assign(d,{status,response});save(job);};
+const disputedIdle=p=>p.onChainState==='Disputed'&&p.NextAction?.requestedAction==='WaitingForExternalAction';
+// Seller-side refund from the timer, so a refusal never leaves the buyer's money frozen in Disputed.
+async function refund(job,reasons){await authorizeRefund(job,reasons);answerOpen(job,422,{status:'cure-rejected',reasons});}
+
+export async function tick(){
+  for(const {id} of allJobs()){
    if(inFlight.has(id))continue;inFlight.add(id);
-   const job=load(id);
    try{
-    if(!['waiting-payment','awaiting-result'].includes(job.phase))continue;
+    const job=load(id);
+    if(!['waiting-payment','submit-pending','awaiting-result','result-confirmed','refund-pending'].includes(job.phase)||job.closed)continue;
     const payment=await resolvePayment(job.payment.blockchainIdentifier);
+    const now=Date.now(),last=job.attempts.at(-1);
+    if(job.phase==='refund-pending'){
+     // authorizeRefund was interrupted: done if MPS took it, otherwise ask again.
+     if(payment.onChainState==='RefundAuthorized'||payment.NextAction?.requestedAction==='AuthorizeRefundRequested'){job.phase='refund-authorized';job.status='failed';save(job);}
+     else if(disputedIdle(payment))await refund(job,job.refundReasons);
+     continue;
+    }
+    if(FINAL.includes(payment.onChainState)){job.closed=payment.onChainState;save(job);continue;}
+    if(job.phase==='submit-pending'){
+     // Crash or MPS error around submit-result: MPS either holds the hash, or never got it.
+     if([payment.resultHash,payment.NextAction?.resultHash].includes(job.resultHash)){job.phase='awaiting-result';save(job);if(last.cure)answerOpen(job,200,{status:'cure-submitted',attempt:last.attempt,patch:last.cure.patch,sources:last.cure.sources});}
+     else if(job.attempts.length>1&&disputedIdle(payment))await refund(job,['Die Nachbesserung konnte nicht eingereicht werden.']);
+     else if(job.attempts.length===1&&payment.onChainState==='FundsLocked'&&payment.NextAction?.requestedAction==='WaitingForExternalAction'&&Number(payment.submitResultTime)>now+5*MINUTE)await sendResult(job);
+     continue;
+    }
     if(job.phase==='awaiting-result'){
      const expected=job.attempts.length>1?'Disputed':'ResultSubmitted';
      if(payment.resultHash===job.resultHash&&['ResultSubmitted','Disputed'].includes(payment.onChainState)&&confirmedState(payment,payment.onChainState)){job.phase='result-confirmed';job.status='completed';save(job);console.log(`job ${id} attempt ${job.attempts.length} confirmed (${payment.onChainState}, expected ${expected})`)}
+     else if(job.attempts.length>1&&disputedIdle(payment)&&(now>=last.submittedAt+CURE_WAIT||now>=refundAt(job)))await refund(job,['Die Nachbesserung wurde nicht rechtzeitig auf Cardano bestätigt.']);
      continue;
     }
-    if(payment.onChainState!=='FundsLocked'||!confirmedState(payment,'FundsLocked'))continue;
+    if(job.phase==='result-confirmed'){
+     if(disputedIdle(payment)&&now>=refundAt(job))await refund(job,['Die Escrow ist kurz vor Ablauf der Streitfrist noch im Streitfall.']);
+     continue;
+    }
+    if(payment.onChainState!=='FundsLocked'||!confirmedState(payment,'FundsLocked')){
+     // Unfunded: stop polling once the pay-by time is well past (the lock tx must be valid before pay_by).
+     if(payment.onChainState==null&&now>Number(job.payment.payByTime)+10*MINUTE){job.phase='expired';job.status='failed';save(job);}
+     continue;
+    }
     if(Number(payment.submitResultTime)<=Date.now()+5*MINUTE){job.phase='deadline-blocked';job.status='failed';save(job);continue;}
     job.phase='model-pending';job.status='running';save(job);
     job.fields0=await extract(job.input.invoiceText);save(job);
@@ -182,6 +251,14 @@ if(import.meta.main){
     await submit(job,produced);
    }catch(e){console.error('RechnungsMeister job needs inspection',id,e.message)}
    finally{inFlight.delete(id)}
-  }}finally{busy=false}
+  }
+}
+
+if(import.meta.main){
+ createServer(handler).listen(port,'127.0.0.1',()=>console.log('RechnungsMeister API running',port,`(seed defect ${process.env.DEMO_SEED_DEFECT==='1'?'on':'off'}, cheat ${process.env.CHEAT==='1'?'on':'off'})`));
+ let busy=false;
+ setInterval(async()=>{
+  if(busy)return;busy=true;
+  try{await tick()}catch(e){console.error('RechnungsMeister loop failed',e.message)}finally{busy=false}
  },5000);
 }
