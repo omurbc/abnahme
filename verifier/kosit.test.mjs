@@ -65,6 +65,14 @@ test('KoSIT 5xx: the invoice was not inspected, validate() throws instead of rep
  assert.deepEqual(r.messages.map(m=>[m.level,m.code]),[['error','KOSIT-HTTP-422']]);
 });
 
+test('a busy KoSIT that answers its health check after 3 s still counts as running',async()=>{
+ const server=createServer((req,res)=>setTimeout(()=>{res.writeHead(200);res.end('ok');},3000));
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const before=process.env.KOSIT_URL;process.env.KOSIT_URL=`http://127.0.0.1:${server.address().port}/`;
+ try{assert.equal(await kositAvailable(),true);}
+ finally{before===undefined?delete process.env.KOSIT_URL:process.env.KOSIT_URL=before;server.close();}
+});
+
 test('KOSIT_PORT alone points the client at another daemon (kosit/start.sh honours it too)',async()=>{
  await withFakeKosit(503,'down',()=>assert.rejects(validate('<Invoice/>'),/HTTP 503/),port=>({KOSIT_PORT:String(port)}));
 });

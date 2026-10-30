@@ -16,8 +16,9 @@ export function parseReport(reportXml){
  return {scenario,messages,assessment,engine:engine&&unescape(engine),xrechnungVersion};
 }
 
+// 15 s: under parallel test load the JVM can take several seconds to answer, and a skip would hide the acceptance test.
 export async function kositAvailable(){
- try{return (await fetch(new URL('server/health',kositUrl()),{signal:AbortSignal.timeout(2000)})).ok;}catch{return false;}
+ try{return (await fetch(new URL('server/health',kositUrl()),{signal:AbortSignal.timeout(15000)})).ok;}catch{return false;}
 }
 
 // A report from another validator or XRechnung rule release is no inspection under the acceptance profile: throws
