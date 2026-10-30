@@ -34,14 +34,14 @@ A defect freezes the converter's money on chain until the converter fixes it.
 - [The idea: Abnahme, as German law already defines it](#the-idea-abnahme-as-german-law-already-defines-it)
 - [What we don't build](#what-we-dont-build)
 - [Architecture](#architecture)
-- [One job, end to end (target flow)](#one-job-end-to-end-target-flow)
-- [The escrow as a contract-law state machine](#the-escrow-as-a-contract-law-state-machine)
+- [How a job runs: four stories](#how-a-job-runs-four-stories)
 - [The acceptance test](#the-acceptance-test)
 - [Four invoices, four verdicts](#four-invoices-four-verdicts)
 - [The Gutachter: inspection paid per call over x402](#the-gutachter-inspection-paid-per-call-over-x402)
 - [Why Cardano, why Masumi](#why-cardano-why-masumi)
 - [What this proves, and what it doesn't](#what-this-proves-and-what-it-doesnt)
 - [Reality check](#reality-check)
+- [Technical details](#technical-details)
 - [Run it yourself](#run-it-yourself)
 - [Repo map](#repo-map)
 - [Tech stack](#tech-stack)
@@ -126,6 +126,342 @@ Abnahme writes as little as possible itself. Rule checking, XML rendering, escro
 
 ```mermaid
 flowchart LR
+    FB(["Frau Berger<br/>Toni's office, in Sokosumi"])
+    BA["Büro-Agent<br/>buyer, runs the acceptance test"]
+    RM["RechnungsMeister<br/>converter, seller"]
+    GA["Gutachter<br/>inspector"]
+    CH[("Cardano<br/>Masumi escrow")]
+    BI(["Bau Isar<br/>accounts payable"])
+
+    FB -->|"PRÜFEN (free)<br/>SENDEN (paid)"| BA
+    BA -->|"hires"| RM
+    BA -->|"locks 1 tUSDM,<br/>defect notice, acceptance"| CH
+    RM -->|"delivers the result hash,<br/>collects the payment"| CH
+    BA -->|"1 tADA per check<br/>(x402)"| GA
+    BA -->|"e-mails the<br/>accepted XRechnung"| BI
+
+    classDef ours fill:#E8F8F0,stroke:#18A85C,color:#0B1D51
+    classDef ext fill:#EAF0FD,stroke:#0033AD,color:#0B1D51
+    class BA,RM,GA ours
+    class FB,CH,BI ext
+```
+
+<sub>Green: our agents. Blue: people and outside systems. In the demo, Mailpit stands in for Bau Isar's inbox. The full diagram with every process, port and service is under [Technical details](#technical-details).</sub>
+
+There are two payment rails, and the hiring agent decides on acceptance in both:
+
+1. **Büro-Agent hires RechnungsMeister on Masumi.** The Büro-Agent calls RechnungsMeister's MIP-003 API at a configured URL (`RM_URL`, default `http://127.0.0.1:21950`), then MPS `POST /purchase` from the Büro-Agent's purchasing wallet into the V2 escrow. Buyer and seller are separate registrations with separate wallets on one payment service. Both agents are registered on chain, but their registered `api_base_url` is `127.0.0.1`, so only this machine can hire them (see [Reality check](#reality-check)).
+2. **Büro-Agent hires the Gutachter over x402.** Each inspection is one HTTP request and one 1 tADA payment. There is no account and no subscription.
+
+Frau Berger pays only for sending. PRÜFEN is free. SENDEN is a paid Sokosumi Task: Sokosumi books her credits, and Sokosumi's own preprod wallet locks 1 tUSDM in a Masumi escrow for the *Abnahme-Büro* selling wallet. Recorded: Task `01a18c2a…`, FundsLocked `d9c69f50…`, Withdrawn `5d61bf3f…`, seller receipt `settled: true` (rows 12 and 13 under [On-chain evidence](#on-chain-evidence)).
+
+---
+
+## How a job runs: four stories
+
+Each story is one path through the code, with the same cast. Toni and Frau Berger are one composite demo persona (see [The customer](#the-customer)), not a real firm.
+
+- **Toni** (Huber Elektrotechnik) sends the invoice. **Frau Berger** runs his office and uses Sokosumi. She has no wallet.
+- **Büro-Agent** is Frau Berger's agent, the buyer.
+- **RechnungsMeister** is the converter agent, the seller.
+- **Gutachter** is the inspector, paid 1 tADA per check over x402.
+- **Cardano** is the Masumi escrow that holds the money.
+- **Bau Isar** is the general contractor's accounts payable, which receives the e-invoice.
+
+The notes in each diagram say where the money is. The *release time* is the escrow's `unlock_time`: from then on, a result nobody objected to pays the seller.
+
+### 1. The invoice that bounced once (Toni → Bau Isar)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor FB as Frau Berger
+    participant BA as Büro-Agent
+    participant RM as RechnungsMeister
+    participant GA as Gutachter
+    participant CH as Cardano
+    participant BI as Bau Isar
+
+    FB->>BA: Pastes Toni's invoice in a check Task (PRÜFEN)
+    BA->>RM: Hires RechnungsMeister, the acceptance test is fixed in the order
+    BA->>CH: Locks 1 tUSDM
+    Note over CH: 1 tUSDM is in escrow
+    RM->>CH: Delivers XRechnung 1 (hash on chain)<br/>Bau Isar's VAT ID is missing (seeded demo defect)
+    BA->>GA: Please inspect (pays 1 tADA)
+    GA-->>BA: Defect: rule BR-AE-02, buyer VAT ID missing
+    BA->>CH: Defect notice (Mängelrüge, §640(2) BGB)
+    Note over CH: Money frozen<br/>RechnungsMeister cannot withdraw
+    BA->>RM: Here is the defect list
+    RM->>CH: Cure (Nacherfüllung, §635 BGB): XRechnung 2<br/>with the VAT ID copied from the invoice text
+    BA->>GA: Please inspect again (1 tADA)
+    GA-->>BA: OK
+    BA->>CH: Acceptance (Abnahme, §640(1) BGB)
+    Note over CH: Money released<br/>1 tUSDM goes to RechnungsMeister
+    FB->>BA: Sees "accepted", starts a send Task (SENDEN)
+    Note over FB,BA: Frau Berger pays only now<br/>(Sokosumi credits)
+    BA->>BI: E-mails the accepted XRechnung
+```
+
+The code runs all 14 steps, but no single recorded run covers them: steps 2-12 ran on preprod from the command line (escrow runs 09:06 and 11:50), a Sokosumi PRÜFEN ran steps 1-12 with its inspections falling back to local KoSIT (10:13), and steps 13-14 ran as a separate paid SENDEN Task into Mailpit, which stands in for Bau Isar's inbox (see [Recorded runs](#recorded-runs)).
+
+### 2. The converter cannot fix it
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor FB as Frau Berger
+    participant BA as Büro-Agent
+    participant RM as RechnungsMeister
+    participant GA as Gutachter
+    participant CH as Cardano
+
+    FB->>BA: Pastes an invoice without Bau Isar's project number (PRÜFEN)
+    BA->>RM: Hires RechnungsMeister
+    BA->>CH: Locks 1 tUSDM
+    Note over CH: 1 tUSDM is in escrow
+    RM->>CH: Delivers the XRechnung (hash on chain)<br/>project number (BT-10) missing
+    BA->>GA: Please inspect (pays 1 tADA)
+    GA-->>BA: Defect: rule BR-DE-15, project number missing
+    BA->>CH: Defect notice (Mängelrüge, §640(2) BGB)
+    Note over CH: Money frozen
+    BA->>RM: Here is the defect list
+    RM->>RM: Looks for the number: not in the invoice text,<br/>not in Bau Isar's profile, and it may not invent one
+    RM->>CH: Gives up and authorizes the refund
+    Note over CH: Money goes back<br/>to the Büro-Agent<br/>RechnungsMeister gets nothing
+    BA-->>FB: Not accepted, defect list in German, no charge
+    Note over FB: Frau Berger pays nothing
+```
+
+No recorded run has this exact defect: the 09:17 refusal run reached the same refund with a forged result hash (`CHEAT=1`), and with MPS 0.29.0 the refunded 1 tUSDM reaches the Büro-Agent only after an operator `request-repair` ([#1327](https://github.com/masumi-network/masumi-payment-service/issues/1327)).
+
+### 3. The converter goes silent
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor FB as Frau Berger
+    participant BA as Büro-Agent
+    participant RM as RechnungsMeister
+    participant CH as Cardano
+
+    FB->>BA: Pastes Toni's invoice (PRÜFEN)
+    BA->>RM: Hires RechnungsMeister
+    BA->>CH: Locks 1 tUSDM
+    Note over CH: 1 tUSDM is in escrow
+    RM->>CH: Delivers a result (hash on chain)
+    Note over CH: If nobody objects, the money goes<br/>to RechnungsMeister at the release time
+    BA->>RM: Please send me the XRechnung
+    RM--xBA: No answer
+    BA->>BA: Keeps asking, up to 25 min before the release time
+    BA->>CH: Protective defect notice (vorsorgliche Mängelrüge, §640(2) BGB)
+    Note over CH: Money frozen<br/>(no inspection,<br/>no payout)
+    BA->>RM: Keeps asking, now the money can wait
+    alt RechnungsMeister answers again
+        RM-->>BA: Here is the XRechnung
+        BA->>BA: Inspects, then accepts or refuses as in story 1 or 2
+    else It stays silent
+        BA-->>FB: Alarm: not inspected, money frozen
+        Note over CH: Money stays frozen<br/>RechnungsMeister is not paid<br/>Its own timer refunds before<br/>arbitration, else Masumi arbitrates
+    end
+```
+
+This is the fail-closed rule, and a live campaign run on preprod took it with injected HTTP 500 errors, ending with RechnungsMeister's own refund (run `2026-10-30T13-48-25-176Z-a678b5` in [`plan/EVIDENCE.md`](plan/EVIDENCE.md), unit test ESCROW-1 in [`buero/abnahme.test.mjs`](buero/abnahme.test.mjs)).
+
+### 4. Right the first time
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor FB as Frau Berger
+    participant BA as Büro-Agent
+    participant RM as RechnungsMeister
+    participant GA as Gutachter
+    participant CH as Cardano
+
+    FB->>BA: Pastes Toni's invoice (PRÜFEN)
+    BA->>RM: Hires RechnungsMeister
+    BA->>CH: Locks 1 tUSDM
+    Note over CH: 1 tUSDM is in escrow
+    RM->>CH: Delivers the XRechnung (hash on chain), every field right
+    Note over CH: If nobody objects, the money goes<br/>to RechnungsMeister at the release time
+    BA->>GA: Please inspect (pays 1 tADA)
+    GA-->>BA: OK
+    BA->>BA: Profile checks pass, so no defect notice
+    BA-->>FB: Accepted (ABGENOMMEN), ready to send (SENDEN)
+    RM->>CH: After the release time, collects 1 tUSDM
+    Note over CH: Money released<br/>Deemed acceptance<br/>(fiktive Abnahme, §640(2) BGB)
+```
+
+Recorded on preprod in the 11:46 audit run with Toni's repair invoice to Hausverwaltung Giesing and local KoSIT in place of the Gutachter (RechnungsMeister was paid about 10 min after the release time); in demo mode (`DEMO_SEED_DEFECT=1`) a Bau Isar invoice always takes story 1 instead.
+
+Four properties carry the design:
+
+- **The test is fixed before money moves.** The profile hash goes into the MIP-004 `input_hash` that sits in the escrow datum. Every state-continuing redeemer of `vested_pay` requires `new_datum.input_hash == input_hash`, so the seller cannot swap the acceptance test after the lock. (Checked in `smart-contracts/payment-v2/validators/vested_pay.ak` of MPS 0.29.0.) Checked on chain by the audit: datum field 10 of `470f87f0…` equals `sha256(nonce;JCS(input_data))` with `acceptanceProfileHash` `64a8294c…`. The `input_hash` pins whichever profile was current at lock time.
+- **A refusal has teeth.** From `Disputed` the seller cannot `Withdraw`. That redeemer accepts only `ResultSubmitted` after `unlock_time`, or `WithdrawAuthorized`.
+- **No inspection, no payout.** In `ResultSubmitted` the escrow pays the seller at `unlock_time` without asking the buyer. So the Büro-Agent stops waiting for an inspection 25 min before unlock, files a protective defect notice (Mängelrüge) that must be on chain by unlock − 15 min, and the money waits in `Disputed` while it keeps inspecting.
+- **Acceptance is explicit and final.** On V2, MPS's `cancel-refund-request` asks for `AuthorizeWithdrawal`, and only from `Disputed` (checked in MPS 0.29.0 `src/routes/api/purchases/cancel-refund-request`). The V2 README calls that transition "intentionally irrevocable". The Büro-Agent sends it only if the escrow still holds the result hash it inspected.
+
+The full call sequence, the escrow state machine with its redeemers, and the escrow deadlines are under [Technical details](#technical-details).
+
+---
+
+## The acceptance test
+
+The acceptance test is two JSON files and a pipeline. The files are hashed into one `profileHash` before the job starts. The pipeline runs on every delivery.
+
+The diagram of both parts, the pinned profile and the pipeline, is under [Technical details](#technical-details).
+
+What each piece does, and where it lives:
+
+| Step | File | Detail |
+|---|---|---|
+| Profile hash | [`verifier/profile.mjs`](verifier/profile.mjs) | `profileHash = sha256(canonicalJson({acceptance, recipient}))`. JCS sorts keys by UTF-16 code units, so key order cannot change the hash. A test pins both hashes, so any change to a profile file is deliberate. The hashes changed in `a1a4f73`, when six checks were added (bau-isar `0d799b13…` → `64a8294c…`, hv-giesing → `a9c6f943…`), while the profile id stayed `abnahme-xrechnung-v1`. The hash, not the id, says which test graded an invoice. |
+| Extraction | [`einvoice/extract.mjs`](einvoice/extract.mjs) | Claude with a strict JSON schema of flat fields (`invoiceNumber`, `buyerVatId`, `buyerReference`, `lines`, `reverseCharge`, ...). The prompt says to copy values as printed and return `null` for missing ones. Text over 16,000 characters is refused before any model call. The call times out after 120 s and is retried once. `EXTRACT_MODE=fixed` uses a deterministic parser for our own fixed-layout format instead ([`parse-fixed.mjs`](einvoice/parse-fixed.mjs)). |
+| Build | [`einvoice/build.mjs`](einvoice/build.mjs) | Computes line, tax and total amounts in cents. Sets VAT category `AE` with exemption code `VATEX-EU-AE` for §13b. Leaves `cbc:CustomizationID` out so the library writes the XRechnung 3.0 ID. A plain EN 16931 ID would skip every BR-DE rule. |
+| KoSIT client | [`verifier/kosit.mjs`](verifier/kosit.mjs) | `accepted` needs HTTP 200, a KoSIT `accept` assessment **and** the matched scenario `EN16931 XRechnung (UBL Invoice)`. A report from another engine or XRechnung release counts as "not inspected". A 5xx means the invoice was not inspected, never that it is defective. XML over 5 MB is a `KOSIT-SIZE` defect and is never posted. |
+| XML reader | [`verifier/xml.mjs`](verifier/xml.mjs) | A strict, namespace-aware parser. The checks read each fact by exact path from the `Invoice` root, so comments, processing instructions, CDATA, other prefixes or copies inside UBL extensions cannot show the checks a different IBAN, total or VAT ID than the one KoSIT and the ERP read. DOCTYPE and encodings other than UTF-8 are refused. |
+| Semantic checks | [`verifier/checks.mjs`](verifier/checks.mjs) | Eleven checks, named in the acceptance profile and run against the recipient profile. An unknown check id in a profile throws an error. |
+| German texts | [`verifier/messages-de.mjs`](verifier/messages-de.mjs) | KoSIT reports BR-DE-* in German but EN 16931 rules (BR-AE-02 and others) in English. A lookup table gives Frau Berger a German defect list. |
+
+Codes the semantic checks emit: `ABN-BETRAG` (payable amount vs the expected total), `ABN-USTID` (seller VAT ID not in master data), `ABN-IBAN` (IBAN differs from master data), `ABN-13B` (wrong VAT category for the recipient), `ABN-BT48` (buyer VAT ID missing or wrong under §13b), `ABN-BT10` (buyer reference missing or wrong pattern), `ABN-WAEHRUNG` (not EUR), `ABN-RECHNUNGSART` (type not 380 or 875), `ABN-13B-HINWEIS` (§14a Abs. 5 wording missing), `ABN-UST` (VAT arithmetic), `ABN-KAEUFER` (buyer name or postcode), `ABN-DATUM` (invoice or due date), `ABN-XML` (XML cannot be read safely). The Büro-Agent adds `ABN-HASH` (delivered bytes vs the on-chain `result_hash`), `ABN-MANIFEST` (malformed delivery), `ABN-BT1` (invoice number it could not send), and `ABN-LIEFERUNG`, `ABN-PRUEFUNG` and `ABN-FRIST` for a delivery it could not inspect or that came too late.
+
+---
+
+## Four invoices, four verdicts
+
+The [`fixtures/`](fixtures) folder has four invoices from Toni. Each comes as free text (`*.txt`, what Frau Berger would paste) and in our fixed layout (`*.fixed.txt`, the deterministic demo fallback). These results come from `EXTRACT_MODE=fixed node einvoice/cli.mjs <fixture>.fixed.txt <recipient> <betrag>` against KoSIT 1.6.3, with the expected gross totals 527.17 (a, d) and 18400.00 (b, c). The round-trip tests in [`einvoice/roundtrip.test.mjs`](einvoice/roundtrip.test.mjs) and the CI job assert the same results.
+
+| Fixture | Recipient profile | Invoice | KoSIT | Defects | Verdict |
+|---|---|---|---|---|---|
+| [`a-reparatur-hv-giesing`](fixtures/a-reparatur-hv-giesing.txt) | `hv-giesing` | repair, 19 % VAT, 527,17 € | HTTP 200 | none | **ABGENOMMEN** |
+| [`b-abschlag-13b-bau-isar`](fixtures/b-abschlag-13b-bau-isar.txt) | `bau-isar` | §13b progress invoice (type 875), 18.400,00 € | HTTP 200 | none | **ABGENOMMEN** |
+| [`c-abschlag-13b-ohne-ustid`](fixtures/c-abschlag-13b-ohne-ustid.txt) | `bau-isar` | same §13b invoice, buyer VAT ID missing | HTTP 406 | `BR-AE-02`, `ABN-BT48` | **ABGELEHNT** |
+| [`d-reparatur-ohne-bt10`](fixtures/d-reparatur-ohne-bt10.txt) | `hv-giesing` | same repair invoice, no buyer reference | HTTP 406 | `BR-DE-15`, `ABN-BT10` | **ABGELEHNT** |
+
+In all four runs KoSIT matched the pinned scenario `EN16931 XRechnung (UBL Invoice)`. Fixture **c** is the demo's first delivery. This is the CLI output, as Frau Berger would read it:
+
+```text
+Abnahme: ABGELEHNT
+Rechnung AR-2026-0087 vom 2026-10-28 – Toni Huber Elektrotechnik GmbH an Bau Isar Generalunternehmer GmbH
+Zahlbetrag laut XRechnung: 18.400,00 € (erwartet: 18.400,00 €)
+KoSIT 1.6.3 / Konfiguration 2026-08-31: HTTP 406, Szenario „EN16931 XRechnung (UBL Invoice)“
+Prüfprofil: abnahme-xrechnung-v1 + bau-isar, Hash 64a8294cadfaca2383bd7f944cdf016cb7683e904e99b938b39c4001c6cedc10
+Mängel:
+ - [BR-AE-02] Bei Steuerschuldnerschaft des Leistungsempfängers (Kategorie „AE“) müssen beim Verkäufer die USt-IdNr. (BT-31), die Steuernummer (BT-32) oder die USt-IdNr. des Steuervertreters (BT-63) und beim Käufer die USt-IdNr. (BT-48) oder die Registernummer (BT-47) angegeben sein.
+ - [ABN-BT48] Die USt-IdNr. des Käufers (BT-48) fehlt; bei § 13b muss DE287654321 angegeben sein.
+```
+
+Exit codes: `0` = abgenommen, `1` = abgelehnt, `2` = error or missing argument. The cure for **c** is fixture **b**: the same invoice with `DE287654321` in BT-48. That value is in the invoice text and in the pinned recipient profile, so the converter can cure without inventing anything.
+
+---
+
+## The Gutachter: inspection paid per call over x402
+
+The Gutachter (German for an appointed expert inspector) sells one thing: a KoSIT inspection of raw XRechnung XML for **1 tADA** (`{amount: '1000000', asset: 'lovelace'}`) on `cardano:preprod`. It is built from the Cardano Foundation x402-express template and settles through the CF hosted preprod facilitator.
+
+The payment sequence (402, verify, inspect, settle, resend) is drawn under [Technical details](#technical-details).
+
+| Gutachter answer | Meaning | Charged? |
+|---|---|---|
+| 200 `{verdict: 'ACCEPTABLE', httpStatus: 200, report, …}` | KoSIT accepted under the pinned XRechnung UBL scenario | yes |
+| 200 `{verdict: 'REJECT', httpStatus: 406, report, …}` | KoSIT rejected, or accepted under another scenario. The inspection is complete. | yes |
+| 400 | body is not XML | no |
+| 503 | KoSIT unreachable | no |
+| 502 | KoSIT answered something other than 200 or 406, or its report is not from the pinned validator or not about this body (`rep:documentHash`) | no |
+| 409 | this payment was already used for a different body | no |
+
+A REJECT is a finished, paid inspection, so it comes back as HTTP 200. `@x402/express` runs the handler after `/verify` and before `/settle`, buffers the response, and cancels settlement when the handler answers 400 or higher (from [`gutachter/README.md`](gutachter/README.md)). A KoSIT outage therefore costs the buyer nothing. Every response carries `Cache-Control: no-store`. The verdict mapping, the replay ledger, the resend logic and the budget are unit-tested in [`gutachter/`](gutachter) without chain or KoSIT.
+
+Two limits:
+
+- **A facilitator timeout can still charge without an answer.** If the facilitator stops waiting before the block lands, the buyer gets no report for a payment that may be on chain. `buy.mjs` therefore resends the same signed payment for up to 3 minutes and never signs a second one. On 30 Oct, before that fix (`72dee3a`), two inspections during the Sokosumi PRÜFEN escrow run were paid on chain without a report reaching the buyer (`9d022f95…`, `8f4755d3…`), and the Büro-Agent fell back to its local KoSIT. An entry the payment log leaves `unknown` must be checked on the explorer before paying again.
+- **The Gutachter checks only what KoSIT checks.** ACCEPTABLE needs HTTP 200 and the pinned XRechnung UBL scenario. The semantic checks against the recipient profile run on the buyer's side ([`buero/abnahme.mjs`](buero/abnahme.mjs) with [`verifier/`](verifier)), not in the Gutachter.
+
+---
+
+## Why Cardano, why Masumi
+
+- **The acceptance test can be pinned in the escrow.** The V2 datum carries `input_hash` and `result_hash`, and the validator keeps `input_hash` fixed through every state change. A commitment to "this is the test you will be graded by" becomes part of the payment itself, not a promise in a terms page.
+- **The escrow already has an Abnahme lifecycle.** Refuse (`SetRefundRequested` → `Disputed`), cure (`SubmitResult` while `Disputed`), accept (`AuthorizeWithdrawal`), deemed acceptance (`Withdraw` after `unlock_time`), arbitration (`WithdrawDisputed`). We only had to map it to German law. We wrote no validator.
+- **The buyer, not the seller, releases the money early.** After a refusal the seller cannot withdraw. Only the buyer's `AuthorizeWithdrawal` can pay the seller before the dispute window ends. A converter that grades its own work cannot do that here.
+- **Agents need an identity and a job API.** The Masumi registry gives each agent an on-chain NFT and MIP-003 gives a standard job API. In a real deployment any buyer agent could find RechnungsMeister in the registry and hire it, and any converter could sell into the same acceptance test. In this demo both registry entries point to `127.0.0.1`.
+- **Inspection should cost per call, not per contract.** x402 on Cardano lets the Gutachter charge 1 tADA per inspection to anyone who sends a request. There are no accounts, and a failed inspection is not settled.
+- **The human needs no wallet.** Sokosumi lets Frau Berger hire the *Abnahme-Büro* Coworker with credits. Everything on chain happens between agents.
+
+---
+
+## What this proves, and what it doesn't
+
+| Leg | Status |
+|---|---|
+| XRechnung build, KoSIT verdict and semantic checks for the four fixtures | **real**, reproducible against KoSIT 1.6.3 (`npm test` and the CLI commands under [Run it yourself](#run-it-yourself)). CI runs both on every push. |
+| Scenario pin blocks the CustomizationID downgrade | **real**, tested against the live validator ([`verifier/kosit.test.mjs`](verifier/kosit.test.mjs)) |
+| Profile hash is canonical, order-independent and stable | **real**, tested ([`verifier/profile.test.mjs`](verifier/profile.test.mjs)) |
+| Profile hash inside the escrow `input_hash` | **real, checked on chain**: datum field 10 of `470f87f0…` equals `sha256(nonce;JCS(input_data))` with profile `64a8294c…`. Rows 4-11 under [On-chain evidence](#on-chain-evidence) pin the earlier profile `0d799b13…`. |
+| Claude extraction from free text | **runs in every escrow run**: RechnungsMeister extracts the free-text fixture with Claude. The opt-in comparison test (`RUN_LLM_TESTS=1`) is skipped by default. |
+| x402 inspection, 1 tADA | **works on preprod**: rows 1, 6 and 9, and the 11:50Z run |
+| Masumi V2 refuse → cure → accept | **works on preprod**: `a57c43ee…` → `8f21ca18…`, and under the current profile `470f87f0…` → `49fa546b…` |
+| Sokosumi Coworker *Abnahme-Büro*, paid Task | **works on preprod**: PRÜFEN Task with escrow `01a18c4b…`, paid SENDEN Task `01a18c2a…` (`d9c69f50…` → `5d61bf3f…`) |
+| E-mail to the GC's accounts payable | **works**, into Mailpit (`<1bc07905…@abnahme.local>`), sent by a separate paid SENDEN Task |
+
+The protections, in plain words (each landed with a regression test, see [Security audit](#security-audit)):
+
+- **The buyer engine fails closed.** If the inspection cannot finish (the seller, Blockfrost, KoSIT or the Gutachter is down, or the result is late), the Büro-Agent files a protective Mängelrüge by unlock − 15 min and keeps inspecting from `Disputed`, where the money waits for it. It releases only the result hash it inspected. If money ever reaches the seller without acceptance, the protocol says so; it never says "keine Kosten" when money moved.
+- **Disputes need the job's own token.** `/start_job` returns a per-job token, and `/dispute` and the delivered result in `/status` require it (401 otherwise). Nobody else can push RechnungsMeister into an `AuthorizeRefund`.
+- **The seller does not leave money frozen.** RechnungsMeister authorizes the refund itself when an escrow is still `Disputed` at `external_dispute_unlock_time` − 10 min, when a cure is not confirmed within 20 min, or when a cure submit fails.
+- **The acceptance test reads the XML by exact path.** Comments, CDATA or UBL extensions cannot show the checks a different IBAN, total or VAT ID than the one KoSIT reads.
+- **x402 reports are bound to the inspected document.** The Gutachter refuses (502, no charge) a report from another validator or about other bytes. The Büro-Agent counts a Gutachter verdict only with a settled payment receipt, and re-checks the validator and `rep:documentHash` against its own bytes.
+- **A replayed x402 payment buys nothing new.** A resend of a settled payment with the same body gets the cached report, with no KoSIT call and no second settlement; a different body gets 409. Tested live on preprod with one on-chain payment (`96d84abd…`).
+- **The Gutachter binds 127.0.0.1 by default**, and the buyer calls `127.0.0.1`, not `localhost` (which tries `::1` first).
+- **Each process holds only its own secrets.** `scripts/env-split.mjs` writes one env file per process, and `scripts/env-guard.mjs` refuses to start a process that holds another process's secret. The buyer never holds `ADMIN_KEY`; it reads purchases with a read-only MPS key.
+- **One SENDEN, one charge.** A SENDEN reserves its invoice before the payment request, so a second SENDEN for the same invoice fails for free.
+
+What the demo does not prove, stated plainly:
+
+- **KoSIT checks format and rules, not truth.** A well-formed invoice for work that was never done passes KoSIT. Our semantic checks catch only what the recipient profile pins: payable amount, seller VAT ID, IBAN, §13b category and BT-48, the BT-10 pattern, currency, invoice type, the §14a wording, VAT arithmetic, buyer name and postcode, and dates. A pass does not prove that the GC's ERP will book the invoice, that the measured work is reviewable, or that the GC received the e-mail.
+- **Sokosumi credits are not on-chain refunds.** When an escrow refunds on chain, Sokosumi does not give the credits back. "Pay only after acceptance" is enforced on the **agent-to-agent** hop (Büro-Agent → RechnungsMeister), not on Frau Berger's credits.
+- **The team runs every agent.** Büro-Agent, RechnungsMeister, the Gutachter, KoSIT and one Masumi Payment Service run on one machine. Buyer and seller are different wallets on the same MPS, both registry entries point to `127.0.0.1`, and the x402 payer and payee are both team wallets. One paid hop crosses an ownership boundary: Sokosumi's own preprod wallet locked 1 tUSDM for the Abnahme-Büro (`d9c69f50…`), which withdrew it after `unlock_time` (`5d61bf3f…`, deemed acceptance).
+- **The first-pass defect is seeded.** The demo runs RechnungsMeister with `DEMO_SEED_DEFECT=1`: its first delivery drops the buyer VAT ID (BT-48). Only a §13b recipient (bau-isar) rejects that; a hv-giesing invoice passes on the first try even in demo mode. The cure restores the VAT ID from RechnungsMeister's own first extraction, where it appears verbatim in the invoice text. The refusal demo uses `CHEAT=1`, which submits a result hash that does not match the delivered bytes. `/status` reports both switches as `demo`.
+- **The recorded evidence comes from several runs.** No single recorded run goes from Sokosumi through the escrow and x402 to the e-mail. The e-mailed invoice was accepted by a PRÜFEN in local mode (no escrow). The byte-identical XML passed the escrow 46 minutes later, in a separate Sokosumi run whose inspections fell back to local KoSIT. See [Recorded runs](#recorded-runs).
+- **Follow-up comments are not answered.** The worker posts progress and queue comments only. A comment on a finished Task gets no reply.
+- **Mailpit stands in for the accounts-payable inbox.** No real general contractor receives anything.
+- **People and firms are fictional.** Toni Huber and Frau Berger are composite personas. Bau Isar and Hausverwaltung Giesing are invented. All e-mail domains in the fixtures end in `.example`.
+- **Testnet only.** tUSDM and tADA on Cardano preprod. No real money moves.
+- **An LLM can be wrong.** The pinned checks catch errors only in the fields they cover. The fixed-layout parser is the deterministic fallback for the demo.
+
+---
+
+## Reality check
+
+These findings come from building it, from the validator itself, from reading the MPS 0.29.0 source in the running container, and from our live preprod runs. Each row says which.
+
+| Finding | How we know |
+|---|---|
+| An invoice with the plain EN 16931 `CustomizationID` makes KoSIT match the scenario `EN16931 (UBL Invoice)` and answer **HTTP 200**, even though it skips every German BR-DE rule. Checking "200 = valid" is not enough. | Run against KoSIT 1.6.3 in [`verifier/kosit.test.mjs`](verifier/kosit.test.mjs). This is why `acceptance-v1.json` pins the scenario. |
+| KoSIT reports BR-DE-* in German but EN 16931 rules such as BR-AE-02 in English. A German small business needs a lookup table. | Raw validator output: fixture **c** gives `[BR-AE-02]-An Invoice that contains an Invoice line (BG-25) where …`, fixture **d** gives `[BR-DE-15] Das Element "Buyer reference" (BT-10) muss übermittelt werden.` |
+| On V2, MPS `cancel-refund-request` asks for `AuthorizeWithdrawal` and returns 400 unless the purchase is `Disputed`. | MPS 0.29.0 `src/routes/api/purchases/cancel-refund-request/index.ts` |
+| `AuthorizeWithdrawal` cannot be undone. The V2 README says integrators "MUST surface this irrevocability in the buyer-facing UI". In Abnahme the acceptance profile, pinned in `input_hash` before the lock, is the buyer's standing consent: the Büro-Agent signs `AuthorizeWithdrawal` with no human step, and Frau Berger never signs. | MPS 0.29.0 `smart-contracts/payment-v2/README.md`, [`buero/abnahme.mjs`](buero/abnahme.mjs) |
+| The seller can rotate `result_hash` while `Disputed` until `external_dispute_unlock_time`. That is the cure window. | Same README, `SubmitResult` |
+| MPS's V2 CI job does not run the `cancel-refund-request` flow, so the refuse → cure → accept loop on V2 has no upstream test. We ran it on preprod ([Recorded runs](#recorded-runs)). | [`plan/MPS.md`](plan/MPS.md), [`plan/EVIDENCE.md`](plan/EVIDENCE.md) |
+| One payment service can buy from its own registered agent. The MPS V2 e2e suite does exactly that, and so do our runs (`a57c43ee…`). | [`plan/MPS.md`](plan/MPS.md) |
+| MPS batches several escrows into one tx: two concurrent purchases had both locks and both `SubmitResult`s in one tx each. A buyer must read its own escrow output, picked by the datum's `input_hash`. Reading output #0 gave a false `ABN-HASH` in the audit's live run (fixed in `c39f6a9`). | [`plan/EVIDENCE.md`](plan/EVIDENCE.md) (audit scenario 5), [`buero/escrow.mjs`](buero/escrow.mjs) |
+| MPS 0.29.0 builds a refund request only while `unlock_time` is more than 3 min away. A later request still gets HTTP 200, and the tx is never built. The Büro-Agent therefore sends none in the last 5 min and raises an alarm if a dispute is not confirmed 3 min before unlock. | [`plan/EVIDENCE.md`](plan/EVIDENCE.md) (audit scenario 6), [`buero/abnahme.mjs`](buero/abnahme.mjs) |
+| Measured on preprod (block times): dispute → cure → accept took 8 min 9 s from payment request to `Withdrawn`. A deemed acceptance waits for `unlock_time`: the paid Sokosumi Task took 44 min from FundsLocked to `Withdrawn`. The refusal run reached `RefundAuthorized` after 22 min; its refund came only after a manual repair, 78 min after FundsLocked. | [`plan/EVIDENCE.md`](plan/EVIDENCE.md), [`audit/raw/part2-claims.md`](audit/raw/part2-claims.md) |
+| Both registry NFTs carry an `api_base_url` on `127.0.0.1` (ports 21950 and 21951), so no agent outside this machine can reach them. | [`plan/MPS.md`](plan/MPS.md), [`audit/raw/part2-claims.md`](audit/raw/part2-claims.md) |
+| Preprod has two tUSDM tokens: `16a55b2a…` (Masumi dispenser, used by the template) and `e675b46e…` (x402 SDK default). The Gutachter prices in lovelace to avoid the mix-up. | [`plan/BUILD_PLAN.md`](plan/BUILD_PLAN.md), [`gutachter/seller.mjs`](gutachter/seller.mjs) |
+| The MPS 0.29.0 image cannot seed its own database. A one-shot setup container builds the same release from source to do it. | [`mps/docker-compose.yml`](mps/docker-compose.yml) |
+
+---
+
+## Technical details
+
+The stories above leave out the calls, redeemers, deadlines and hashes. Each block below opens to the full version.
+
+<details>
+<summary><b>Full architecture: every process, port and service</b></summary>
+
+```mermaid
+flowchart LR
     FB(["Frau Berger<br/>office, Toni Huber Elektrotechnik<br/>no wallet, pays in Sokosumi credits"])
 
     subgraph SOK["Sokosumi preprod"]
@@ -180,16 +516,10 @@ flowchart LR
 
 <sub>Green: our code, Coworker and containers, all running against preprod. Blue: people and external services.</sub>
 
-There are two payment rails, and the hiring agent decides on acceptance in both:
+</details>
 
-1. **Büro-Agent hires RechnungsMeister on Masumi.** The Büro-Agent calls RechnungsMeister's MIP-003 API at a configured URL (`RM_URL`, default `http://127.0.0.1:21950`), then MPS `POST /purchase` from the Büro-Agent's purchasing wallet into the V2 escrow. Buyer and seller are separate registrations with separate wallets on one payment service. Both agents are registered on chain, but their registered `api_base_url` is `127.0.0.1`, so only this machine can hire them (see [Reality check](#reality-check)).
-2. **Büro-Agent hires the Gutachter over x402.** Each inspection is one HTTP request and one 1 tADA payment. There is no account and no subscription.
-
-Frau Berger pays only for sending. PRÜFEN is free. SENDEN is a paid Sokosumi Task: Sokosumi books her credits, and Sokosumi's own preprod wallet locks 1 tUSDM in a Masumi escrow for the *Abnahme-Büro* selling wallet. Recorded: Task `01a18c2a…`, FundsLocked `d9c69f50…`, Withdrawn `5d61bf3f…`, seller receipt `settled: true` (rows 12 and 13 under [On-chain evidence](#on-chain-evidence)).
-
----
-
-## One job, end to end (target flow)
+<details>
+<summary><b>One job, end to end: every call (target flow)</b></summary>
 
 This is the flow the code implements, drawn as one job: a §13b progress invoice to Bau Isar whose first delivery is missing the buyer's VAT ID. **No single recorded run covers all of it.** The recorded runs cover it in parts. For example, the e-mailed invoice was accepted by a PRÜFEN in local mode, without an escrow. Each run is listed under [Recorded runs](#recorded-runs).
 
@@ -287,16 +617,10 @@ sequenceDiagram
     end
 ```
 
-Four properties carry the design:
+</details>
 
-- **The test is fixed before money moves.** The profile hash goes into the MIP-004 `input_hash` that sits in the escrow datum. Every state-continuing redeemer of `vested_pay` requires `new_datum.input_hash == input_hash`, so the seller cannot swap the acceptance test after the lock. (Checked in `smart-contracts/payment-v2/validators/vested_pay.ak` of MPS 0.29.0.) Checked on chain by the audit: datum field 10 of `470f87f0…` equals `sha256(nonce;JCS(input_data))` with `acceptanceProfileHash` `64a8294c…`. The `input_hash` pins whichever profile was current at lock time.
-- **A refusal has teeth.** From `Disputed` the seller cannot `Withdraw`. That redeemer accepts only `ResultSubmitted` after `unlock_time`, or `WithdrawAuthorized`.
-- **No inspection, no payout.** In `ResultSubmitted` the escrow pays the seller at `unlock_time` without asking the buyer. So if no inspection has passed by unlock − 15 min, the Büro-Agent files a protective Mängelrüge, and the money waits in `Disputed` while it keeps inspecting.
-- **Acceptance is explicit and final.** On V2, MPS's `cancel-refund-request` asks for `AuthorizeWithdrawal`, and only from `Disputed` (checked in MPS 0.29.0 `src/routes/api/purchases/cancel-refund-request`). The V2 README calls that transition "intentionally irrevocable". The Büro-Agent sends it only if the escrow still holds the result hash it inspected.
-
----
-
-## The escrow as a contract-law state machine
+<details>
+<summary><b>The escrow as a contract-law state machine</b></summary>
 
 These are the Masumi V2 states we use, with the German law each transition stands for. State and action names come from MPS 0.29.0 (`OnChainState` enum, `payment-v2/README.md`). `Withdrawn`, `RefundWithdrawn` and `DisputedWithdrawn` are MPS states for an escrow UTxO that has been spent.
 
@@ -341,7 +665,10 @@ Abnahme's demo path is **FundsLocked → ResultSubmitted → Disputed → Disput
 - `AuthorizeWithdrawal` needs `Disputed` and a non-empty result hash. After it, the seller can `Withdraw` without waiting for `unlock_time`.
 - `WithdrawDisputed` needs weighted admin signatures and starts no earlier than `external_dispute_unlock_time`. Masumi's admins, not we, arbitrate a buyer who refuses in bad faith.
 
-### The escrow clock
+</details>
+
+<details>
+<summary><b>The escrow clock: deadlines for one job</b></summary>
 
 These are the deadlines RechnungsMeister quotes for a job (`deadlines()` in [`rechnungsmeister/server.mjs`](rechnungsmeister/server.mjs)), in minutes after the quote, with the rules each agent adds.
 
@@ -367,11 +694,10 @@ gantt
 
 <sub>RechnungsMeister values: `payByTime` +10 min, `submitResultTime` +25, `unlockTime` +45, `externalDisputeUnlockTime` +65. Büro-Agent rules ([`buero/abnahme.mjs`](buero/abnahme.mjs)): no inspection starts later than unlock − 25 min, a protective Mängelrüge goes out by unlock − 15 min, and no refund request is sent after unlock − 5 min (MPS itself builds none within 3 min of unlock). It refuses a quote whose windows are longer than 30 min each. RechnungsMeister cures only until external − 30 min and refunds an escrow that is still `Disputed` at external − 10 min. The cure and accept bars start at the result deadline for readability; both are possible as soon as the escrow is `Disputed`. Bars that reach the right edge have no upper time bound. The paid Sokosumi Task (`paid-task.mjs`) has its own deadlines.</sub>
 
----
+</details>
 
-## The acceptance test
-
-The acceptance test is two JSON files and a pipeline. The files are hashed into one `profileHash` before the job starts. The pipeline runs on every delivery.
+<details>
+<summary><b>The acceptance test: profile hash and pipeline</b></summary>
 
 ```mermaid
 flowchart LR
@@ -415,53 +741,10 @@ flowchart LR
     class NI neutral
 ```
 
-What each piece does, and where it lives:
+</details>
 
-| Step | File | Detail |
-|---|---|---|
-| Profile hash | [`verifier/profile.mjs`](verifier/profile.mjs) | `profileHash = sha256(canonicalJson({acceptance, recipient}))`. JCS sorts keys by UTF-16 code units, so key order cannot change the hash. A test pins both hashes, so any change to a profile file is deliberate. The hashes changed in `a1a4f73`, when six checks were added (bau-isar `0d799b13…` → `64a8294c…`, hv-giesing → `a9c6f943…`), while the profile id stayed `abnahme-xrechnung-v1`. The hash, not the id, says which test graded an invoice. |
-| Extraction | [`einvoice/extract.mjs`](einvoice/extract.mjs) | Claude with a strict JSON schema of flat fields (`invoiceNumber`, `buyerVatId`, `buyerReference`, `lines`, `reverseCharge`, ...). The prompt says to copy values as printed and return `null` for missing ones. Text over 16,000 characters is refused before any model call. The call times out after 120 s and is retried once. `EXTRACT_MODE=fixed` uses a deterministic parser for our own fixed-layout format instead ([`parse-fixed.mjs`](einvoice/parse-fixed.mjs)). |
-| Build | [`einvoice/build.mjs`](einvoice/build.mjs) | Computes line, tax and total amounts in cents. Sets VAT category `AE` with exemption code `VATEX-EU-AE` for §13b. Leaves `cbc:CustomizationID` out so the library writes the XRechnung 3.0 ID. A plain EN 16931 ID would skip every BR-DE rule. |
-| KoSIT client | [`verifier/kosit.mjs`](verifier/kosit.mjs) | `accepted` needs HTTP 200, a KoSIT `accept` assessment **and** the matched scenario `EN16931 XRechnung (UBL Invoice)`. A report from another engine or XRechnung release counts as "not inspected". A 5xx means the invoice was not inspected, never that it is defective. XML over 5 MB is a `KOSIT-SIZE` defect and is never posted. |
-| XML reader | [`verifier/xml.mjs`](verifier/xml.mjs) | A strict, namespace-aware parser. The checks read each fact by exact path from the `Invoice` root, so comments, processing instructions, CDATA, other prefixes or copies inside UBL extensions cannot show the checks a different IBAN, total or VAT ID than the one KoSIT and the ERP read. DOCTYPE and encodings other than UTF-8 are refused. |
-| Semantic checks | [`verifier/checks.mjs`](verifier/checks.mjs) | Eleven checks, named in the acceptance profile and run against the recipient profile. An unknown check id in a profile throws an error. |
-| German texts | [`verifier/messages-de.mjs`](verifier/messages-de.mjs) | KoSIT reports BR-DE-* in German but EN 16931 rules (BR-AE-02 and others) in English. A lookup table gives Frau Berger a German defect list. |
-
-Codes the semantic checks emit: `ABN-BETRAG` (payable amount vs the expected total), `ABN-USTID` (seller VAT ID not in master data), `ABN-IBAN` (IBAN differs from master data), `ABN-13B` (wrong VAT category for the recipient), `ABN-BT48` (buyer VAT ID missing or wrong under §13b), `ABN-BT10` (buyer reference missing or wrong pattern), `ABN-WAEHRUNG` (not EUR), `ABN-RECHNUNGSART` (type not 380 or 875), `ABN-13B-HINWEIS` (§14a Abs. 5 wording missing), `ABN-UST` (VAT arithmetic), `ABN-KAEUFER` (buyer name or postcode), `ABN-DATUM` (invoice or due date), `ABN-XML` (XML cannot be read safely). The Büro-Agent adds `ABN-HASH` (delivered bytes vs the on-chain `result_hash`), `ABN-MANIFEST` (malformed delivery), `ABN-BT1` (invoice number it could not send), and `ABN-LIEFERUNG`, `ABN-PRUEFUNG` and `ABN-FRIST` for a delivery it could not inspect or that came too late.
-
----
-
-## Four invoices, four verdicts
-
-The [`fixtures/`](fixtures) folder has four invoices from Toni. Each comes as free text (`*.txt`, what Frau Berger would paste) and in our fixed layout (`*.fixed.txt`, the deterministic demo fallback). These results come from `EXTRACT_MODE=fixed node einvoice/cli.mjs <fixture>.fixed.txt <recipient> <betrag>` against KoSIT 1.6.3, with the expected gross totals 527.17 (a, d) and 18400.00 (b, c). The round-trip tests in [`einvoice/roundtrip.test.mjs`](einvoice/roundtrip.test.mjs) and the CI job assert the same results.
-
-| Fixture | Recipient profile | Invoice | KoSIT | Defects | Verdict |
-|---|---|---|---|---|---|
-| [`a-reparatur-hv-giesing`](fixtures/a-reparatur-hv-giesing.txt) | `hv-giesing` | repair, 19 % VAT, 527,17 € | HTTP 200 | none | **ABGENOMMEN** |
-| [`b-abschlag-13b-bau-isar`](fixtures/b-abschlag-13b-bau-isar.txt) | `bau-isar` | §13b progress invoice (type 875), 18.400,00 € | HTTP 200 | none | **ABGENOMMEN** |
-| [`c-abschlag-13b-ohne-ustid`](fixtures/c-abschlag-13b-ohne-ustid.txt) | `bau-isar` | same §13b invoice, buyer VAT ID missing | HTTP 406 | `BR-AE-02`, `ABN-BT48` | **ABGELEHNT** |
-| [`d-reparatur-ohne-bt10`](fixtures/d-reparatur-ohne-bt10.txt) | `hv-giesing` | same repair invoice, no buyer reference | HTTP 406 | `BR-DE-15`, `ABN-BT10` | **ABGELEHNT** |
-
-In all four runs KoSIT matched the pinned scenario `EN16931 XRechnung (UBL Invoice)`. Fixture **c** is the demo's first delivery. This is the CLI output, as Frau Berger would read it:
-
-```text
-Abnahme: ABGELEHNT
-Rechnung AR-2026-0087 vom 2026-10-28 – Toni Huber Elektrotechnik GmbH an Bau Isar Generalunternehmer GmbH
-Zahlbetrag laut XRechnung: 18.400,00 € (erwartet: 18.400,00 €)
-KoSIT 1.6.3 / Konfiguration 2026-08-31: HTTP 406, Szenario „EN16931 XRechnung (UBL Invoice)“
-Prüfprofil: abnahme-xrechnung-v1 + bau-isar, Hash 64a8294cadfaca2383bd7f944cdf016cb7683e904e99b938b39c4001c6cedc10
-Mängel:
- - [BR-AE-02] Bei Steuerschuldnerschaft des Leistungsempfängers (Kategorie „AE“) müssen beim Verkäufer die USt-IdNr. (BT-31), die Steuernummer (BT-32) oder die USt-IdNr. des Steuervertreters (BT-63) und beim Käufer die USt-IdNr. (BT-48) oder die Registernummer (BT-47) angegeben sein.
- - [ABN-BT48] Die USt-IdNr. des Käufers (BT-48) fehlt; bei § 13b muss DE287654321 angegeben sein.
-```
-
-Exit codes: `0` = abgenommen, `1` = abgelehnt, `2` = error or missing argument. The cure for **c** is fixture **b**: the same invoice with `DE287654321` in BT-48. That value is in the invoice text and in the pinned recipient profile, so the converter can cure without inventing anything.
-
----
-
-## The Gutachter: inspection paid per call over x402
-
-The Gutachter (German for an appointed expert inspector) sells one thing: a KoSIT inspection of raw XRechnung XML for **1 tADA** (`{amount: '1000000', asset: 'lovelace'}`) on `cardano:preprod`. It is built from the Cardano Foundation x402-express template and settles through the CF hosted preprod facilitator.
+<details>
+<summary><b>The Gutachter: one paid inspection over x402</b></summary>
 
 ```mermaid
 sequenceDiagram
@@ -495,95 +778,7 @@ sequenceDiagram
     Note over B: the verdict counts only with a settled receipt, the pinned validator<br/>and rep:documentHash = sha256 of its own bytes, otherwise local KoSIT
 ```
 
-| Gutachter answer | Meaning | Charged? |
-|---|---|---|
-| 200 `{verdict: 'ACCEPTABLE', httpStatus: 200, report, …}` | KoSIT accepted under the pinned XRechnung UBL scenario | yes |
-| 200 `{verdict: 'REJECT', httpStatus: 406, report, …}` | KoSIT rejected, or accepted under another scenario. The inspection is complete. | yes |
-| 400 | body is not XML | no |
-| 503 | KoSIT unreachable | no |
-| 502 | KoSIT answered something other than 200 or 406, or its report is not from the pinned validator or not about this body (`rep:documentHash`) | no |
-| 409 | this payment was already used for a different body | no |
-
-A REJECT is a finished, paid inspection, so it comes back as HTTP 200. `@x402/express` runs the handler after `/verify` and before `/settle`, buffers the response, and cancels settlement when the handler answers 400 or higher (from [`gutachter/README.md`](gutachter/README.md)). A KoSIT outage therefore costs the buyer nothing. Every response carries `Cache-Control: no-store`. The verdict mapping, the replay ledger, the resend logic and the budget are unit-tested in [`gutachter/`](gutachter) without chain or KoSIT.
-
-Two limits:
-
-- **A facilitator timeout can still charge without an answer.** If the facilitator stops waiting before the block lands, the buyer gets no report for a payment that may be on chain. `buy.mjs` therefore resends the same signed payment for up to 3 minutes and never signs a second one. On 30 Oct, before that fix (`72dee3a`), two inspections during the Sokosumi PRÜFEN escrow run were paid on chain without a report reaching the buyer (`9d022f95…`, `8f4755d3…`), and the Büro-Agent fell back to its local KoSIT. An entry the payment log leaves `unknown` must be checked on the explorer before paying again.
-- **The Gutachter checks only what KoSIT checks.** ACCEPTABLE needs HTTP 200 and the pinned XRechnung UBL scenario. The semantic checks against the recipient profile run on the buyer's side ([`buero/abnahme.mjs`](buero/abnahme.mjs) with [`verifier/`](verifier)), not in the Gutachter.
-
----
-
-## Why Cardano, why Masumi
-
-- **The acceptance test can be pinned in the escrow.** The V2 datum carries `input_hash` and `result_hash`, and the validator keeps `input_hash` fixed through every state change. A commitment to "this is the test you will be graded by" becomes part of the payment itself, not a promise in a terms page.
-- **The escrow already has an Abnahme lifecycle.** Refuse (`SetRefundRequested` → `Disputed`), cure (`SubmitResult` while `Disputed`), accept (`AuthorizeWithdrawal`), deemed acceptance (`Withdraw` after `unlock_time`), arbitration (`WithdrawDisputed`). We only had to map it to German law. We wrote no validator.
-- **The buyer, not the seller, releases the money early.** After a refusal the seller cannot withdraw. Only the buyer's `AuthorizeWithdrawal` can pay the seller before the dispute window ends. A converter that grades its own work cannot do that here.
-- **Agents need an identity and a job API.** The Masumi registry gives each agent an on-chain NFT and MIP-003 gives a standard job API. In a real deployment any buyer agent could find RechnungsMeister in the registry and hire it, and any converter could sell into the same acceptance test. In this demo both registry entries point to `127.0.0.1`.
-- **Inspection should cost per call, not per contract.** x402 on Cardano lets the Gutachter charge 1 tADA per inspection to anyone who sends a request. There are no accounts, and a failed inspection is not settled.
-- **The human needs no wallet.** Sokosumi lets Frau Berger hire the *Abnahme-Büro* Coworker with credits. Everything on chain happens between agents.
-
----
-
-## What this proves, and what it doesn't
-
-| Leg | Status |
-|---|---|
-| XRechnung build, KoSIT verdict and semantic checks for the four fixtures | **real**, reproducible against KoSIT 1.6.3 (`npm test` and the CLI commands under [Run it yourself](#run-it-yourself)). CI runs both on every push. |
-| Scenario pin blocks the CustomizationID downgrade | **real**, tested against the live validator ([`verifier/kosit.test.mjs`](verifier/kosit.test.mjs)) |
-| Profile hash is canonical, order-independent and stable | **real**, tested ([`verifier/profile.test.mjs`](verifier/profile.test.mjs)) |
-| Profile hash inside the escrow `input_hash` | **real, checked on chain**: datum field 10 of `470f87f0…` equals `sha256(nonce;JCS(input_data))` with profile `64a8294c…`. Rows 4-11 under [On-chain evidence](#on-chain-evidence) pin the earlier profile `0d799b13…`. |
-| Claude extraction from free text | **runs in every escrow run**: RechnungsMeister extracts the free-text fixture with Claude. The opt-in comparison test (`RUN_LLM_TESTS=1`) is skipped by default. |
-| x402 inspection, 1 tADA | **works on preprod**: rows 1, 6 and 9, and the 11:50Z run |
-| Masumi V2 refuse → cure → accept | **works on preprod**: `a57c43ee…` → `8f21ca18…`, and under the current profile `470f87f0…` → `49fa546b…` |
-| Sokosumi Coworker *Abnahme-Büro*, paid Task | **works on preprod**: PRÜFEN Task with escrow `01a18c4b…`, paid SENDEN Task `01a18c2a…` (`d9c69f50…` → `5d61bf3f…`) |
-| E-mail to the GC's accounts payable | **works**, into Mailpit (`<1bc07905…@abnahme.local>`), sent by a separate paid SENDEN Task |
-
-The protections, in plain words (each landed with a regression test, see [Security audit](#security-audit)):
-
-- **The buyer engine fails closed.** If the inspection cannot finish (the seller, Blockfrost, KoSIT or the Gutachter is down, or the result is late), the Büro-Agent files a protective Mängelrüge by unlock − 15 min and keeps inspecting from `Disputed`, where the money waits for it. It releases only the result hash it inspected. If money ever reaches the seller without acceptance, the protocol says so; it never says "keine Kosten" when money moved.
-- **Disputes need the job's own token.** `/start_job` returns a per-job token, and `/dispute` and the delivered result in `/status` require it (401 otherwise). Nobody else can push RechnungsMeister into an `AuthorizeRefund`.
-- **The seller does not leave money frozen.** RechnungsMeister authorizes the refund itself when an escrow is still `Disputed` at `external_dispute_unlock_time` − 10 min, when a cure is not confirmed within 20 min, or when a cure submit fails.
-- **The acceptance test reads the XML by exact path.** Comments, CDATA or UBL extensions cannot show the checks a different IBAN, total or VAT ID than the one KoSIT reads.
-- **x402 reports are bound to the inspected document.** The Gutachter refuses (502, no charge) a report from another validator or about other bytes. The Büro-Agent counts a Gutachter verdict only with a settled payment receipt, and re-checks the validator and `rep:documentHash` against its own bytes.
-- **A replayed x402 payment buys nothing new.** A resend of a settled payment with the same body gets the cached report, with no KoSIT call and no second settlement; a different body gets 409. Tested live on preprod with one on-chain payment (`96d84abd…`).
-- **The Gutachter binds 127.0.0.1 by default**, and the buyer calls `127.0.0.1`, not `localhost` (which tries `::1` first).
-- **Each process holds only its own secrets.** `scripts/env-split.mjs` writes one env file per process, and `scripts/env-guard.mjs` refuses to start a process that holds another process's secret. The buyer never holds `ADMIN_KEY`; it reads purchases with a read-only MPS key.
-- **One SENDEN, one charge.** A SENDEN reserves its invoice before the payment request, so a second SENDEN for the same invoice fails for free.
-
-What the demo does not prove, stated plainly:
-
-- **KoSIT checks format and rules, not truth.** A well-formed invoice for work that was never done passes KoSIT. Our semantic checks catch only what the recipient profile pins: payable amount, seller VAT ID, IBAN, §13b category and BT-48, the BT-10 pattern, currency, invoice type, the §14a wording, VAT arithmetic, buyer name and postcode, and dates. A pass does not prove that the GC's ERP will book the invoice, that the measured work is reviewable, or that the GC received the e-mail.
-- **Sokosumi credits are not on-chain refunds.** When an escrow refunds on chain, Sokosumi does not give the credits back. "Pay only after acceptance" is enforced on the **agent-to-agent** hop (Büro-Agent → RechnungsMeister), not on Frau Berger's credits.
-- **The team runs every agent.** Büro-Agent, RechnungsMeister, the Gutachter, KoSIT and one Masumi Payment Service run on one machine. Buyer and seller are different wallets on the same MPS, both registry entries point to `127.0.0.1`, and the x402 payer and payee are both team wallets. One paid hop crosses an ownership boundary: Sokosumi's own preprod wallet locked 1 tUSDM for the Abnahme-Büro (`d9c69f50…`), which withdrew it after `unlock_time` (`5d61bf3f…`, deemed acceptance).
-- **The first-pass defect is seeded.** The demo runs RechnungsMeister with `DEMO_SEED_DEFECT=1`: its first delivery drops the buyer VAT ID (BT-48). Only a §13b recipient (bau-isar) rejects that; a hv-giesing invoice passes on the first try even in demo mode. The cure restores the VAT ID from RechnungsMeister's own first extraction, where it appears verbatim in the invoice text. The refusal demo uses `CHEAT=1`, which submits a result hash that does not match the delivered bytes. `/status` reports both switches as `demo`.
-- **The recorded evidence comes from several runs.** No single recorded run goes from Sokosumi through the escrow and x402 to the e-mail. The e-mailed invoice was accepted by a PRÜFEN in local mode (no escrow). The byte-identical XML passed the escrow 46 minutes later, in a separate Sokosumi run whose inspections fell back to local KoSIT. See [Recorded runs](#recorded-runs).
-- **Follow-up comments are not answered.** The worker posts progress and queue comments only. A comment on a finished Task gets no reply.
-- **Mailpit stands in for the accounts-payable inbox.** No real general contractor receives anything.
-- **People and firms are fictional.** Toni Huber and Frau Berger are composite personas. Bau Isar and Hausverwaltung Giesing are invented. All e-mail domains in the fixtures end in `.example`.
-- **Testnet only.** tUSDM and tADA on Cardano preprod. No real money moves.
-- **An LLM can be wrong.** The pinned checks catch errors only in the fields they cover. The fixed-layout parser is the deterministic fallback for the demo.
-
----
-
-## Reality check
-
-These findings come from building it, from the validator itself, from reading the MPS 0.29.0 source in the running container, and from our live preprod runs. Each row says which.
-
-| Finding | How we know |
-|---|---|
-| An invoice with the plain EN 16931 `CustomizationID` makes KoSIT match the scenario `EN16931 (UBL Invoice)` and answer **HTTP 200**, even though it skips every German BR-DE rule. Checking "200 = valid" is not enough. | Run against KoSIT 1.6.3 in [`verifier/kosit.test.mjs`](verifier/kosit.test.mjs). This is why `acceptance-v1.json` pins the scenario. |
-| KoSIT reports BR-DE-* in German but EN 16931 rules such as BR-AE-02 in English. A German small business needs a lookup table. | Raw validator output: fixture **c** gives `[BR-AE-02]-An Invoice that contains an Invoice line (BG-25) where …`, fixture **d** gives `[BR-DE-15] Das Element "Buyer reference" (BT-10) muss übermittelt werden.` |
-| On V2, MPS `cancel-refund-request` asks for `AuthorizeWithdrawal` and returns 400 unless the purchase is `Disputed`. | MPS 0.29.0 `src/routes/api/purchases/cancel-refund-request/index.ts` |
-| `AuthorizeWithdrawal` cannot be undone. The V2 README says integrators "MUST surface this irrevocability in the buyer-facing UI". In Abnahme the acceptance profile, pinned in `input_hash` before the lock, is the buyer's standing consent: the Büro-Agent signs `AuthorizeWithdrawal` with no human step, and Frau Berger never signs. | MPS 0.29.0 `smart-contracts/payment-v2/README.md`, [`buero/abnahme.mjs`](buero/abnahme.mjs) |
-| The seller can rotate `result_hash` while `Disputed` until `external_dispute_unlock_time`. That is the cure window. | Same README, `SubmitResult` |
-| MPS's V2 CI job does not run the `cancel-refund-request` flow, so the refuse → cure → accept loop on V2 has no upstream test. We ran it on preprod ([Recorded runs](#recorded-runs)). | [`plan/MPS.md`](plan/MPS.md), [`plan/EVIDENCE.md`](plan/EVIDENCE.md) |
-| One payment service can buy from its own registered agent. The MPS V2 e2e suite does exactly that, and so do our runs (`a57c43ee…`). | [`plan/MPS.md`](plan/MPS.md) |
-| MPS batches several escrows into one tx: two concurrent purchases had both locks and both `SubmitResult`s in one tx each. A buyer must read its own escrow output, picked by the datum's `input_hash`. Reading output #0 gave a false `ABN-HASH` in the audit's live run (fixed in `c39f6a9`). | [`plan/EVIDENCE.md`](plan/EVIDENCE.md) (audit scenario 5), [`buero/escrow.mjs`](buero/escrow.mjs) |
-| MPS 0.29.0 builds a refund request only while `unlock_time` is more than 3 min away. A later request still gets HTTP 200, and the tx is never built. The Büro-Agent therefore sends none in the last 5 min and raises an alarm if a dispute is not confirmed 3 min before unlock. | [`plan/EVIDENCE.md`](plan/EVIDENCE.md) (audit scenario 6), [`buero/abnahme.mjs`](buero/abnahme.mjs) |
-| Measured on preprod (block times): dispute → cure → accept took 8 min 9 s from payment request to `Withdrawn`. A deemed acceptance waits for `unlock_time`: the paid Sokosumi Task took 44 min from FundsLocked to `Withdrawn`. The refusal run reached `RefundAuthorized` after 22 min; its refund came only after a manual repair, 78 min after FundsLocked. | [`plan/EVIDENCE.md`](plan/EVIDENCE.md), [`audit/raw/part2-claims.md`](audit/raw/part2-claims.md) |
-| Both registry NFTs carry an `api_base_url` on `127.0.0.1` (ports 21950 and 21951), so no agent outside this machine can reach them. | [`plan/MPS.md`](plan/MPS.md), [`audit/raw/part2-claims.md`](audit/raw/part2-claims.md) |
-| Preprod has two tUSDM tokens: `16a55b2a…` (Masumi dispenser, used by the template) and `e675b46e…` (x402 SDK default). The Gutachter prices in lovelace to avoid the mix-up. | [`plan/BUILD_PLAN.md`](plan/BUILD_PLAN.md), [`gutachter/seller.mjs`](gutachter/seller.mjs) |
-| The MPS 0.29.0 image cannot seed its own database. A one-shot setup container builds the same release from source to do it. | [`mps/docker-compose.yml`](mps/docker-compose.yml) |
+</details>
 
 ---
 
