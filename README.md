@@ -25,7 +25,7 @@ A defect freezes the converter's money on chain until the converter fixes it.
 
 > [!IMPORTANT]
 > **Build status, Fri 30 Oct 2026 (hackathon day 1, afternoon).** All three agents are built and run on Cardano preprod. The refuse → cure → accept loop ran end to end through the Masumi V2 escrow (8 min 9 s from payment request to `Withdrawn`), with both inspections paid to the x402 Gutachter. A paid Sokosumi Task settled on chain and e-mailed an accepted XRechnung to the Mailpit inbox. These are separate recorded runs, each labelled under [Recorded runs](#recorded-runs). Every hash under [On-chain evidence](#on-chain-evidence) is a confirmed preprod transaction.
-> `npm test` runs 261 tests (260 pass, 1 opt-in Claude test is skipped), and [CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml) runs them against a live KoSIT validator on every push. A two-part [security audit](#security-audit) was followed by two fix rounds. Pins and accepted risks are in [SECURITY.md](SECURITY.md). What is still open is under [Status](#status), and what is mocked is under [What this proves](#what-this-proves-and-what-it-doesnt).
+> `npm test` runs 261 tests (260 pass, 1 opt-in Claude test is skipped), and [CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml) runs them against a live KoSIT validator on every push. A two-part internal [security review](#security-review) (not a third-party audit) was followed by two fix rounds. Pins and accepted risks are in [SECURITY.md](SECURITY.md). What is still open is under [Status](#status), and what is mocked is under [What this proves](#what-this-proves-and-what-it-doesnt).
 
 ## Contents
 
@@ -47,7 +47,7 @@ A defect freezes the converter's money on chain until the converter fixes it.
 - [Tech stack](#tech-stack)
 - [On-chain evidence](#on-chain-evidence)
 - [Upstream contribution](#upstream-contribution-a-refund-bug-in-the-masumi-payment-service)
-- [Security audit](#security-audit)
+- [Security review](#security-review)
 - [Status](#status)
 - [Credits](#credits)
 
@@ -404,7 +404,7 @@ Two limits:
 | Sokosumi Coworker *Abnahme-Büro*, paid Task | **works on preprod**: PRÜFEN Task with escrow `01a18c4b…`, paid SENDEN Task `01a18c2a…` (`d9c69f50…` → `5d61bf3f…`) |
 | E-mail to the GC's accounts payable | **works**, into Mailpit (`<1bc07905…@abnahme.local>`), sent by a separate paid SENDEN Task |
 
-The protections, in plain words (each landed with a regression test, see [Security audit](#security-audit)):
+The protections, in plain words (each landed with a regression test, see [Security review](#security-review)):
 
 - **The buyer engine fails closed.** If the inspection cannot finish (the seller, Blockfrost, KoSIT or the Gutachter is down, or the result is late), the Büro-Agent files a protective Mängelrüge by unlock − 15 min and keeps inspecting from `Disputed`, where the money waits for it. It releases only the result hash it inspected. If money ever reaches the seller without acceptance, the protocol says so; it never says "keine Kosten" when money moved.
 - **Disputes need the job's own token.** `/start_job` returns a per-job token, and `/dispute` and the delivered result in `/status` require it (401 otherwise). Nobody else can push RechnungsMeister into an `AuthorizeRefund`.
@@ -1038,18 +1038,18 @@ While building the refusal path we found that MPS 0.28.0 (the first release with
 
 ---
 
-## Security audit
+## Security review
 
-Abnahme went through an internal security review during the hackathon, in two parts ([`plan/AUDIT_PLAN.md`](plan/AUDIT_PLAN.md)):
+Abnahme went through an internal security review during the hackathon, in two parts ([`plan/AUDIT_PLAN.md`](plan/AUDIT_PLAN.md)). It is not a third-party audit.
 
-| Part | Auditors | Findings |
+| Part | Review tracks | Findings |
 |---|---|---|
 | 1 | 8: x402 payments, keys and secrets, LLM and prompt injection, e-invoice and German tax, QA of every user path, clean-clone reproducibility, dependencies and supply chain, local API penetration test | 88 |
 | 2 (after fix round 1, at `beca8f3`) | 6: Masumi V2 escrow and eUTXO, escrow state machine and journal, live preprod scenarios, on-chain forensics, RechnungsMeister and Büro API penetration test, claims vs reality | 59 |
 
-- **14 independent auditors, 147 findings (88 + 59).** Every HIGH and MEDIUM finding went to 2 adversarial refuters before it counted.
+- **14 review tracks, 147 findings (88 + 59).** Every HIGH and MEDIUM finding went to 2 adversarial refuters before it counted.
 - **2 fix rounds.** Round 1: `72dee3a`, `a1a4f73`, `9f8c3cf`, `a6db873`, `beca8f3`, then CI in `3ddf73f`. Round 2: `3314e46`, `e73121f`, `c39f6a9`. Every fix came with a regression test that failed first.
-- **The full report** is [`audit/abnahme-audit.md`](audit/abnahme-audit.md), which lands on Saturday 31 Oct, in the morning. The status of each finding is in its fix ledger. The raw auditor reports go into [`audit/raw/`](audit/raw) with it.
+- **The full report** is [`audit/abnahme-audit.md`](audit/abnahme-audit.md), which lands on Saturday 31 Oct, in the morning. The status of each finding is in its fix ledger. The raw reports of the review tracks go into [`audit/raw/`](audit/raw) with it.
 - **Pins, accepted risks and upgrade paths** are in [`SECURITY.md`](SECURITY.md).
 
 ---
@@ -1067,7 +1067,7 @@ Hackathon build, Cardano preprod only. Build window Fri 30 Oct 09:00 → Sat 31 
 - [x] Büro-Agent: refuse → cure → accept on the V2 escrow, with a crash-safe journal, failing closed
 - [x] Sokosumi Coworker *Abnahme-Büro*: free PRÜFEN and paid SENDEN Tasks, settled on preprod
 - [x] E-mail of an accepted XRechnung to Mailpit
-- [x] Security audit in two parts and two fix rounds; CI green on `main`
+- [x] Internal security review in two parts and two fix rounds; CI green on `main`
 - [x] Upstream issue and fix for MPS (#1327, #1328)
 - [x] `npm test`: 261 tests, 260 pass, 1 opt-in Claude test skipped
 

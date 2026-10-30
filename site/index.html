@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abnahme · No acceptance, no payment.</title>
+<meta name="description" content="Abnahme: e-invoices that get paid only after the buyer has accepted them. XRechnung acceptance testing with the KoSIT validator, enforced by a Masumi escrow on Cardano.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#071640">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta property="og:title" content="Abnahme · No acceptance, no payment.">
+<meta property="og:description" content="E-invoices that get paid only after the buyer has accepted them.">
+<meta property="og:type" content="website">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<script>document.documentElement.classList.add('js')</script>
+<script src="main.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<aside class="notice" aria-label="Prototype notice">
+ <div class="wrap">
+  <span class="pill-preprod">Preprod</span>
+  <span><b>Hackathon prototype on Cardano preprod (testnet).</b> No real money moves. People and companies in the demo are fictional.</span>
+ </div>
+</aside>
+
+<header class="site-header">
+ <div class="wrap header-in">
+  <a class="brand" href="./">
+   <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0033AD"/><circle cx="16" cy="16" r="11" fill="none" stroke="#fff" stroke-width="2.2"/><path d="M10.6 16.4l3.7 3.7 7.2-7.8" fill="none" stroke="#3DDC97" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+   <span>Abnahme<small>No acceptance, no payment.</small></span>
+  </a>
+  <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-nav">
+   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Menu
+  </button>
+  <nav class="nav" id="site-nav" aria-label="Main">
+   <a href="#problem">Problem</a>
+   <a href="#how">How it works</a>
+   <a href="#law">Legal</a>
+   <a href="#cardano">Why Cardano</a>
+   <a href="#proof">Proof</a>
+   <a href="#pricing">Pricing</a>
+   <a href="#faq">FAQ</a>
+   <a href="security.html">Security</a>
+   <a class="btn btn-primary btn-sm header-cta" href="mailto:altunbeyomur36@gmail.com?subject=Demo%20request%3A%20Abnahme">Request a demo</a>
+  </nav>
+ </div>
+</header>
+
+<main id="main">
+
+<!-- ================= HERO ================= -->
+<section class="hero" aria-labelledby="hero-title">
+ <svg class="hero-rings" viewBox="0 0 820 820" aria-hidden="true" focusable="false"><g fill="#FFFFFF"><circle cx="560.0" cy="410.0" r="3.2" fill-opacity="0.2"/><circle cx="551.0" cy="461.3" r="3.2" fill-opacity="0.2"/><circle cx="524.9" cy="506.4" r="3.2" fill-opacity="0.2"/><circle cx="485.0" cy="539.9" r="3.2" fill-opacity="0.2"/><circle cx="436.0" cy="557.7" r="3.2" fill-opacity="0.2"/><circle cx="384.0" cy="557.7" r="3.2" fill-opacity="0.2"/><circle cx="335.0" cy="539.9" r="3.2" fill-opacity="0.2"/><circle cx="295.1" cy="506.4" r="3.2" fill-opacity="0.2"/><circle cx="269.0" cy="461.3" r="3.2" fill-opacity="0.2"/><circle cx="260.0" cy="410.0" r="3.2" fill-opacity="0.2"/><circle cx="269.0" cy="358.7" r="3.2" fill-opacity="0.2"/><circle cx="295.1" cy="313.6" r="3.2" fill-opacity="0.2"/><circle cx="335.0" cy="280.1" r="3.2" fill-opacity="0.2"/><circle cx="384.0" cy="262.3" r="3.2" fill-opacity="0.2"/><circle cx="436.0" cy="262.3" r="3.2" fill-opacity="0.2"/><circle cx="485.0" cy="280.1" r="3.2" fill-opacity="0.2"/><circle cx="524.9" cy="313.6" r="3.2" fill-opacity="0.2"/><circle cx="551.0" cy="358.7" r="3.2" fill-opacity="0.2"/><circle cx="610.5" cy="452.7" r="2.8" fill-opacity="0.15"/><circle cx="594.4" cy="499.5" r="2.8" fill-opacity="0.15"/><circle cx="567.7" cy="541.0" r="2.8" fill-opacity="0.15"/><circle cx="531.7" cy="574.9" r="2.8" fill-opacity="0.15"/><circle cx="488.7" cy="599.3" r="2.8" fill-opacity="0.15"/><circle cx="441.1" cy="612.6" r="2.8" fill-opacity="0.15"/><circle cx="391.7" cy="614.2" r="2.8" fill-opacity="0.15"/><circle cx="343.4" cy="603.9" r="2.8" fill-opacity="0.15"/><circle cx="298.9" cy="582.3" r="2.8" fill-opacity="0.15"/><circle cx="260.9" cy="550.7" r="2.8" fill-opacity="0.15"/><circle cx="231.6" cy="511.0" r="2.8" fill-opacity="0.15"/><circle cx="212.6" cy="465.3" r="2.8" fill-opacity="0.15"/><circle cx="205.1" cy="416.5" r="2.8" fill-opacity="0.15"/><circle cx="209.5" cy="367.3" r="2.8" fill-opacity="0.15"/><circle cx="225.6" cy="320.5" r="2.8" fill-opacity="0.15"/><circle cx="252.3" cy="279.0" r="2.8" fill-opacity="0.15"/><circle cx="288.3" cy="245.1" r="2.8" fill-opacity="0.15"/><circle cx="331.3" cy="220.7" r="2.8" fill-opacity="0.15"/><circle cx="378.9" cy="207.4" r="2.8" fill-opacity="0.15"/><circle cx="428.3" cy="205.8" r="2.8" fill-opacity="0.15"/><circle cx="476.6" cy="216.1" r="2.8" fill-opacity="0.15"/><circle cx="521.1" cy="237.7" r="2.8" fill-opacity="0.15"/><circle cx="559.1" cy="269.3" r="2.8" fill-opacity="0.15"/><circle cx="588.4" cy="309.0" r="2.8" fill-opacity="0.15"/><circle cx="607.4" cy="354.7" r="2.8" fill-opacity="0.15"/><circle cx="614.9" cy="403.5" r="2.8" fill-opacity="0.15"/><circle cx="649.2" cy="516.8" r="2.4" fill-opacity="0.11"/><circle cx="625.5" cy="559.0" r="2.4" fill-opacity="0.11"/><circle cx="594.5" cy="596.0" r="2.4" fill-opacity="0.11"/><circle cx="557.2" cy="626.8" r="2.4" fill-opacity="0.11"/><circle cx="514.8" cy="650.1" r="2.4" fill-opacity="0.11"/><circle cx="468.9" cy="665.3" r="2.4" fill-opacity="0.11"/><circle cx="421.0" cy="671.8" r="2.4" fill-opacity="0.11"/><circle cx="372.7" cy="669.3" r="2.4" fill-opacity="0.11"/><circle cx="325.7" cy="658.1" r="2.4" fill-opacity="0.11"/><circle cx="281.5" cy="638.4" r="2.4" fill-opacity="0.11"/><circle cx="241.8" cy="610.9" r="2.4" fill-opacity="0.11"/><circle cx="207.7" cy="576.5" r="2.4" fill-opacity="0.11"/><circle cx="180.6" cy="536.5" r="2.4" fill-opacity="0.11"/><circle cx="161.2" cy="492.2" r="2.4" fill-opacity="0.11"/><circle cx="150.4" cy="445.1" r="2.4" fill-opacity="0.11"/><circle cx="148.3" cy="396.8" r="2.4" fill-opacity="0.11"/><circle cx="155.2" cy="348.9" r="2.4" fill-opacity="0.11"/><circle cx="170.8" cy="303.2" r="2.4" fill-opacity="0.11"/><circle cx="194.5" cy="261.0" r="2.4" fill-opacity="0.11"/><circle cx="225.5" cy="224.0" r="2.4" fill-opacity="0.11"/><circle cx="262.8" cy="193.2" r="2.4" fill-opacity="0.11"/><circle cx="305.2" cy="169.9" r="2.4" fill-opacity="0.11"/><circle cx="351.1" cy="154.7" r="2.4" fill-opacity="0.11"/><circle cx="399.0" cy="148.2" r="2.4" fill-opacity="0.11"/><circle cx="447.3" cy="150.7" r="2.4" fill-opacity="0.11"/><circle cx="494.3" cy="161.9" r="2.4" fill-opacity="0.11"/><circle cx="538.5" cy="181.6" r="2.4" fill-opacity="0.11"/><circle cx="578.2" cy="209.1" r="2.4" fill-opacity="0.11"/><circle cx="612.3" cy="243.5" r="2.4" fill-opacity="0.11"/><circle cx="639.4" cy="283.5" r="2.4" fill-opacity="0.11"/><circle cx="658.8" cy="327.8" r="2.4" fill-opacity="0.11"/><circle cx="669.6" cy="374.9" r="2.4" fill-opacity="0.11"/><circle cx="671.7" cy="423.2" r="2.4" fill-opacity="0.11"/><circle cx="664.8" cy="471.1" r="2.4" fill-opacity="0.11"/><circle cx="670.2" cy="599.7" r="2" fill-opacity="0.08"/><circle cx="639.0" cy="636.4" r="2" fill-opacity="0.08"/><circle cx="602.7" cy="668.0" r="2" fill-opacity="0.08"/><circle cx="562.1" cy="693.8" r="2" fill-opacity="0.08"/><circle cx="518.1" cy="713.3" r="2" fill-opacity="0.08"/><circle cx="471.7" cy="726.0" r="2" fill-opacity="0.08"/><circle cx="423.9" cy="731.7" r="2" fill-opacity="0.08"/><circle cx="375.8" cy="730.2" r="2" fill-opacity="0.08"/><circle cx="328.5" cy="721.5" r="2" fill-opacity="0.08"/><circle cx="282.9" cy="705.9" r="2" fill-opacity="0.08"/><circle cx="240.3" cy="683.6" r="2" fill-opacity="0.08"/><circle cx="201.4" cy="655.3" r="2" fill-opacity="0.08"/><circle cx="167.2" cy="621.4" r="2" fill-opacity="0.08"/><circle cx="138.4" cy="582.9" r="2" fill-opacity="0.08"/><circle cx="115.6" cy="540.5" r="2" fill-opacity="0.08"/><circle cx="99.5" cy="495.1" r="2" fill-opacity="0.08"/><circle cx="90.2" cy="447.9" r="2" fill-opacity="0.08"/><circle cx="88.2" cy="399.8" r="2" fill-opacity="0.08"/><circle cx="93.3" cy="352.0" r="2" fill-opacity="0.08"/><circle cx="105.5" cy="305.4" r="2" fill-opacity="0.08"/><circle cx="124.4" cy="261.2" r="2" fill-opacity="0.08"/><circle cx="149.8" cy="220.3" r="2" fill-opacity="0.08"/><circle cx="181.0" cy="183.6" r="2" fill-opacity="0.08"/><circle cx="217.3" cy="152.0" r="2" fill-opacity="0.08"/><circle cx="257.9" cy="126.2" r="2" fill-opacity="0.08"/><circle cx="301.9" cy="106.7" r="2" fill-opacity="0.08"/><circle cx="348.3" cy="94.0" r="2" fill-opacity="0.08"/><circle cx="396.1" cy="88.3" r="2" fill-opacity="0.08"/><circle cx="444.2" cy="89.8" r="2" fill-opacity="0.08"/><circle cx="491.5" cy="98.5" r="2" fill-opacity="0.08"/><circle cx="537.1" cy="114.1" r="2" fill-opacity="0.08"/><circle cx="579.7" cy="136.4" r="2" fill-opacity="0.08"/><circle cx="618.6" cy="164.7" r="2" fill-opacity="0.08"/><circle cx="652.8" cy="198.6" r="2" fill-opacity="0.08"/><circle cx="681.6" cy="237.1" r="2" fill-opacity="0.08"/><circle cx="704.4" cy="279.5" r="2" fill-opacity="0.08"/><circle cx="720.5" cy="324.9" r="2" fill-opacity="0.08"/><circle cx="729.8" cy="372.1" r="2" fill-opacity="0.08"/><circle cx="731.8" cy="420.2" r="2" fill-opacity="0.08"/><circle cx="726.7" cy="468.0" r="2" fill-opacity="0.08"/><circle cx="714.5" cy="514.6" r="2" fill-opacity="0.08"/><circle cx="695.6" cy="558.8" r="2" fill-opacity="0.08"/><circle cx="667.0" cy="696.7" r="1.6" fill-opacity="0.06"/><circle cx="629.0" cy="726.6" r="1.6" fill-opacity="0.06"/><circle cx="587.6" cy="751.6" r="1.6" fill-opacity="0.06"/><circle cx="543.4" cy="771.2" r="1.6" fill-opacity="0.06"/><circle cx="497.1" cy="785.0" r="1.6" fill-opacity="0.06"/><circle cx="449.4" cy="793.0" r="1.6" fill-opacity="0.06"/><circle cx="401.1" cy="794.9" r="1.6" fill-opacity="0.06"/><circle cx="352.9" cy="790.7" r="1.6" fill-opacity="0.06"/><circle cx="305.6" cy="780.6" r="1.6" fill-opacity="0.06"/><circle cx="260.0" cy="764.6" r="1.6" fill-opacity="0.06"/><circle cx="216.8" cy="743.0" r="1.6" fill-opacity="0.06"/><circle cx="176.5" cy="716.1" r="1.6" fill-opacity="0.06"/><circle cx="140.0" cy="684.5" r="1.6" fill-opacity="0.06"/><circle cx="107.7" cy="648.5" r="1.6" fill-opacity="0.06"/><circle cx="80.2" cy="608.7" r="1.6" fill-opacity="0.06"/><circle cx="57.9" cy="565.8" r="1.6" fill-opacity="0.06"/><circle cx="41.2" cy="520.5" r="1.6" fill-opacity="0.06"/><circle cx="30.2" cy="473.4" r="1.6" fill-opacity="0.06"/><circle cx="25.3" cy="425.3" r="1.6" fill-opacity="0.06"/><circle cx="26.4" cy="376.9" r="1.6" fill-opacity="0.06"/><circle cx="33.6" cy="329.1" r="1.6" fill-opacity="0.06"/><circle cx="46.7" cy="282.6" r="1.6" fill-opacity="0.06"/><circle cx="65.5" cy="238.0" r="1.6" fill-opacity="0.06"/><circle cx="89.8" cy="196.2" r="1.6" fill-opacity="0.06"/><circle cx="119.1" cy="157.8" r="1.6" fill-opacity="0.06"/><circle cx="153.0" cy="123.3" r="1.6" fill-opacity="0.06"/><circle cx="191.0" cy="93.4" r="1.6" fill-opacity="0.06"/><circle cx="232.4" cy="68.4" r="1.6" fill-opacity="0.06"/><circle cx="276.6" cy="48.8" r="1.6" fill-opacity="0.06"/><circle cx="322.9" cy="35.0" r="1.6" fill-opacity="0.06"/><circle cx="370.6" cy="27.0" r="1.6" fill-opacity="0.06"/><circle cx="418.9" cy="25.1" r="1.6" fill-opacity="0.06"/><circle cx="467.1" cy="29.3" r="1.6" fill-opacity="0.06"/><circle cx="514.4" cy="39.4" r="1.6" fill-opacity="0.06"/><circle cx="560.0" cy="55.4" r="1.6" fill-opacity="0.06"/><circle cx="603.2" cy="77.0" r="1.6" fill-opacity="0.06"/><circle cx="643.5" cy="103.9" r="1.6" fill-opacity="0.06"/><circle cx="680.0" cy="135.5" r="1.6" fill-opacity="0.06"/><circle cx="712.3" cy="171.5" r="1.6" fill-opacity="0.06"/><circle cx="739.8" cy="211.3" r="1.6" fill-opacity="0.06"/><circle cx="762.1" cy="254.2" r="1.6" fill-opacity="0.06"/><circle cx="778.8" cy="299.5" r="1.6" fill-opacity="0.06"/><circle cx="789.8" cy="346.6" r="1.6" fill-opacity="0.06"/><circle cx="794.7" cy="394.7" r="1.6" fill-opacity="0.06"/><circle cx="793.6" cy="443.1" r="1.6" fill-opacity="0.06"/><circle cx="786.4" cy="490.9" r="1.6" fill-opacity="0.06"/><circle cx="773.3" cy="537.4" r="1.6" fill-opacity="0.06"/><circle cx="754.5" cy="582.0" r="1.6" fill-opacity="0.06"/><circle cx="730.2" cy="623.8" r="1.6" fill-opacity="0.06"/><circle cx="700.9" cy="662.2" r="1.6" fill-opacity="0.06"/></g></svg>
+ <div class="wrap hero-in">
+  <div>
+   <p class="eyebrow">XRechnung · Masumi escrow · Cardano</p>
+   <h1 id="hero-title">No acceptance, no&nbsp;payment. <span class="h1-de" lang="de">(Ohne Abnahme kein Geld.)</span></h1>
+   <p class="lede">E-invoices that get paid only after the buyer has accepted them.</p>
+   <p class="body">Abnahme checks every German e-invoice (XRechnung) with the official KoSIT validator and against your client's own rules before it goes out. The converter is paid only once the invoice passes. Until then its fee sits in an escrow on Cardano, and if there is a defect it stays there until the converter fixes it.</p>
+   <div class="hero-ctas">
+    <a class="btn btn-light" href="mailto:altunbeyomur36@gmail.com?subject=Demo%20request%3A%20Abnahme">Request a demo
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    <a class="btn btn-outline-light" href="https://preprod.sokosumi.com" rel="noopener">Hire it on Sokosumi
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+   </div>
+   <div class="hero-meta">
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>No crypto wallet needed</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Checking is free</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Defect list in plain German</span>
+   </div>
+  </div>
+
+  <figure class="hero-art">
+   <svg viewBox="0 0 540 470" role="img" aria-labelledby="hero-art-t hero-art-d">
+    <title id="hero-art-t">Delivery 1 refused, delivery 2 accepted</title>
+    <desc id="hero-art-d">Behind: an XRechnung with a red MANGEL (defect) stamp because the buyer's VAT ID (BT-48) is missing. In front: the cured XRechnung with a green ABGENOMMEN (accepted) stamp. Below: the Masumi escrow on Cardano preprod, which pays out after acceptance.</desc>
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif">
+     <!-- back card: delivery 1, defective -->
+     <g transform="rotate(-8 170 230)">
+      <rect x="40" y="70" width="250" height="300" rx="14" fill="#D3DDF5"/>
+      <text x="62" y="108" font-size="18" font-weight="800" fill="#0B1D51">XRechnung</text>
+      <text x="62" y="128" font-size="11.5" font-weight="600" fill="#5B6B93">Delivery 1</text>
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5">
+       <rect x="58" y="146" width="214" height="22" rx="4" fill="#E7EDFA"/><text x="66" y="161" font-weight="700" fill="#0B2A8A">BT-10</text><text x="120" y="161" fill="#33415F">BV-2026-014</text>
+       <rect x="58" y="173" width="214" height="22" rx="4" fill="#E7EDFA"/><text x="66" y="188" font-weight="700" fill="#0B2A8A">BT-31</text><text x="120" y="188" fill="#33415F">DE312456789</text>
+       <rect x="58" y="200" width="214" height="22" rx="4" fill="#FDECEC"/><text x="66" y="215" font-weight="700" fill="#C81E1E">BT-48</text><text x="120" y="215" font-weight="700" fill="#C81E1E">missing</text>
+       <rect x="58" y="227" width="214" height="22" rx="4" fill="#E7EDFA"/><text x="66" y="242" font-weight="700" fill="#0B2A8A">BT-151</text><text x="120" y="242" fill="#33415F">AE · § 13b</text>
+      </g>
+      <g transform="translate(150 316) rotate(-10)">
+       <rect x="-80" y="-30" width="160" height="60" rx="7" fill="#FFF5F5" fill-opacity=".85" stroke="#DC2626" stroke-width="3.5"/>
+       <text y="2" text-anchor="middle" font-size="23" font-weight="900" letter-spacing="3" fill="#C81E1E">MANGEL</text>
+       <text y="20" text-anchor="middle" font-size="10" font-weight="800" letter-spacing="1" fill="#C81E1E">BR-AE-02 · ABN-BT48</text>
+      </g>
+     </g>
+     <!-- front card: delivery 2, accepted -->
+     <rect x="238" y="58" width="270" height="330" rx="14" fill="#020A26" fill-opacity=".45"/>
+     <rect x="230" y="48" width="270" height="330" rx="14" fill="#FFFFFF"/>
+     <text x="252" y="88" font-size="19" font-weight="800" fill="#0B1D51">XRechnung</text>
+     <text x="252" y="108" font-size="11.5" font-weight="600" fill="#5B6B93">UBL · EN 16931 · 3.0.2</text>
+     <rect x="392" y="72" width="88" height="22" rx="11" fill="#E8F8F0"/>
+     <text x="436" y="87" text-anchor="middle" font-size="11" font-weight="800" fill="#0F7A42">Delivery 2</text>
+     <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5">
+      <rect x="248" y="126" width="234" height="22" rx="4" fill="#F2F5FC"/><text x="256" y="141" font-weight="700" fill="#0B2A8A">BT-10</text><text x="314" y="141" fill="#33415F">BV-2026-014</text>
+      <rect x="248" y="153" width="234" height="22" rx="4" fill="#F2F5FC"/><text x="256" y="168" font-weight="700" fill="#0B2A8A">BT-31</text><text x="314" y="168" fill="#33415F">DE312456789</text>
+      <rect x="248" y="180" width="234" height="22" rx="4" fill="#E8F8F0"/><text x="256" y="195" font-weight="700" fill="#0B2A8A">BT-48</text><text x="314" y="195" fill="#0F7A42" font-weight="700">DE287654321</text>
+      <rect x="248" y="207" width="234" height="22" rx="4" fill="#F2F5FC"/><text x="256" y="222" font-weight="700" fill="#0B2A8A">BT-151</text><text x="314" y="222" fill="#33415F">AE · § 13b</text>
+     </g>
+     <rect x="252" y="248" width="150" height="6" rx="3" fill="#DCE3F3"/>
+     <rect x="252" y="261" width="110" height="6" rx="3" fill="#DCE3F3"/>
+     <rect x="252" y="274" width="170" height="6" rx="3" fill="#DCE3F3"/>
+     <rect x="248" y="294" width="234" height="1.5" fill="#C9D3EA"/>
+     <text x="252" y="318" font-size="11" font-weight="600" fill="#5B6B93">Progress invoice</text>
+     <text x="252" y="340" font-size="18" font-weight="800" fill="#0B1D51">18.400,00 €</text>
+     <g transform="translate(450 326) rotate(-14)">
+      <circle r="70" fill="#F4FBF7" fill-opacity=".97"/>
+      <circle r="68" fill="none" stroke="#18A85C" stroke-width="5"/>
+      <circle r="59" fill="none" stroke="#18A85C" stroke-width="1.6"/>
+      <path d="M -14 -33 L -4 -23 L 16 -44" fill="none" stroke="#18A85C" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="-82" y="-14" width="164" height="29" rx="3" fill="#0F7A42"/>
+      <text y="7" text-anchor="middle" font-size="17" font-weight="800" letter-spacing="1.6" fill="#FFFFFF">ABGENOMMEN</text>
+      <text y="38" text-anchor="middle" font-size="10" font-weight="800" letter-spacing="1.1" fill="#0F7A42">KoSIT · § 640 BGB</text>
+     </g>
+     <!-- escrow pill -->
+     <g transform="translate(20 404)">
+      <rect width="320" height="56" rx="14" fill="#0B1D51" stroke="#3D5FB8" stroke-width="1.5"/>
+      <g transform="translate(18 14)" fill="none" stroke="#8FB3FF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+       <rect x="2" y="11" width="22" height="16" rx="4"/><path d="M7 11V7a6 6 0 0 1 12 0v4"/>
+      </g>
+      <text x="58" y="24" font-size="13" font-weight="700" fill="#FFFFFF">Masumi escrow · Cardano preprod</text>
+      <text x="58" y="42" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="700" fill="#3DDC97">WithdrawAuthorized → Withdrawn</text>
+     </g>
+    </g>
+   </svg>
+   <figcaption>Illustration with demo data (fictional companies)</figcaption>
+  </figure>
+ </div>
+</section>
+
+<!-- ================= FACTS ================= -->
+<section class="facts" aria-label="Key facts">
+ <div class="wrap facts-grid">
+  <div class="fact"><b class="tnum">1 Jan 2027</b><span>German B2B e-invoicing mandate for businesses above EUR&nbsp;800k prior-year turnover</span></div>
+  <div class="fact"><b class="tnum">21 days</b><span>until a progress payment falls due under VOB/B, counted from receipt of the invoice</span></div>
+  <div class="fact"><b class="tnum">8 min 9 s</b><span>refusal, cure, acceptance and payout, measured on Cardano preprod</span></div>
+  <div class="fact"><b class="tnum">261 tests</b><span>run in CI on every push, against a real KoSIT validator</span></div>
+ </div>
+</section>
+
+<!-- ================= TRIGGER ================= -->
+<section class="section" id="mandate" aria-labelledby="mandate-title">
+ <div class="wrap">
+  <div class="section-head">
+   <p class="eyebrow">Why now</p>
+   <h2 id="mandate-title">From 2027, German invoices must be machine-readable.</h2>
+   <p class="sub">Germany's B2B e-invoicing mandate (E-Rechnungspflicht) phases in over four years. For many trades businesses, their first progress invoice of 2027 will also be their first XRechnung.</p>
+  </div>
+  <ol class="mandate" aria-label="Phases of the e-invoicing mandate">
+   <li class="m-step">
+    <p class="date">Since 1 January 2025</p>
+    <h3>Receive</h3>
+    <p>Every German business must be able to receive e-invoices. Until the end of 2026 anyone may still send paper, or PDF with the recipient's consent.</p>
+   </li>
+   <li class="m-step now">
+    <p class="date">From 1 January 2027</p>
+    <h3>Send, above EUR 800k</h3>
+    <p>A business with more than EUR 800,000 turnover in the previous year can no longer send paper or PDF invoices to business customers.</p>
+    <a class="source" href="https://www.gesetze-im-internet.de/ustg_1980/__27.html" rel="noopener">§ 27 (38) UStG</a>
+   </li>
+   <li class="m-step">
+    <p class="date">From 1 January 2028</p>
+    <h3>Send, everyone</h3>
+    <p>The transition ends. Every business must send e-invoices to business customers, except small businesses under § 19 UStG.</p>
+   </li>
+  </ol>
+  <p class="delay-note">The national trades association ZDH has asked for a one-year delay for businesses above EUR 800k. No delay had been enacted as of 22 Oct 2026.</p>
+  <div class="grid-4 market" role="group" aria-label="Market">
+   <div class="card stat-card">
+    <b class="tnum">564,045</b>
+    <p>trades enterprises (Handwerk) in Germany</p>
+    <a class="note" href="https://www.destatis.de/DE/Presse/Pressemitteilungen/2026/04/PD26_143_53211.html" rel="noopener">Destatis, Handwerkszählung 2024</a>
+   </div>
+   <div class="card stat-card">
+    <b class="tnum">~121,000</b>
+    <p>of them above EUR 800k turnover, so mandated from 2027</p>
+    <span class="note">Our estimate; no official count exists at that threshold</span>
+   </div>
+   <div class="card stat-card">
+    <b class="tnum">36–79M</b>
+    <p>B2B invoices a year from those firms, our bottom-up market</p>
+    <span class="note">Estimate: 300–650 B2B invoices per firm, from the ZDH average</span>
+   </div>
+   <div class="card stat-card">
+    <b class="tnum">~1.18 bn</b>
+    <p>B2B e-invoices a year across the whole German economy</p>
+    <a class="note" href="https://dserver.bundestag.de/btd/20/086/2008628.pdf" rel="noopener">Government estimate, Drucksache 20/8628</a>
+   </div>
+  </div>
+  </div>
+</section>
+
+<!-- ================= PROBLEM ================= -->
+<section class="section alt" id="problem" aria-labelledby="problem-title">
+ <div class="wrap">
+  <div class="section-head">
+   <p class="eyebrow">The problem</p>
+   <h2 id="problem-title">A bounced invoice costs a subcontractor three weeks.</h2>
+   <p class="sub">A valid XRechnung is not enough. What counts is whether the general contractor's accounts payable can actually book it.</p>
+  </div>
+  <div class="problem-layout">
+   <div class="pains">
+    <div class="pain">
+     <span class="icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9.5 12.5 5 5M14.5 12.5l-5 5"/></svg></span>
+     <div>
+      <h3>The recipient has its own rules</h3>
+      <p>The general contractor wants its project number in BT-10, its VAT ID in BT-48 and the IBAN from its supplier master data. If anything is missing, the invoice comes back.</p>
+     </div>
+    </div>
+    <div class="pain">
+     <span class="icon amber icon-glyph" aria-hidden="true">§</span>
+     <div>
+      <h3>Reverse charge (§ 13b UStG): no VAT, but mandatory fields</h3>
+      <p>For construction work supplied to a construction business, the recipient owes the VAT. The invoice needs the note <span lang="de">„Steuerschuldnerschaft des Leistungsempfängers“</span> and, under rule BR-AE-02, the buyer's VAT ID.</p>
+     </div>
+    </div>
+    <div class="pain">
+     <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+     <div>
+      <h3>Payment terms (VOB/B): 21 days from receipt</h3>
+      <p>A progress payment falls due 21 days after the statement arrives. An invoice that accounts payable cannot book has, in practice, not arrived. On an EUR 18,400 progress invoice, three more weeks cost about EUR 106 in financing (est., at 10% a year).</p>
+     </div>
+    </div>
+    <div class="pain">
+     <span class="icon violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 9.5a3 3 0 1 1 3.6 2.9c-.4.1-.6.4-.6.8V14M12 17.5v.01"/></svg></span>
+     <div>
+      <h3>Converters grade their own work</h3>
+      <p>Some providers promise "no charge if invalid". Whether the invoice was invalid is then decided by the provider itself. Among 33 e-invoicing products we checked, none tests against the recipient's own rules, and none is paid only after the buyer accepts.</p>
+     </div>
+    </div>
+    <p class="note">Sources: <a href="https://www.gesetze-im-internet.de/ustg_1980/__13b.html" rel="noopener">§ 13b UStG</a>, <a href="https://www.gesetze-im-internet.de/ustg_1980/__14a.html" rel="noopener">§ 14a (5) UStG</a>, <a href="https://dejure.org/gesetze/VOB-B/16.html" rel="noopener">§ 16 (1) no. 3 VOB/B</a>. Our reading, not legal advice.</p>
+   </div>
+
+   <div>
+    <article class="protocol" aria-label="Example acceptance record">
+     <div class="protocol-head">
+      <b>Acceptance test: refused <span lang="de">(ABGELEHNT)</span></b>
+      <span class="stamp red" lang="de">Mangel</span>
+     </div>
+     <div class="protocol-body">
+      <dl>
+       <dt>Invoice</dt><dd>AR-2026-0087, 28 Oct 2026</dd>
+       <dt>From → to</dt><dd>Toni Huber Elektrotechnik GmbH → Bau Isar Generalunternehmer GmbH</dd>
+       <dt>Amount</dt><dd class="tnum">18.400,00 € (expected: 18.400,00 €)</dd>
+       <dt>Validator</dt><dd>KoSIT 1.6.3 · configuration 2026-08-31 · HTTP 406</dd>
+       <dt>Profile</dt><dd><span class="mono">abnahme-xrechnung-v1 + bau-isar</span>, hash <span class="mono">64a8294c…</span></dd>
+      </dl>
+      <ul class="defects" aria-label="Defects">
+       <li lang="de"><code>BR-AE-02</code> Bei Steuerschuldnerschaft des Leistungsempfängers (Kategorie „AE“) müssen beim Käufer die USt-IdNr. (BT-48) oder die Registernummer (BT-47) angegeben sein.<span class="gloss" lang="en">Reverse charge requires the buyer's VAT ID or registration number.</span></li>
+       <li lang="de"><code>ABN-BT48</code> Die USt-IdNr. des Käufers (BT-48) fehlt; bei § 13b muss DE287654321 angegeben sein.<span class="gloss" lang="en">The buyer's VAT ID is missing; this client's profile requires DE287654321.</span></li>
+      </ul>
+     </div>
+     <p class="protocol-foot">Real output of the acceptance test for demo invoice c, shortened. Defect texts are in German for the office. Companies are fictional.</p>
+    </article>
+
+    <div class="card persona">
+     <span class="avatar" aria-hidden="true">TH</span>
+     <div>
+      <p><span class="label-demo">Composite persona</span></p>
+      <h3 class="mt">Toni Huber Elektrotechnik GmbH, Munich</h3>
+      <p>An electrical subcontractor that sends monthly progress invoices (Abschlagsrechnungen) to general contractors. Assumed: 8 people and about EUR 1.1M turnover, so above the 2027 threshold. Frau Berger runs the office part-time and writes the invoices in a word processor. She has no crypto wallet, and she will never need one.</p>
+      <p class="note mt">Not a real company. The figures are assumptions for the demo.</p>
+     </div>
+    </div>
+   </div>
+  </div>
+ </div>
+</section>
+
+<!-- ================= HOW IT WORKS ================= -->
+<section class="section" id="how" aria-labelledby="how-title">
+ <div class="wrap">
+  <div class="section-head">
+   <p class="eyebrow">How it works</p>
+   <h2 id="how-title">Three steps for the office. Agents do the rest.</h2>
+   <p class="sub">Frau Berger pastes an invoice. Behind it, a buyer agent hires the converter, holds its fee in an escrow on Cardano and releases it only after the invoice passes.</p>
+  </div>
+
+  <ol class="steps" aria-label="Three steps">
+   <li class="step">
+    <span class="num" aria-hidden="true">1</span>
+    <h3>Paste the invoice</h3>
+    <p>Frau Berger opens a check task (PRÜFEN) in the Sokosumi coworker "Abnahme-Büro": recipient, amount, invoice text. No wallet, no crypto, and checking is free.</p>
+   </li>
+   <li class="step">
+    <span class="num" aria-hidden="true">2</span>
+    <h3>Inspect and cure</h3>
+    <p>The buyer agent locks the converter's fee in the Masumi escrow. An inspector agent checks every delivery with KoSIT, and the buyer agent adds eleven checks against the recipient's profile. On a defect, the refusal goes on chain and the converter fixes it.</p>
+    <span class="stamp red" lang="de">Mangel</span>
+   </li>
+   <li class="step">
+    <span class="num" aria-hidden="true">3</span>
+    <h3>Accept, then pay</h3>
+    <p>When the invoice passes, the buyer agent releases the money. Frau Berger gets the accepted XRechnung with its acceptance record and sends it to the client's accounts payable with a send task (SENDEN).</p>
+    <span class="stamp green" lang="de">Abgenommen</span>
+   </li>
+  </ol>
+
+  <figure class="flow">
+   <svg class="flow-desktop" viewBox="0 0 1120 400" role="img" aria-labelledby="flow-t flow-d">
+    <title id="flow-t">Agent flow of one job</title>
+    <desc id="flow-d">Frau Berger passes the invoice through Sokosumi to the Büro-Agent. The Büro-Agent locks RechnungsMeister's fee in the Masumi escrow on Cardano. RechnungsMeister delivers the XRechnung, and the Gutachter checks it with the KoSIT validator, paid over x402. The Büro-Agent refuses a defect or accepts; after acceptance the escrow pays RechnungsMeister and Frau Berger receives the invoice and the acceptance record.</desc>
+    <defs>
+     <marker id="ah-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="dg-arrow blue"/></marker>
+     <marker id="ah-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="dg-arrow green"/></marker>
+     <marker id="ah-v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="dg-arrow violet"/></marker>
+     <marker id="ah-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="dg-arrow amber"/></marker>
+     <marker id="ah-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="dg-arrow"/></marker>
+    </defs>
+    <g text-anchor="middle">
+     <text class="dg-tag" x="88" y="72">HUMAN</text>
+     <text class="dg-tag" x="324" y="72">PLATFORM</text>
+     <text class="dg-tag" x="570" y="72">BUYER AGENT</text>
+     <text class="dg-tag" x="800" y="64">CARDANO</text>
+     <text class="dg-tag" x="1026" y="72">SELLER AGENT</text>
+     <text class="dg-tag" x="570" y="294">INSPECTOR</text>
+     <text class="dg-tag" x="858" y="294">VALIDATOR</text>
+    </g>
+    <path class="dg-line violet" d="M1100 82 C1100 20 500 20 500 76" marker-end="url(#ah-v)"/>
+    <path class="dg-line blue" d="M176 112 H230" marker-end="url(#ah-b)"/>
+    <path class="dg-line green" d="M236 138 H182" marker-end="url(#ah-g)"/>
+    <path class="dg-line blue" d="M412 112 H466" marker-end="url(#ah-b)"/>
+    <path class="dg-line green" d="M472 138 H418" marker-end="url(#ah-g)"/>
+    <path class="dg-line blue" d="M668 110 H746" marker-end="url(#ah-b)"/>
+    <path class="dg-line amber" d="M668 138 H746" marker-end="url(#ah-a)"/>
+    <path class="dg-line green" d="M850 124 H926" marker-end="url(#ah-g)"/>
+    <path class="dg-line blue" d="M488 166 V298" marker-end="url(#ah-b)"/>
+    <path class="dg-line green" d="M512 304 V172" marker-end="url(#ah-g)"/>
+    <path class="dg-line" d="M674 346 H754" marker-start="url(#ah-n)" marker-end="url(#ah-n)"/>
+    <g text-anchor="middle">
+     <rect class="dg-node ext" x="0" y="82" width="176" height="84" rx="14"/>
+     <text class="dg-title" x="88" y="120">Frau Berger</text>
+     <text class="dg-sub" x="88" y="142">Office · no wallet</text>
+
+     <rect class="dg-node" x="236" y="82" width="176" height="84" rx="14"/>
+     <text class="dg-title" x="324" y="120">Sokosumi</text>
+     <text class="dg-sub" x="324" y="142">Coworker Abnahme-Büro</text>
+
+     <rect class="dg-node me" x="472" y="82" width="196" height="84" rx="14"/>
+     <text class="dg-title" x="570" y="120">Büro-Agent</text>
+     <text class="dg-sub" x="570" y="142">checks · refuses · accepts</text>
+
+     <circle class="dg-node chain" cx="800" cy="124" r="50"/>
+     <g class="dg-icon green" stroke-width="2.4"><rect x="785" y="117" width="30" height="23" rx="5"/><path d="M790 117v-6a10 10 0 0 1 20 0v6"/><path d="M800 125v6"/></g>
+     <text class="dg-title" x="800" y="198" style="font-size:15px">Masumi escrow</text>
+     <text class="dg-sub" x="800" y="216">V2 · Cardano preprod</text>
+
+     <rect class="dg-node" x="932" y="82" width="188" height="84" rx="14"/>
+     <text class="dg-title" x="1026" y="120">RechnungsMeister</text>
+     <text class="dg-sub" x="1026" y="142">Converter · MIP-003</text>
+
+     <rect class="dg-node" x="472" y="304" width="196" height="84" rx="14"/>
+     <text class="dg-title" x="570" y="342">Gutachter</text>
+     <text class="dg-sub" x="570" y="364">x402 · 1 tADA per check</text>
+
+     <rect class="dg-node ext" x="760" y="304" width="196" height="84" rx="14"/>
+     <text class="dg-title" x="858" y="342">KoSIT validator</text>
+     <text class="dg-sub" x="858" y="364">1.6.3 · XRechnung 3.0.2</text>
+    </g>
+    <text class="dg-label violet" x="800" y="16" text-anchor="middle">delivers XRechnung, hash on Cardano</text>
+    <text class="dg-label blue" x="526" y="226">pays per check (x402)</text>
+    <text class="dg-label green" x="526" y="248">inspection report</text>
+    <text class="dg-label" x="714" y="336" text-anchor="middle">XML</text>
+    <g text-anchor="middle">
+     <circle class="dg-num" cx="206" cy="112" r="10"/><text class="dg-num-t" x="206" y="116">1</text>
+     <circle class="dg-num" cx="442" cy="112" r="10"/><text class="dg-num-t" x="442" y="116">2</text>
+     <circle class="dg-num" cx="707" cy="110" r="10"/><text class="dg-num-t" x="707" y="114">3</text>
+     <circle class="dg-num" cx="800" cy="35" r="10"/><text class="dg-num-t" x="800" y="39">4</text>
+     <circle class="dg-num" cx="488" cy="232" r="10"/><text class="dg-num-t" x="488" y="236">5</text>
+     <circle class="dg-num" cx="707" cy="138" r="10"/><text class="dg-num-t" x="707" y="142">6</text>
+     <circle class="dg-num" cx="888" cy="124" r="10"/><text class="dg-num-t" x="888" y="128">7</text>
+     <circle class="dg-num" cx="206" cy="138" r="10"/><text class="dg-num-t" x="206" y="142">7</text>
+     <circle class="dg-num" cx="442" cy="138" r="10"/><text class="dg-num-t" x="442" y="142">7</text>
+    </g>
+   </svg>
+
+   <svg class="flow-mobile" viewBox="0 0 360 524" role="img" aria-labelledby="flowm-t">
+    <title id="flowm-t">Agent flow of one job (compact)</title>
+    <defs>
+     <marker id="m-ah-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="dg-arrow blue"/></marker>
+     <marker id="m-ah-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="dg-arrow green"/></marker>
+     <marker id="m-ah-v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="dg-arrow violet"/></marker>
+     <marker id="m-ah-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="dg-arrow"/></marker>
+    </defs>
+    <path class="dg-line blue" d="M180 66 V96" marker-end="url(#m-ah-b)"/>
+    <path class="dg-line blue" d="M180 160 V190" marker-end="url(#m-ah-b)"/>
+    <path class="dg-line green" d="M270 225 H350 V37 H276" marker-end="url(#m-ah-g)"/>
+    <path class="dg-line blue" d="M110 254 V302" marker-end="url(#m-ah-b)"/>
+    <path class="dg-line blue" d="M246 254 V300" marker-end="url(#m-ah-b)"/>
+    <path class="dg-line green" d="M272 306 V260" marker-end="url(#m-ah-g)"/>
+    <path class="dg-line violet" d="M22 458 V225 H84" marker-end="url(#m-ah-v)"/>
+    <path class="dg-line green" d="M90 426 V452" marker-end="url(#m-ah-g)"/>
+    <path class="dg-line" d="M273 370 V452" marker-start="url(#m-ah-n)" marker-end="url(#m-ah-n)"/>
+    <g text-anchor="middle">
+     <rect class="dg-node ext" x="90" y="8" width="180" height="58" rx="12"/>
+     <text class="dg-title" x="180" y="33">Frau Berger</text>
+     <text class="dg-sub" x="180" y="53">Office · no wallet</text>
+     <rect class="dg-node" x="90" y="102" width="180" height="58" rx="12"/>
+     <text class="dg-title" x="180" y="127">Sokosumi</text>
+     <text class="dg-sub" x="180" y="147">Coworker Abnahme-Büro</text>
+     <rect class="dg-node me" x="90" y="196" width="180" height="58" rx="12"/>
+     <text class="dg-title" x="180" y="221">Büro-Agent</text>
+     <text class="dg-sub" x="180" y="241">refuses or accepts</text>
+     <circle class="dg-node chain" cx="90" cy="348" r="40"/>
+     <g class="dg-icon green" stroke-width="2.2"><rect x="78" y="342" width="24" height="19" rx="4"/><path d="M82 342v-5a8 8 0 0 1 16 0v5"/></g>
+     <text class="dg-title" x="90" y="406" style="font-size:14px">Masumi escrow</text>
+     <text class="dg-sub" x="90" y="421" style="font-size:11.5px">Cardano preprod</text>
+     <rect class="dg-node" x="196" y="306" width="154" height="64" rx="12"/>
+     <text class="dg-title" x="273" y="332">Gutachter</text>
+     <text class="dg-sub" x="273" y="352">x402 · 1 tADA</text>
+     <rect class="dg-node" x="10" y="458" width="160" height="58" rx="12"/>
+     <text class="dg-title" x="90" y="483" style="font-size:14.5px">RechnungsMeister</text>
+     <text class="dg-sub" x="90" y="503">Converter</text>
+     <rect class="dg-node ext" x="196" y="458" width="154" height="58" rx="12"/>
+     <text class="dg-title" x="273" y="483">KoSIT</text>
+     <text class="dg-sub" x="273" y="503">Validator 1.6.3</text>
+     <circle class="dg-num" cx="180" cy="81" r="10"/><text class="dg-num-t" x="180" y="85">1</text>
+     <circle class="dg-num" cx="180" cy="175" r="10"/><text class="dg-num-t" x="180" y="179">2</text>
+     <circle class="dg-num" cx="110" cy="270" r="10"/><text class="dg-num-t" x="110" y="274">3</text>
+     <circle class="dg-num" cx="134" cy="270" r="10"/><text class="dg-num-t" x="134" y="274">6</text>
+     <circle class="dg-num" cx="22" cy="330" r="10"/><text class="dg-num-t" x="22" y="334">4</text>
+     <circle class="dg-num" cx="246" cy="278" r="10"/><text class="dg-num-t" x="246" y="282">5</text>
+     <circle class="dg-num" cx="90" cy="440" r="10"/><text class="dg-num-t" x="90" y="444">7</text>
+     <circle class="dg-num" cx="350" cy="130" r="10"/><text class="dg-num-t" x="350" y="134">7</text>
+    </g>
+    <text class="dg-label" x="283" y="416">XML</text>
+   </svg>
+
+   <figcaption>
+    <ol class="flow-legend">
+     <li><b>1</b><span>Frau Berger opens a check task with the invoice text, the recipient and the agreed amount.</span></li>
+     <li><b>2</b><span>Sokosumi hands the task to the Büro-Agent, her buyer agent.</span></li>
+     <li><b>3</b><span>The Büro-Agent locks the fee in the Masumi escrow. The acceptance profile is pinned there as a hash.</span></li>
+     <li><b>4</b><span>RechnungsMeister, the converter agent, reads the fields out of the invoice text with Claude, Anthropic's LLM, and delivers the XRechnung. Its hash is recorded on Cardano.</span></li>
+     <li><b>5</b><span>The Gutachter (inspector) checks each delivery with KoSIT and is paid per call over x402.</span></li>
+     <li><b>6</b><span>Defect: refusal on chain, and RechnungsMeister cures it. Passed: acceptance.</span></li>
+     <li><b>7</b><span>The escrow pays RechnungsMeister. Frau Berger receives the XRechnung and the acceptance record.</span></li>
+    </ol>
+   </figcaption>
+  </figure>
+ </div>
+</section>
+
+<!-- ================= LAW ================= -->
+<section class="section alt" id="law" aria-labelledby="law-title">
+ <div class="wrap">
+  <div class="section-head">
+   <p class="eyebrow">Legal mapping</p>
+   <h2 id="law-title">Acceptance, the way German law already defines it.</h2>
+   <p class="sub">German contract-for-work law (Werkvertrag, §§ 631 ff. BGB) has long said that payment follows acceptance. Every tradesperson knows it. Masumi's V2 escrow happens to have the same states, so Abnahme maps each transition to its paragraph.</p>
+  </div>
+
+  <ol class="law">
+   <li class="t-grey">
+    <span class="dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span>
+    <div class="box">
+     <p class="para">§§ 631 ff. BGB</p>
+     <h3>Work delivered</h3>
+     <blockquote>The converter delivers the XRechnung. From now on its hash sits in the escrow.</blockquote>
+     <div class="chain"><code>SubmitResult → ResultSubmitted</code><span class="who">signed by the seller</span></div>
+    </div>
+   </li>
+   <li class="t-red">
+    <span class="dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19L12 3z"/><path d="M12 10v4.5M12 17.5v.01"/></svg></span>
+    <div class="box">
+     <p class="para">§ 640 (2) BGB</p>
+     <h3>Refusal citing a defect <span lang="de">(Mängelrüge)</span></h3>
+     <blockquote>Acceptance is refused <span lang="de">„unter Angabe mindestens eines Mangels“</span>, citing at least one defect.</blockquote>
+     <div class="chain"><code>SetRefundRequested → Disputed</code><span class="who">signed by the buyer · the seller can no longer withdraw</span></div>
+    </div>
+   </li>
+   <li class="t-amber">
+    <span class="dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg></span>
+    <div class="box">
+     <p class="para">§ 635 (1) BGB</p>
+     <h3>Right to cure <span lang="de">(Nacherfüllung)</span></h3>
+     <blockquote>The contractor may, at its choice, remove the defect or produce a new work.</blockquote>
+     <div class="chain"><code>SubmitResult with a new hash, stays Disputed</code><span class="who">signed by the seller</span></div>
+    </div>
+   </li>
+   <li class="t-green">
+    <span class="dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>
+    <div class="box">
+     <p class="para">§ 640 (1) BGB</p>
+     <h3>Acceptance <span lang="de">(Abnahme)</span></h3>
+     <blockquote>The client must accept work that has been produced in conformity with the contract.</blockquote>
+     <div class="chain"><code>AuthorizeWithdrawal → WithdrawAuthorized</code><span class="who">signed by the buyer · irrevocable</span></div>
+    </div>
+   </li>
+   <li class="t-blue">
+    <span class="dot" aria-hidden="true">€</span>
+    <div class="box">
+     <p class="para">§ 641 (1) BGB</p>
+     <h3>Payment falls due</h3>
+     <blockquote lang="de">„Die Vergütung ist bei der Abnahme des Werkes zu entrichten.“<span class="gloss" lang="en">Payment is due on acceptance of the work.</span></blockquote>
+     <div class="chain"><code>Withdraw → Withdrawn</code><span class="who">payout to the seller</span></div>
+    </div>
+   </li>
+  </ol>
+
+  <div class="grid-3 law-notes">
+   <div class="card">
+    <h3>Silence counts as acceptance</h3>
+    <p>If the buyer does not refuse before the deadline, the escrow pays out on its own (deemed acceptance, § 640 (2) BGB). So that never happens unchecked, the buyer agent files a protective refusal if no inspection has passed 15 minutes before the deadline.</p>
+   </div>
+   <div class="card">
+    <h3>Minor defects don't count</h3>
+    <p>Acceptance may not be refused for minor defects (§ 640 (1) sentence 2 BGB). The acceptance profile therefore treats KoSIT warnings as minor, except for four rules it explicitly escalates.</p>
+   </div>
+   <div class="card">
+    <h3>Disputes have an arbiter</h3>
+    <p>If the agents cannot agree, Masumi's admins decide after the dispute window (<code>WithdrawDisputed</code>). Not us.</p>
+   </div>
+  </div>
+  <p class="disclaimer">Sources: <a href="https://www.gesetze-im-internet.de/bgb/__640.html" rel="noopener">§ 640 BGB</a>, <a href="https://www.gesetze-im-internet.de/bgb/__635.html" rel="noopener">§ 635 BGB</a>, <a href="https://www.gesetze-im-internet.de/bgb/__641.html" rel="noopener">§ 641 BGB</a>. English wording is our translation. On-chain acceptance is acceptance of the conversion service between agents, not the legal acceptance of the construction work itself. The mapping is our reading, not legal advice.</p>
+ </div>
+</section>
+
+<!-- ================= WHY CARDANO ================= -->
+<section class="section" id="cardano" aria-labelledby="cardano-title">
+ <div class="wrap">
+  <div class="section-head">
+   <p class="eyebrow">Why Cardano</p>
+   <h2 id="cardano-title">The rule lives in the contract, not on our server.</h2>
+   <p class="sub">Refusing an invoice only works if the refusal has teeth. Here the teeth are an on-chain contract that neither the converter nor we can get around.</p>
+  </div>
+  <div class="why">
+   <div class="card">
+    <span class="icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+    <div>
+     <h3>A refusal has teeth</h3>
+     <p>After a refusal the seller cannot withdraw. Before the dispute window ends, only the buyer's release pays the seller. Masumi's V2 validator <code>vested_pay</code> enforces this on Cardano. We wrote no smart contract of our own.</p>
+    </div>
+   </div>
+   <div class="card">
+    <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/></svg></span>
+    <div>
+     <h3>The test is pinned before money moves</h3>
+     <p>The acceptance profile's hash sits in the escrow's <code>input_hash</code>, and the validator keeps it fixed through every state change. After the lock, nobody can swap the test the invoice is graded by.</p>
+    </div>
+   </div>
+   <div class="card">
+    <span class="icon violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2.5"/><path d="M14 10h4M14 14h4"/></svg></span>
+    <div>
+     <h3>Masumi: identity and a job API for agents</h3>
+     <p>Every agent has an NFT entry in the Masumi registry and a standard job API (MIP-003). Through Sokosumi, a person hires it with credits. No wallet needed.</p>
+    </div>
+   </div>
+   <div class="card">
+    <span class="icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>
+    <div>
+     <h3>x402: pay per inspection</h3>
+     <p>The inspector charges 1 tADA per inspection as an HTTP payment over x402. No account, no subscription. If an inspection cannot run, nothing is charged.</p>
+    </div>
+   </div>
+  </div>
+  <p class="honest"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg><span><b>Today:</b> in the demo, the team runs every agent on one machine. Both registry entries point to <code>127.0.0.1</code>, and buyer and seller are separate wallets on the same payment service.</span></p>
+ </div>
+</section>
+
+<!-- ================= PROOF ================= -->
+<section class="section alt" id="proof" aria-labelledby="proof-title">
+ <div class="wrap">
+  <div class="section-head">
+   <p class="eyebrow">Live proof</p>
+   <h2 id="proof-title">Not promised. Verifiable.</h2>
+   <p class="sub">Every row is a confirmed transaction on Cardano preprod (testnet). One click opens it in the explorer. In total the repo references 97 confirmed preprod transactions (registrations, escrow actions, inspection payments, top-ups) and 16 recorded escrow runs.</p>
+   <p class="note mt">This is hackathon traction: there are no customers, pilots or letters of intent yet.</p>
+  </div>
+
+  <div class="proof-layout">
+   <article class="ledger" aria-labelledby="ledger-title">
+    <div class="ledger-head">
+     <h3 id="ledger-title">Run of 30 Oct 2026: refusal, cure, acceptance</h3>
+     <p>Block times in UTC · 8 min 9 s from payment request to payout</p>
+    </div>
+    <ol>
+     <li><span class="time">09:08:47</span><span class="chip-cell"><span class="chip lock">FundsLocked</span></span><span class="what"><b>Funds locked</b><span>Buyer agent buys from RechnungsMeister; profile hash in input_hash</span></span><span class="tx-cell"><a class="tx" href="https://preprod.cardanoscan.io/transaction/a57c43ee103097f67b6650b2db896682ef254fef0c3dcf0f8e03d82cce9d1cab" rel="noopener">a57c43ee… <span class="sr-only">open on Cardanoscan</span>↗</a></span></li>
+     <li><span class="time">09:09:22</span><span class="chip-cell"><span class="chip">ResultSubmitted</span></span><span class="what"><b>Delivery 1</b><span>BT-48 missing (seeded demo defect)</span></span><span class="tx-cell"><a class="tx" href="https://preprod.cardanoscan.io/transaction/20ca2cf5c3a9acc46b89e076a606e6bd4ff094254aa996eafbf9edcb307ead26" rel="noopener">20ca2cf5… <span class="sr-only">open on Cardanoscan</span>↗</a></span></li>
+     <li><span class="time">x402</span><span class="chip-cell"><span class="chip violet">1 tADA</span></span><span class="what"><b>Inspection: REJECT</b><span>KoSIT finds BR-AE-02</span></span><span class="tx-cell"><a class="tx" href="https://preprod.cardanoscan.io/transaction/7dc0c48aeea27ad28af8329a6eab14730aa77756ca1f4e95d6261293034ced60" rel="noopener">7dc0c48a… <span class="sr-only">open on Cardanoscan</span>↗</a></span></li>
+     <li><span class="time">09:10:56</span><span class="chip-cell"><span class="chip red">Disputed</span></span><span class="what"><b>Refusal <span lang="de">(Mängelrüge)</span></b><span>§ 640 (2) BGB, money frozen</span></span><span class="tx-cell"><a class="tx" href="https://preprod.cardanoscan.io/transaction/995c6c489cb537edecdfe565fba78565560c6a6b2ef438fc527a3d6f22669c77" rel="noopener">995c6c48… <span class="sr-only">open on Cardanoscan</span>↗</a></span></li>
+     <li><span class="time">09:11:47</span><span class="chip-cell"><span class="chip amber">SubmitResult</span></span><span class="what"><b>Cure <span lang="de">(Nacherfüllung)</span></b><span>§ 635 BGB, new delivery with BT-48</span></span><span class="tx-cell"><a class="tx" href="https://preprod.cardanoscan.io/transaction/6c63b8f64ae0684b717fc9c4b39dc4ad4edf71aa940d4361d78b14db02476f5c" rel="noopener">6c63b8f6… <span class="sr-only">open on Cardanoscan</span>↗</a></span></li>
+     <li><span class="time">x402</span><span class="chip-cell"><span class="chip violet">1 tADA</span></span><span class="what"><b>Inspection: ACCEPTABLE</b><span>The cure passes</span></span><span class="tx-cell"><a class="tx" href="https://preprod.cardanoscan.io/transaction/f846f7980834260f46e297643936ab5f07b2ad27ed4b182f564b1cccdc5c6d9b" rel="noopener">f846f798… <span class="sr-only">open on Cardanoscan</span>↗</a></span></li>
+     <li><span class="time">09:13:43</span><span class="chip-cell"><span class="chip green">WithdrawAuthorized</span></span><span class="what"><b>Acceptance <span lang="de">(Abnahme)</span></b><span>§ 640 (1) BGB, signed by the buyer</span></span><span class="tx-cell"><a class="tx" href="https://preprod.cardanoscan.io/transaction/4b6d275e39d47fd21f5a70b2c6a7b3115b39f99b281bb3a1fe8b548065047c50" rel="noopener">4b6d275e… <span class="sr-only">open on Cardanoscan</span>↗</a></span></li>
+     <li><span class="time">09:14:53</span><span class="chip-cell"><span class="chip green">Withdrawn</span></span><span class="what"><b>Payout</b><span>§ 641 (1) BGB, 1 tUSDM to RechnungsMeister</span></span><span class="tx-cell"><a class="tx" href="https://preprod.cardanoscan.io/transaction/8f21ca18ad0aa9ee7e10ac9f9022a47a02e360a33c4329a74d7218dab66d4435" rel="noopener">8f21ca18… <span class="sr-only">open on Cardanoscan</span>↗</a></span></li>
+    </ol>
+    <p class="ledger-foot">All transactions are <code>valid_contract: true</code> and were cross-checked on Blockfrost during the audit. This run used the earlier profile <span class="mono">0d799b13…</span>; every other run and the raw data are in <a href="https://github.com/omurbc/abnahme/blob/main/plan/EVIDENCE.md" rel="noopener">plan/EVIDENCE.md</a>.</p>
+   </article>
+
+   <div class="stats">
+    <div class="stat">
+     <a class="ci-badge" href="https://github.com/omurbc/abnahme/actions/workflows/ci.yml" rel="noopener"><span>CI</span><span>passing on main</span></a>
+     <span class="mt">Every push runs against a real KoSIT validator in Docker. As of 30 Oct 2026.</span>
+    </div>
+    <div class="stat">
+     <b class="tnum">261</b>
+     <span>tests: 260 pass, 1 optional test is skipped by default</span>
+    </div>
+    <div class="stat">
+     <b class="tnum">147</b>
+     <span>findings from an internal security review (14 review tracks, two parts), then two fix rounds with regression tests</span>
+     <a href="security.html">Read the security summary →</a>
+    </div>
+    <div class="stat">
+     <b>#1328</b>
+     <span>upstream fix for a refund bug in the Masumi Payment Service (open, awaiting review)</span>
+     <a href="https://github.com/masumi-network/masumi-payment-service/pull/1328" rel="noopener">View the pull request ↗</a>
+    </div>
+   </div>
+  </div>
+
+  <div class="grid-3 more-runs">
+   <div class="card">
+    <h3>Same flow, current profile</h3>
+    <p>Run at 11:50 UTC under profile <span class="mono">64a8294c…</span>. The audit recomputed the <code>input_hash</code> from the on-chain datum.</p>
+    <p class="links"><a href="https://preprod.cardanoscan.io/transaction/470f87f0e958b03880e2b9f70b3d17de559bfdffc06e87987679c4cbccaf78cd" rel="noopener">Lock 470f87f0…</a><a href="https://preprod.cardanoscan.io/transaction/49fa546bc27f522e70b48cfe68742e44be98eb1dd7da41065aff09a00e2432f7" rel="noopener">Payout 49fa546b…</a></p>
+   </div>
+   <div class="card">
+    <h3>Paid Sokosumi task</h3>
+    <p>SENDEN AR-2026-0087: Sokosumi's own wallet locks 1 tUSDM for the Abnahme-Büro, which withdraws it after the deadline.</p>
+    <p class="links"><a href="https://preprod.cardanoscan.io/transaction/d9c69f508f1f15299cdd3cc056ff4444b9ba0fcadf00e197cd14f7286c952859" rel="noopener">Lock d9c69f50…</a><a href="https://preprod.cardanoscan.io/transaction/5d61bf3f11db7fb2e4a110e98ea44f1699e7fb8d779866d5513cb5e83e0a7146" rel="noopener">Payout 5d61bf3f…</a></p>
+   </div>
+   <div class="card">
+    <h3>Refusal with refund</h3>
+    <p>Deliberately wrong hashes, refused twice, money back to the buyer. The refund needed a manual repair step (<a href="https://github.com/masumi-network/masumi-payment-service/issues/1327" rel="noopener">#1327</a>).</p>
+    <p class="links"><a href="https://preprod.cardanoscan.io/transaction/becff7ad2aa0d3efeb1f8b46e4a5e8a41f35995885a6a991f33b5a6bccb6df04" rel="noopener">Refund becff7ad…</a></p>
+   </div>
+  </div>
+
+  <div class="console">
+   <div>
+    <h3>Live console (demo)</h3>
+    <p>Shows escrow states and transactions as they happen. It runs locally at <code>http://127.0.0.1:8787</code> during the demo and is not reachable from outside.</p>
+   </div>
+   <a class="btn btn-outline-light" href="http://127.0.0.1:8787/" rel="noopener">Open live console
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+  </div>
+ </div>
+</section>
+
+<!-- ================= PRICING ================= -->
+<section class="section" id="pricing" aria-labelledby="pricing-title">
+ <div class="wrap">
+  <div class="section-head center">
+   <p class="eyebrow">Pricing</p>
+   <h2 id="pricing-title">You only pay for what was accepted.</h2>
+   <p class="sub">Planned pricing for Cardano mainnet. Today Abnahme runs on preprod only, with test tokens.</p>
+  </div>
+  <div class="plans">
+   <div class="plan">
+    <h3>Check <span lang="de">(PRÜFEN)</span></h3>
+    <p class="price">€0</p>
+    <p class="desc">Every check task, with a German defect list and an acceptance record.</p>
+    <ul>
+     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>KoSIT validator plus eleven content checks</li>
+     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Your client's own profile</li>
+     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>No wallet needed</li>
+    </ul>
+   </div>
+   <div class="plan featured">
+    <span class="tag">Planned</span>
+    <h3>Per accepted invoice</h3>
+    <p class="price">€1.49<small>net</small></p>
+    <p class="desc">Planned mainnet price, about 90 Sokosumi credits. You pay only once the invoice has passed acceptance and is sent. Refused invoices are free.</p>
+    <ul>
+     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Conversion to XRechnung, cure included</li>
+     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Delivery to your client's accounts payable</li>
+     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Acceptance record with transaction proof</li>
+     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>90 credits are €1.35 on the Standard pack, €1.20 on Pro</li>
+    </ul>
+   </div>
+   <div class="plan">
+    <h3>Refused invoice</h3>
+    <p class="price">€0</p>
+    <p class="desc">If the invoice does not pass, you pay nothing. The converter's fee stays locked until it fixes the defect.</p>
+    <ul>
+     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Refusal recorded on Cardano</li>
+     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>No double sending: one invoice, one charge</li>
+     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Refund to the buyer agent</li>
+    </ul>
+   </div>
+  </div>
+  <p class="plans-note">Planned mainnet pricing, not binding, net of VAT, paid in <a href="https://www.sokosumi.com/pricing" rel="noopener">Sokosumi credits</a> (Starter rate: €25 for 1,500 credits). For comparison, <a href="https://rechnex.de/preise" rel="noopener">RechneX</a> charges €2.99 to €3.99 per invoice. For scale: one avoided bounce on an EUR 18,400 progress invoice saves about EUR 106 (est.), the price of about 71 accepted invoices.</p>
+  <p class="plans-note">How it settles: on mainnet, each customer's month of invoices settles through one Masumi escrow whose <code>input_hash</code> binds the batch manifest. That is the production design and is not built yet. The hackathon build on preprod opens one escrow per invoice, which on mainnet would cost about EUR 0.62 per invoice in Cardano fees. On preprod today a send task (SENDEN) costs 1 tUSDM in test credits.</p>
+ </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section class="section alt" id="faq" aria-labelledby="faq-title">
+ <div class="wrap">
+  <div class="section-head center">
+   <p class="eyebrow">FAQ</p>
+   <h2 id="faq-title">Frequently asked questions</h2>
+  </div>
+  <div class="faq">
+   <details>
+    <summary>Do I need a crypto wallet?</summary>
+    <div class="answer"><p>No. You hire the Sokosumi coworker "Abnahme-Büro" and pay with Sokosumi credits. Everything that happens on Cardano happens between the agents.</p></div>
+   </details>
+   <details>
+    <summary>What exactly is checked?</summary>
+    <div class="answer">
+     <p>Two stages. First the official KoSIT validator 1.6.3 with the XRechnung configuration 2026-08-31 (XRechnung 3.0.2). Both are pinned by sha256, and so is the validation scenario. An HTTP 200 alone is not enough: an invoice carrying the generic EN 16931 identifier would otherwise pass while skipping every German BR-DE rule.</p>
+     <p>Then eleven content checks against your client's profile: amount payable, seller VAT ID and IBAN, the § 13b category and BT-48, the project number pattern (BT-10), currency, invoice type, the § 14a wording, VAT arithmetic, buyer name and postcode, and dates. Defects come back as a list in German.</p>
+    </div>
+   </details>
+   <details>
+    <summary>What if the converter gets it wrong?</summary>
+    <div class="answer">
+     <p>The buyer agent records the refusal on Cardano. From that moment the converter cannot withdraw the money. It may cure the defect, and if the cure passes, the buyer agent releases the payment.</p>
+     <p>If the converter cannot cure, it authorizes the refund, at the latest on its own 10 minutes before the dispute window closes. If both sides cannot agree, Masumi's admins arbitrate. Known limitation: with Masumi Payment Service 0.28 to 0.30 the refund needs a manual step. We submitted the fix upstream (<a href="https://github.com/masumi-network/masumi-payment-service/pull/1328" rel="noopener">PR #1328</a>).</p>
+    </div>
+   </details>
+   <details>
+    <summary>And what if the check itself is wrong?</summary>
+    <div class="answer">
+     <p>KoSIT checks format and rules, not truth. A formally perfect invoice for work that was never done will pass. The content checks cover only the fields the recipient's profile pins. A pass does not guarantee that the general contractor's ERP will book the invoice.</p>
+     <p>Because the profile is pinned as a hash in the escrow before any money moves, neither side can change the yardstick afterwards. And because warnings count as minor, the buyer cannot refuse over trivia.</p>
+    </div>
+   </details>
+   <details>
+    <summary><span>Privacy <span lang="de">(Datenschutz)</span>: where does my invoice data go?</span></summary>
+    <div class="answer">
+     <p>Only hashes go on chain, never invoice contents, names or invoice amounts. One known gap: today the send task's hash is not salted, so an invoice number could be guessed from the chain. It will be salted before mainnet. The invoice text is seen by Sokosumi (as the task), the buyer agent and the converter.</p>
+     <p>To read the fields out of free text, the converter sends the invoice text to Claude, the large language model of Anthropic, through Anthropic's official SDK. Anthropic is the processor here, under its <a href="https://www.anthropic.com/legal/data-processing-addendum" rel="noopener">Data Processing Addendum</a>, which includes the EU Standard Contractual Clauses. Anthropic's own API does not offer EU-only processing today (<a href="https://platform.claude.com/docs/en/manage-claude/data-residency" rel="noopener">inference runs in the US or globally</a>), so processing inside the EU is a deployment decision we make before the first customer. A fixed-layout parser that needs no LLM is built in as well.</p>
+     <p>In the hackathon demo every agent runs on one team machine. Still open before production: data processing agreements (AVV), hosting location and retention periods. This website sets no cookies, loads nothing from third parties and uses no tracking.</p>
+    </div>
+   </details>
+   <details>
+    <summary>Does Abnahme replace GoBD-compliant archiving?</summary>
+    <div class="answer">
+     <p>No. Abnahme is not an archive. Keep storing your XRechnung files, unaltered, in your GoBD-compliant archive or document management system. Invoices must be kept for 8 years (<a href="https://www.gesetze-im-internet.de/ao_1977/__147.html" rel="noopener">§ 147 (3) AO</a>).</p>
+     <p>Abnahme adds the acceptance record (Abnahmeprotokoll): which profile (as a hash), which validator, which defects, which transactions. When an invoice is sent, the SHA-256 hash of the XML file is part of the result, so you can later show that exactly this file was checked.</p>
+    </div>
+   </details>
+   <details>
+    <summary>What is mocked in the hackathon demo?</summary>
+    <div class="answer">
+     <ul>
+      <li><b>Testnet only.</b> tUSDM and tADA on Cardano preprod. No real money.</li>
+      <li><b>The first defect is seeded.</b> In demo mode the converter deliberately drops the buyer's VAT ID (BT-48) from its first delivery. The refusal demo deliberately submits wrong hashes.</li>
+      <li><b>One operator.</b> The team runs all agents, the validator and the payment service on one machine. Only one payment hop crosses an ownership boundary: Sokosumi's own wallet pays the Abnahme-Büro.</li>
+      <li><b>No real recipient.</b> A local test inbox (Mailpit) stands in for the general contractor's accounts payable.</li>
+      <li><b>Fictional people and companies.</b> Toni Huber and Frau Berger are composite personas; Bau Isar and Hausverwaltung Giesing are invented.</li>
+      <li><b>Several runs.</b> No single recorded run goes all the way from Sokosumi through escrow and x402 to the e-mail. Each part is evidenced separately.</li>
+      <li><b>Credits.</b> Sokosumi does not refund credits automatically when an escrow refunds on chain. "Pay only after acceptance" is enforced between the agents today.</li>
+      <li><b>Free-text reading can be wrong.</b> The checks catch errors only in the fields they cover.</li>
+     </ul>
+    </div>
+   </details>
+   <details>
+    <summary>Is this legal advice?</summary>
+    <div class="answer"><p>No. The mapping to the BGB, the UStG and VOB/B is our reading. For your own case, ask your tax adviser or lawyer.</p></div>
+   </details>
+  </div>
+ </div>
+</section>
+
+<!-- ================= CTA ================= -->
+<section class="cta-band" aria-labelledby="cta-title">
+ <div class="wrap">
+  <div>
+   <h2 id="cta-title">Watch an invoice go through acceptance.</h2>
+   <p>We show the whole flow live on Cardano preprod: refusal, cure, acceptance and payout, on a reverse-charge progress invoice.</p>
+   <p class="small">Contact: Ömür Altunbey, Founder</p>
+  </div>
+  <div class="actions">
+   <a class="btn btn-light" href="mailto:altunbeyomur36@gmail.com?subject=Demo%20request%3A%20Abnahme">Request a demo
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></a>
+   <a class="btn btn-outline-light" href="https://preprod.sokosumi.com" rel="noopener">Hire it on Sokosumi</a>
+  </div>
+ </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+ <div class="wrap">
+  <div class="footer-grid">
+   <div>
+    <a class="brand" href="./" aria-label="Abnahme, home">
+     <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0033AD"/><circle cx="16" cy="16" r="11" fill="none" stroke="#fff" stroke-width="2.2"/><path d="M10.6 16.4l3.7 3.7 7.2-7.8" fill="none" stroke="#3DDC97" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+     <span>Abnahme</span>
+    </a>
+    <p class="footer-tag">E-invoices that get paid only after the buyer has accepted them. Built at the TUM Blockchain &amp; AI Hackathon 2026, Cardano track.</p>
+   </div>
+   <div>
+    <h2 class="footer-h">Product</h2>
+    <ul>
+     <li><a href="#how">How it works</a></li>
+     <li><a href="#proof">Live proof</a></li>
+     <li><a href="#pricing">Pricing</a></li>
+     <li><a href="http://127.0.0.1:8787/" rel="noopener">Live console (demo, local)</a></li>
+    </ul>
+   </div>
+   <div>
+    <h2 class="footer-h">Technology</h2>
+    <ul>
+     <li><a href="https://github.com/omurbc/abnahme" rel="noopener">GitHub</a></li>
+     <li><a href="security.html">Security</a></li>
+     <li><a href="https://github.com/omurbc/abnahme/blob/main/SECURITY.md" rel="noopener">SECURITY.md</a></li>
+     <li><a href="https://github.com/omurbc/abnahme/blob/main/plan/EVIDENCE.md" rel="noopener">Evidence (EVIDENCE.md)</a></li>
+    </ul>
+   </div>
+   <div>
+    <h2 class="footer-h">Company</h2>
+    <ul>
+     <li>Founder: Ömür Altunbey</li>
+     <li><a href="mailto:altunbeyomur36@gmail.com?subject=Demo%20request%3A%20Abnahme">Contact</a></li>
+     <li><a href="impressum.html">Imprint <span lang="de">(Impressum)</span></a></li>
+     <li><a href="impressum.html#privacy">Privacy <span lang="de">(Datenschutz)</span></a></li>
+    </ul>
+   </div>
+  </div>
+  <div class="fine">
+   <span>Cardano preprod (testnet). No real money. People and companies in the demo are fictional.</span>
+   <span>No cookies, no tracking, no third-party requests.</span>
+  </div>
+ </div>
+</footer>
+</body>
+</html>
