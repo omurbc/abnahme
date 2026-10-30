@@ -15,7 +15,7 @@ export async function runAbnahme({invoiceText,recipientProfileId,expectedTotal,o
  try{
   const {acceptance,recipient,profileHash}=loadProfile(recipientProfileId);
   await onProgress(`Lokale Prüfung ohne Escrow-Kauf. Prüfprofil ${acceptance.id} + ${recipient.id}, Hash ${profileHash}.`);
-  step='Extraktion der Rechnungsdaten';const fields=await extract(invoiceText);
+  step='Extraktion der Rechnungsdaten';await onProgress('Lese die Rechnungsdaten aus dem Rechnungstext …');const fields=await extract(invoiceText);
   step='XRechnung-Erzeugung';const xml=await buildXml(fields);
   step='KoSIT-Prüfung';const kosit=await validate(xml,{scenario:acceptance.scenario});
   await onProgress(`KoSIT ${acceptance.validator.version}: HTTP ${kosit.httpStatus}, Szenario „${kosit.scenario??'keins'}“.`);

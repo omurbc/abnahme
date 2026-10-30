@@ -1,7 +1,8 @@
 // One Abnahme job end to end from a fixture, printed as a tx table and appended to plan/EVIDENCE.md.
-// RechnungsMeister must be running (rechnungsmeister/server.mjs). Run from the repo root:
-//   PATH="/opt/homebrew/opt/node@24/bin:$PATH" node --env-file=.env --env-file=.local/mps.env \
-//     --env-file=.local/buero-buyer-runtime.env buero/run.mjs fixtures/b-abschlag-13b-bau-isar.txt bau-isar 18400.00 [--follow]
+// RechnungsMeister must be running (rechnungsmeister/server.mjs). Run from the repo root with the buyer's own env
+// profile only (plan/MPS.md, SECRETS-1; no ADMIN_KEY):
+//   PATH="/opt/homebrew/opt/node@24/bin:$PATH" node --env-file=.local/env/buero.env --import=./scripts/env-guard.mjs \
+//     buero/run.mjs fixtures/b-abschlag-13b-bau-isar.txt bau-isar 18400.00 [--follow]
 // Re-running the same command resumes an unfinished job from .local/abnahme-journal/.
 // INSPECT_MODE=local skips the paid x402 Gutachter and uses the local KoSIT daemon.
 import {appendFileSync,readFileSync} from 'node:fs';
