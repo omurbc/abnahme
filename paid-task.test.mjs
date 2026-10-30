@@ -161,3 +161,24 @@ test('DELTA-WORKER-2: a mailed SENDEN found at result-saved after the result dea
  const done=await restarted.advance(task,{input:'abc',paid:{...state.paid,stage:'complete-pending'}});
  assert.equal(done.paid.stage,'completed-late');
 });
+test('DELTA-WORKER-2: a mailed SENDEN in awaiting-result that MPS has not confirmed 10 min after submitResultTime is COMPLETED once with a German note; a confirmed one completes normally',async()=>{
+ await sandbox();const result='Versendet: XRechnung AR-2026-0087 an eingangsrechnungen@bau-isar.example',resultHash=taskHash(result);
+ const unconfirmed={...lockedPayment,resultHash:null},confirmed={...payment,resultHash,onChainState:'ResultSubmitted',CurrentTransaction:{status:'Confirmed',newOnChainState:'ResultSubmitted'}};
+ const adapter=async observed=>{const r=recorder(),calls=[];return {...r,calls,adapter:await createPaidAdapter({target,registration,core:r.core,save:async()=>{},answer:async()=>{throw Error('unexpected model')},mps:async path=>{calls.push(path);return observed}})};};
+ const at=(minutesAgo,a)=>({input:'abc',paid:{stage:'awaiting-result',payment:{...payment,submitResultTime:String(Date.now()-minutesAgo*60*1000)},payload:{},result,resultHash}});
+ // 1 min after submitResultTime the confirmation may still come: keep waiting.
+ const waiting=await adapter(unconfirmed);
+ assert.equal((await waiting.adapter.advance(task,at(1))).paid.stage,'awaiting-result');assert.deepEqual(waiting.posts,[]);
+ // 11 min after: closed deterministically, once, with the send result and the note.
+ const late=await adapter(unconfirmed);let state=at(11);
+ for(let i=0;i<4;i++)state=await late.adapter.advance(task,state);
+ assert.deepEqual(late.posts.map(b=>b.status),['COMPLETED']);
+ assert.ok(late.posts[0].comment.startsWith(result),'the user gets the send result');
+ assert.match(late.posts[0].comment,/eingereicht, aber nicht vor Ablauf der Frist auf Cardano bestätigt/);
+ assert.equal(state.phase,'completed');assert.equal(state.paid.stage,'completed-late');
+ assert.equal(late.calls.includes('/api/v1/payment/submit-result'),false);
+ // A confirmation MPS shows after the cutoff still wins: normal completion, payout followed.
+ const ok=await adapter(confirmed);state=at(11);
+ for(let i=0;i<3;i++)state=await ok.adapter.advance(task,state);
+ assert.deepEqual(ok.posts.map(b=>[b.status,b.comment]),[['COMPLETED',result]]);assert.equal(state.paid.stage,'awaiting-withdrawal');
+});

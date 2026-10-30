@@ -24,7 +24,7 @@ Generate both from the repo root with `node scripts/env-split.mjs`, and rerun it
 ```sh
 cd gutachter
 npm ci                            # exact versions from package-lock.json
-npm run wallet                    # once: appends GUTACHTER_* wallets to ../.env, prints addresses only, then regenerates ../.local/env/
+npm run wallet                    # once: appends GUTACHTER_* wallets to ../.local/secrets.env, prints addresses only, then regenerates ../.local/env/
 npm run balance                   # buyer balance via Blockfrost (needs about 1.2 tADA per call)
 ../kosit/start.sh                 # KoSIT daemon on 127.0.0.1:8090 (stream C)
 npm run seller                    # terminal 1: Gutachter on 127.0.0.1:4021

@@ -22,9 +22,10 @@ curl -s http://127.0.0.1:38127/api/v1/health      # {"status":"success","data":{
 - The service image is amd64-only and runs under OrbStack/Rosetta. The setup image `masumi-payment-setup:0.29.0` is built locally from the 0.29.0 source.
 
 **Start procedure: the repair loop belongs to MPS.** Once MPS answers the health check, start exactly one refund-repair loop and
-leave it running beside the worker. Without it, the refund of a refused PRÜFEN stays `RefundAuthorized` (#1327) and a payout after a
-batched cure stays `WaitingForManualAction` (LB2-1); see the two sections below. A second instance, or a one-off pass while the loop
-runs, is refused by its lock `.local/refund-repair.lock`.
+leave it running beside the worker. Without it, the refund of a refused PRÜFEN stays `RefundAuthorized` (#1327), a payout after a
+batched cure stays `WaitingForManualAction` (LB2-1), and a refund RechnungsMeister decided can stay in `WaitingForManualAction`
+(DELTA-SELLER-2); see the three sections below. A second instance, or a one-off pass while the loop runs, is refused by its lock
+`.local/refund-repair.lock`. It checks its own profile and refuses to start with any other (DELTA-SECRETS-5).
 
 ```sh
 node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs mps/refund-repair.mjs --loop   # exactly one, next to the worker
@@ -32,10 +33,17 @@ node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs mps/re
 
 ## Env files per process (audit SECRETS-1)
 
-No long-running process and no root `npm` script loads the whole `.env` (only `npm run wallet` in `gutachter/` reads it, to append the new wallets). `node scripts/env-split.mjs` (rerun after every change to `.env` or a key file) writes
+No long-running process and no root `npm` script loads the whole `.env`. `npm run wallet` in `gutachter/` reads `.env` and
+`.local/secrets.env` only to reuse existing wallets, and appends new ones to `.local/secrets.env` (600), never to `.env`.
+`node scripts/env-split.mjs` (rerun after every change to `.env` or a key file) writes
 `.local/env/<profile>.env` (dir 700, files 600): every non-secret setting of `.env` plus only the secrets of that profile.
 It prints names, never values. Long-running processes add the guard `--import=./scripts/env-guard.mjs`, which refuses to start
-when a project secret outside the profile is present (for example when `.env` is loaded too); the Gutachter seller has the check built in.
+when a project secret outside the profile is present (for example when `.env` is loaded too). The entry points also check their
+own fixed profile in code (`requireProfile`, DELTA-SECRETS-5), whatever the command line loaded: `worker.mjs` (`buero`, or
+`buero-local` with `ABNAHME_IMPL=local`), `buero/run.mjs` (`buero`), `rechnungsmeister/server.mjs`, `board/server.mjs`,
+`mps/refund-repair.mjs` (`mps-admin`); the Gutachter seller has its own check. The check also refuses names that only look secret
+(`*_TOKEN`, `*_KEY`, …) exported in the starting shell, so start them from a shell without such exports.
+The worker runs the `sokosumi` CLI with `PATH` and `HOME` only (DELTA-SECRETS-1); the CLI takes its credentials from the OS vault.
 
 | Profile | Secrets | Processes |
 |---|---|---|
@@ -219,6 +227,40 @@ The buyer purchases followed to `Withdrawn` / `None`. Afterwards no V2 payment o
 The trigger cannot be switched off by configuration: the L1 SubmitResult batch size is hardcoded (`SUBMIT_RESULT_BATCH_SIZE = 7`
 in `payments/submit-result/service.ts`), so the `--loop` is the safety net. It only picks up the new mode after a restart.
 Upstream issue draft (not filed): `/tmp/mps-upstream-drafts/ISSUE2.md`.
+
+## Refunds RechnungsMeister decided while MPS holds the payment (DELTA-SELLER-2): same script, `repairHeldRefunds`
+
+RechnungsMeister decides the refund of a refused cure when it is due (`refundOrHold` in `rechnungsmeister/server.mjs`: job phase
+`refund-pending`, reasons in `refundReasons`, one `ALARM job …` line). MPS `authorize-refund` takes a Disputed payment in
+`WaitingForExternalAction` only, and RechnungsMeister's scoped key cannot move it out of another state. MPS 0.29.0 holds a cured
+payment elsewhere in two cases: a failed cure tx leaves `WaitingForManualAction` with an error
+(`packages/payment-source-v2/src/services/request-failure.ts`), and a cure in a batched SubmitResult keeps `SubmitResultInitiated`
+without an error (the LB2-1 cause above).
+
+Each pass reads `.local/rechnungsmeister-jobs/*.json` (it uses only `phase`, `closed` and the blockchainIdentifier, and logs no
+token). Only if a job is `refund-pending` and not closed does it list
+`GET /payment?network=Preprod&filterPaymentSourceType=Web3CardanoV2&filterOnChainState=Disputed`. Payments without such a decision
+are never touched. For a payment with one:
+1. `WaitingForExternalAction`: nothing to do; RechnungsMeister sends the refund on its next tick.
+2. `WaitingForManualAction` with an error: the LB2-1 repair. The current tx must be Confirmed, and its own escrow output (datum
+   `input_hash` = the payment's) unique, unspent and Disputed (field 18, constructor 3), with MPS's `resultHash`. Then: preview (it
+   must derive Disputed at that output with that hash), re-read, `request-repair` with the `requestVersion` (never forced; it links
+   the tx into the history), re-read with history (the newest Confirmed row must be this tx), `error-state-recovery` without
+   `retryPreviousAction`. The response must show `WaitingForExternalAction` on that tx. RechnungsMeister then sends
+   `authorize-refund` on its next tick (5 s). The DELTA-OPERATOR-1 backoff applies: once an hour, three times per loop process,
+   then one alarm.
+3. Any other action unchanged for more than 15 min, above all `SubmitResultInitiated`: **alarm only**, one `alarm …` line per
+   payment, no write. A chain check that fails in case 2 raises an alarm as well.
+
+Why case 3 is not repaired: no supported endpoint leaves `SubmitResultInitiated`. `error-state-recovery` refuses a payment that is
+not in `WaitingForManualAction` with an error; `request-repair` repoints the tx but leaves `NextAction` as it is;
+`authorize-refund` and `submit-result` take `WaitingForExternalAction` only; and the wallet-timeout job only handles a Pending or
+missing current tx, while the batched row is Confirmed. The 1 tUSDM then stays in Disputed. What is left: Masumi admin arbitration
+(`WithdrawDisputed` with the admins' multisig, valid only after `externalDisputeUnlockTime`, `vested_pay.ak`), or an MPS fix or a
+manual correction of the payment's NextAction by the MPS operator, outside the API and not automated here. The V2 contract sets no
+deadline for the seller's AuthorizeRefund, so RechnungsMeister still sends the decided refund once MPS shows
+`WaitingForExternalAction`. Not run against the live MPS yet; tested against a fake MPS and Blockfrost
+(`mps/refund-repair.test.mjs`).
 
 ## Ports (stream D, Fri 30 Oct)
 

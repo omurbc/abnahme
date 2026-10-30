@@ -154,3 +154,11 @@ test('DELTA-BOARD-1: an exception in a timer tick is logged and never becomes an
  try{b.start();await new Promise(ok=>setTimeout(ok,50));}finally{b.stop();process.off('unhandledRejection',on);}
  assert.deepEqual(rejected.map(e=>e.message),[]);
 });
+test('DELTA-SECRETS-5: board/server.mjs refuses to start with a foreign secret or another profile, before it listens',async()=>{
+ const {spawnSync}=await import('node:child_process');
+ const entry=new URL('./server.mjs',import.meta.url).pathname;
+ for(const [env,named] of [[{ABNAHME_ENV_PROFILE:'board',ADMIN_KEY:'sentinel-admin'},/ADMIN_KEY/],[{ABNAHME_ENV_PROFILE:'buero',MPS_READ_TOKEN:'x'},/expected board/]]){
+  const r=spawnSync(process.execPath,[entry],{cwd:mkdtempSync(join(tmpdir(),'board-guard-')),env:{PATH:process.env.PATH,HOME:process.env.HOME,BOARD_PORT:'0',...env},encoding:'utf8',timeout:20000});
+  assert.equal(r.status,1,JSON.stringify(env));assert.match(r.stderr,named);assert.doesNotMatch(r.stderr,/sentinel-admin/);assert.doesNotMatch(r.stdout,/Abnahme-Board on/);
+ }
+});

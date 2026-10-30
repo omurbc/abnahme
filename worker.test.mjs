@@ -8,6 +8,7 @@ import {createBuero} from './buero/sokosumi.mjs';
 import {parseFixed} from './einvoice/parse-fixed.mjs';
 import {buildXml} from './einvoice/build.mjs';
 import {USDM} from './paid-task.mjs';
+import {SECRETS} from './scripts/env-split.mjs';
 
 // Fakes for the Sokosumi CLI, Core runtime API and MPS. Each test runs in a fresh cwd, so journals stay out of the repo.
 process.env.PAID_TASKS_ENABLED='true';
@@ -166,6 +167,17 @@ test('QA-9: a Task listing above 4 MiB does not stop the CLI reader',()=>{
  const path=process.env.PATH;process.env.PATH=`${process.cwd()}/bin:${path}`;
  try{assert.equal(sokosumiCli(['tasks','list']).tasks[0].description.length,big.length);}finally{process.env.PATH=path;}
 });
+test('DELTA-SECRETS-1: the sokosumi CLI child gets PATH and HOME only, none of the worker\'s secrets',()=>{
+ sandbox();mkdirSync('bin');
+ writeFileSync('bin/sokosumi',`#!${process.execPath}\nprocess.stdout.write(JSON.stringify({names:Object.keys(process.env)}))\n`);chmodSync('bin/sokosumi',0o755);
+ const saved={...process.env};
+ Object.assign(process.env,{PATH:`${process.cwd()}/bin:${saved.PATH}`,ABNAHME_ENV_PROFILE:'buero',COWORKER_ID:'cw',...Object.fromEntries(SECRETS.map(name=>[name,`sentinel-${name}`]))});
+ try{
+  const {names}=sokosumiCli(['tasks','list']);
+  assert.deepEqual(names.filter(name=>SECRETS.includes(name)),[]);
+  assert.deepEqual(names.filter(name=>name!=='__CF_USER_TEXT_ENCODING').sort(),['HOME','PATH'],'macOS adds __CF_USER_TEXT_ENCODING to every process');
+ }finally{for(const name of Object.keys(process.env))if(!Object.hasOwn(saved,name))delete process.env[name];Object.assign(process.env,saved);}
+});
 test('QA-15: finished Tasks cause no Core, CLI or comment traffic per poll',async()=>{
  sandbox();const s=fakeSokosumi([task('p1',pruefenInput)]),m=fakeMps();let replies=0;
  const {worker}=await setup(s,m,{send:async()=>{throw Object.assign(new Error('connect ECONNREFUSED'),{dataSent:false})},reply:async()=>{replies++}});
@@ -277,4 +289,17 @@ test('DELTA-WORKER-4: a paid SENDEN cancelled after the payment request is not m
  assert.equal(journal('s1').paid.stage,'failed');assert.equal(journal('s1').phase,'closed');
  assert.equal(s.posted.some(e=>e.taskId==='s1'&&e.status),false);
  assert.deepEqual(JSON.parse(readFileSync('.local/sent-ledger.json','utf8')).entries,[]);
+});
+test('DELTA-SECRETS-5: worker.mjs refuses to start with a foreign secret or another profile, before the lock or any CLI call',async()=>{
+ const {spawnSync}=await import('node:child_process');
+ const entry=new URL('./worker.mjs',import.meta.url).pathname;
+ const run=env=>{sandbox();const r=spawnSync(process.execPath,[entry],{cwd:process.cwd(),env:{PATH:process.env.PATH,HOME:process.env.HOME,...env},encoding:'utf8',timeout:20000});return {...r,locked:existsSync('.local/worker.lock')};};
+ for(const [env,named] of [[{ABNAHME_ENV_PROFILE:'buero',ADMIN_KEY:'sentinel-admin'},/ADMIN_KEY/],[{ABNAHME_ENV_PROFILE:'board'},/expected buero/],[{ABNAHME_ENV_PROFILE:'buero',ABNAHME_IMPL:'local'},/expected buero-local/],[{},/expected buero/]]){
+  const r=run({COWORKER_ID:'cw',...env});
+  assert.equal(r.status,1,JSON.stringify(env));assert.match(r.stderr,named);assert.doesNotMatch(r.stderr,/sentinel-admin/);
+  assert.equal(r.locked,false,'refused before the worker lock');assert.doesNotMatch(r.stdout,/Continuous worker running/);
+ }
+ // Its own profile passes the check; this one then stops at the missing Coworker.
+ const own=run({ABNAHME_ENV_PROFILE:'buero'});
+ assert.doesNotMatch(own.stderr,/env profile|must not hold/);assert.match(own.stderr,/COWORKER_ID must identify/);
 });

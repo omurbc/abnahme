@@ -2,8 +2,12 @@ import {execFileSync} from 'node:child_process';
 import {dirname,join,isAbsolute} from 'node:path';
 import {pathToFileURL} from 'node:url';
 let loaded;
+// The sokosumi CLI child gets no secret of ours (DELTA-SECRETS-1). It reads its credentials from the OS vault; of the
+// environment it reads only SOKOSUMI_* overrides (none in any profile; --preprod sets the API URL) and needs PATH (its
+// `env node` shebang) and HOME (~/.sokosumi/config.json, the vault).
+export const cliEnv=(env=process.env)=>({PATH:env.PATH??'',HOME:env.HOME??''});
 export function sokosumiRoot(run=execFileSync){
- const skillsPath=run('sokosumi',['skills','path'],{encoding:'utf8',timeout:30000}).trim();
+ const skillsPath=run('sokosumi',['skills','path'],{encoding:'utf8',timeout:30000,env:cliEnv()}).trim();
  if(!isAbsolute(skillsPath)||!skillsPath.endsWith('/skills'))throw new Error('sokosumi skills path returned an invalid package path');
  return join(dirname(skillsPath),'dist','src');
 }

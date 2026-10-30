@@ -130,22 +130,25 @@ Fund your selling wallet with test ADA.
    Read these identifiers from your own MPS responses.
 2. Set `MPS_URL`, `AGENT_API_PORT`, `AGENT_AUTHOR`, and `BLOCKFROST_API_KEY_PREPROD` in `.env`.
    Use your own name or team name for `AGENT_AUTHOR`.
-3. Create the scoped runtime key, then register the agent:
+3. Write the per-process env files (the script prints names only), then create the scoped runtime key and register the agent
+   with the admin profile alone, never the whole `.env`:
 
    ```sh
-   node --env-file=.env --env-file=.local/mps.env payment-registration.mjs key
-   node --env-file=.env --env-file=.local/mps.env payment-registration.mjs register
+   node scripts/env-split.mjs
+   node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs payment-registration.mjs key
+   node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs payment-registration.mjs register
    ```
 
 4. Check registration until it confirms:
 
    ```sh
-   node --env-file=.env --env-file=.local/mps.env payment-registration.mjs
+   node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs payment-registration.mjs
    ```
 
 5. Complete `docs/registration-state.json` with the confirmed `agentIdentifier`, actual `supportedPaymentSourceIndex`, and selling wallet's `sellerVkey`.
    Read these from your own confirmed registry and wallet responses.
-   Start `npm run api`, set `PAID_TASKS_ENABLED=true`, and restart the worker.
+   Set `PAID_TASKS_ENABLED=true` in `.env` and rerun `node scripts/env-split.mjs`; it also copies the new key from
+   `.local/mps-runtime.env` into `.local/env/buero-api.env`. Start `npm run api` and restart the worker.
 
 Enable payments only after registration confirms and the scoped runtime key is saved in `.local/mps-runtime.env`.
 Never copy another project's wallet, registration, or task IDs.

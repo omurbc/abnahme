@@ -5,8 +5,10 @@ import {acquireWorkerLock} from './worker-lock.mjs';
 import {createBuero,isSenden,pruefenJob,sokosumiEvents} from './buero/sokosumi.mjs';
 import {createPaidAdapter,isPaidReady} from './paid-task.mjs';
 import {taskTarget,isTaskForTarget} from './task-target.mjs';
+import {cliEnv} from './sokosumi-runtime.mjs';
+import {requireProfile} from './scripts/env-split.mjs';
 // The listing carries every Task description. Core answers at most ~4.5 MB, so the pipe must not be the smaller limit.
-export function sokosumiCli(args){return JSON.parse(execFileSync('sokosumi',['--preprod',...args,'--json'],{encoding:'utf8',timeout:30000,maxBuffer:64*1024*1024}));}
+export function sokosumiCli(args){return JSON.parse(execFileSync('sokosumi',['--preprod',...args,'--json'],{encoding:'utf8',timeout:30000,maxBuffer:64*1024*1024,env:cliEnv()}));}
 // Write and rename: a crash leaves the old or the new journal, never a torn one.
 export function writeJournal(taskId,state){const path=`.local/${taskId}.json`;writeFileSync(`${path}.tmp`,JSON.stringify(state),{mode:0o600});renameSync(`${path}.tmp`,path);}
 export const abnahmeModule=impl=>impl==='local'?'./buero/abnahme-local.mjs':'./buero/abnahme.mjs';
@@ -119,6 +121,7 @@ export function createWorker({target,cli,buero,paid,events,paidReady=isPaidReady
  return {poll,inflight,stop(){stopping=true},get stopping(){return stopping}};
 }
 if(process.argv[1]&&realpathSync(process.argv[1])===fileURLToPath(import.meta.url)){
+ try{requireProfile(process.env.ABNAHME_IMPL==='local'?'buero-local':'buero');}catch(e){console.error(`worker.mjs: ${e.message}`);process.exit(1);}  // DELTA-SECRETS-5
  const target=taskTarget();
  const releaseLock=acquireWorkerLock();
  process.once('exit',releaseLock);

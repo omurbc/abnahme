@@ -18,6 +18,7 @@ import {parseTask} from '../buero/sokosumi.mjs';
 import {canonicalJson,loadProfile,recipientIds} from '../verifier/profile.mjs';
 import {sha256} from '../standard-hash.mjs';
 import {safeJournal,safeRmJob,safeLedger,timeline,unreadable,summary,evidence,parseEvidenceMd} from './model.mjs';
+import {requireProfile} from '../scripts/env-split.mjs';
 
 const ROOT=fileURLToPath(new URL('..',import.meta.url));
 const PUBLIC=fileURLToPath(new URL('./public/',import.meta.url));
@@ -249,6 +250,7 @@ export function createBoard({
 }
 
 if(import.meta.main){
+ try{requireProfile('board');}catch(e){console.error(`board/server.mjs: ${e.message}`);process.exit(1);}  // DELTA-SECRETS-5
  const port=Number(process.env.BOARD_PORT||8787);
  const board=createBoard({port});
  board.start();

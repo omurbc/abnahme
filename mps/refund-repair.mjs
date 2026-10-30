@@ -6,14 +6,17 @@
 // POST /request-repair/preview, and only if MPS derives RefundAuthorized with resultHash null, the non-forced
 // POST /request-repair with the preview's requestVersion. MPS then sends WithdrawRefund by itself (45 s to 3:23 live).
 // Idempotent: a repaired purchase has resultHash null and is skipped. One log line per action, no keys.
-// The same pass also runs repairStuckWithdrawals (LB2-1, below) for the seller side. From the repo root:
+// The same pass also runs repairStuckWithdrawals (LB2-1, below) for the seller side and repairHeldRefunds (DELTA-SELLER-2, below)
+// for refunds RechnungsMeister decided. It refuses any profile but mps-admin (DELTA-SECRETS-5). From the repo root:
 //   node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs mps/refund-repair.mjs          # one pass; exit 1 if a request failed
 //   node --env-file=.local/env/mps-admin.env --import=./scripts/env-guard.mjs mps/refund-repair.mjs --loop   # a pass every 60 s
 // Exactly one at a time: both take the lock .local/refund-repair.lock (DELTA-OPERATOR-3).
-import {realpathSync} from 'node:fs';
+import {realpathSync,readdirSync,readFileSync} from 'node:fs';
+import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {decodeHash} from '../buero/escrow.mjs';
 import {acquireWorkerLock} from '../worker-lock.mjs';
+import {requireProfile} from '../scripts/env-split.mjs';
 
 const NETWORK='Preprod',PAGE=100,LOOP_MS=60000,STALE_MS=15*60000;
 // A payment MPS parks again after a repair (for example a collection failure, DELTA-OPERATOR-1) is repaired at most once
@@ -171,12 +174,89 @@ export async function repairStuckWithdrawals({url=process.env.MPS_URL,adminKey=p
  }
 }
 
+// DELTA-SELLER-2 (MPS 0.29.0). RechnungsMeister decides the refund of a refused cure (its job file has phase refund-pending)
+// while MPS holds the Disputed payment outside WaitingForExternalAction, the only state authorize-refund takes:
+//   - WaitingForManualAction with an error (a failed cure tx, request-failure.ts): the LB2-1 repair. The confirmed current
+//     tx's own escrow output (datum input_hash = the payment's) must be unique, unspent and Disputed (field 18, constructor 3)
+//     with MPS's result hash. Preview, request-repair (never forced), re-read, then error-state-recovery without
+//     retryPreviousAction. RechnungsMeister then sends the refund on its next tick.
+//   - SubmitResultInitiated without an error (a cure in a batched SubmitResult, LB2-1), or any other action, unchanged for
+//     more than 15 min: no supported endpoint leaves it (error-state-recovery takes WaitingForManualAction with an error only,
+//     request-repair leaves NextAction as it is). One alarm line; an operator must act (plan/MPS.md).
+// Payments without a decided refund are never touched. The backoff of DELTA-OPERATOR-1 applies (the loop shares attempts).
+const DISPUTED=3;
+// RechnungsMeister jobs whose refund is decided and not yet sent, by blockchainIdentifier. Unreadable files are skipped.
+function refundDecided(dir){
+ const decided=new Map();
+ let files=[];try{files=readdirSync(dir).filter(f=>/^[0-9a-f-]{36}\.json$/.test(f));}catch{}
+ for(const f of files){
+  try{const job=JSON.parse(readFileSync(join(dir,f),'utf8'));if(job.phase==='refund-pending'&&!job.closed&&job.payment?.blockchainIdentifier)decided.set(job.payment.blockchainIdentifier,job.id);}catch{}
+ }
+ return decided;
+}
+export async function repairHeldRefunds({url=process.env.MPS_URL,adminKey=process.env.ADMIN_KEY,blockfrostKey=process.env.BLOCKFROST_API_KEY_PREPROD,fetchImpl=fetch,log=console.log,now=Date.now,attempts=new Map(),alarms=new Set(),jobsDir='.local/rechnungsmeister-jobs'}={}){
+ const {mps,list,ownOutputs}=clients({url,adminKey,blockfrostKey,fetchImpl});
+ const decided=refundDecided(jobsDir),done={checked:0,repaired:[],skipped:[],failed:[]};
+ if(!decided.size)return done;
+ const payments=await list(`/payment?network=${NETWORK}&filterPaymentSourceType=Web3CardanoV2&filterOnChainState=Disputed`,'Payments');
+ done.checked=payments.length;
+ for(const p of payments){
+  const next=p.NextAction,idleMs=now()-Date.parse(p.nextActionOrOnChainStateOrResultLastChangedAt??p.updatedAt);
+  if(!decided.has(p.blockchainIdentifier)||next?.requestedAction==='WaitingForExternalAction')continue;  // idle: RechnungsMeister sends it
+  const txHash=p.CurrentTransaction?.txHash,who=`${p.id} (Disputed ${String(txHash).slice(0,12)}…, refund decided by RechnungsMeister ${decided.get(p.blockchainIdentifier)})`;
+  const mpsError=next?.errorType?` (${next.errorType}: ${String(next.errorNote??'no error note').slice(0,200)})`:'';
+  const alarm=(key,why)=>{if(alarms.has(key))return;alarms.add(key);log(`alarm ${who}: ${why}`);done.skipped.push(p.id);};
+  const skip=why=>{log(`skip ${who}: ${why}`);done.skipped.push(p.id);};
+  if(!(next?.requestedAction==='WaitingForManualAction'&&next.errorType)){
+   if(idleMs>STALE_MS)alarm(`${p.id} ${next?.requestedAction}`,`MPS holds it at ${next?.requestedAction}${mpsError}, unchanged for ${Math.floor(idleMs/60000)} min; no supported MPS endpoint returns it to WaitingForExternalAction, so the refund cannot be sent; an operator must act (plan/MPS.md)`);
+   continue;
+  }
+  const tried=attempts.get(p.id);
+  if(tried?.count>=MAX_REPAIRS){if(!tried.alarmed){tried.alarmed=true;log(`alarm ${who}: MPS left this payment stuck again after ${tried.count} automatic repairs${mpsError}; no further automatic repair, an operator must look at it`);done.skipped.push(p.id);}continue;}
+  if(tried&&now()-tried.at<RETRY_MS)continue;
+  try{
+   const chain=await onChain(p);
+   if(chain.why){alarm(`${p.id} ${chain.why}`,`${chain.why}; not repaired automatically, an operator must look at it (plan/MPS.md)`);continue;}
+   const request={kind:'Payment',network:NETWORK,blockchainIdentifier:p.blockchainIdentifier,txHash};
+   const preview=await mps('/request-repair/preview',request);
+   if(preview.derivedOnChainState!=='Disputed'||preview.outputIndex!==chain.outputIndex||preview.resultHash!==chain.resultHash){skip(`MPS preview derives ${preview.derivedOnChainState} at #${preview.outputIndex} with resultHash ${String(preview.resultHash).slice(0,12)}…`);continue;}
+   const before=await mps('/payment/resolve-blockchain-identifier',{blockchainIdentifier:p.blockchainIdentifier,network:NETWORK,includeHistory:'false'});
+   if(shape(before)!==shape(p)){skip(`MPS record ${movedTo(before)}`);continue;}
+   attempts.set(p.id,{count:(tried?.count??0)+1,at:now()});
+   await mps('/request-repair',{...request,requestVersion:preview.requestVersion});
+   const fresh=await mps('/payment/resolve-blockchain-identifier',{blockchainIdentifier:p.blockchainIdentifier,network:NETWORK,includeHistory:'true'});
+   const newest=(fresh.TransactionHistory??[]).filter(t=>t.status==='Confirmed'&&t.txHash).sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt))[0];
+   if(fresh.CurrentTransaction?.txHash!==txHash||newest?.txHash!==txHash)throw new Error(`after request-repair, error-state-recovery would repoint the payment to ${String(newest?.txHash).slice(0,12)}…, not this Disputed tx; not cleared`);
+   if(fresh.NextAction?.requestedAction!=='WaitingForManualAction'||!fresh.NextAction.errorType){skip(`MPS next action changed to ${fresh.NextAction?.requestedAction} meanwhile; not cleared`);continue;}
+   const cleared=await mps('/payment/error-state-recovery',{blockchainIdentifier:p.blockchainIdentifier,network:NETWORK,updatedAt:fresh.updatedAt});
+   if(cleared.NextAction?.requestedAction!=='WaitingForExternalAction'||cleared.CurrentTransaction?.txHash!==txHash)throw new Error(`error-state-recovery left ${cleared.NextAction?.requestedAction} on ${String(cleared.CurrentTransaction?.txHash).slice(0,12)}…`);
+   log(`repaired ${who}: WaitingForManualAction${mpsError} cleared to WaitingForExternalAction on the unspent Disputed escrow; RechnungsMeister sends the decided refund on its next tick`);
+   done.repaired.push(p.id);
+  }catch(e){log(`error ${who}: ${e.message}`);done.failed.push(p.id);}
+ }
+ return done;
+
+ // The own escrow output of the payment's confirmed current tx: unspent, Disputed, with MPS's result hash. Otherwise {why}.
+ async function onChain(p){
+  const current=p.CurrentTransaction;
+  if(current?.status!=='Confirmed'||!current.txHash)return {why:`current tx is ${current?.status} ${String(current?.txHash).slice(0,12)}…, not a confirmed tx`};
+  const own=await ownOutputs(current.txHash,p.PaymentSource?.smartContractAddress,p.inputHash);
+  if(own.length!==1)return {why:`${own.length} escrow outputs with this input_hash on chain`};
+  const [{o,fields}]=own,resultHash=decodeHash({fields},RESULT_HASH);
+  if(spent(o))return {why:spent(o)};
+  if(fields[STATE]?.constructor!==DISPUTED)return {why:`datum state is ${JSON.stringify(fields[STATE])}, not Disputed`};
+  if(p.resultHash&&p.resultHash!==resultHash)return {why:`datum result_hash ${String(resultHash).slice(0,12)}… is not MPS's ${p.resultHash.slice(0,12)}…`};
+  return {outputIndex:o.output_index,resultHash};
+ }
+}
+
 if(process.argv[1]&&import.meta.url===pathToFileURL(realpathSync(process.argv[1])).href){
+ try{requireProfile('mps-admin');}catch(e){console.error(`refund-repair: ${e.message}`);process.exit(1);}  // DELTA-SECRETS-5
  let releaseLock;
  try{releaseLock=acquireWorkerLock('.local/refund-repair.lock');}
  catch(e){console.error(`refund-repair is already running or its lock is unclear (.local/refund-repair.lock: ${e.message.replace(/^Worker /,'')}). Run exactly one: the --loop, or a one-off pass while the loop is stopped.`);process.exit(1);}
  process.once('exit',releaseLock);
- const loop=process.argv.includes('--loop'),attempts=new Map();
+ const loop=process.argv.includes('--loop'),attempts=new Map(),alarms=new Set();
  for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>process.exit(loop?0:1));  // through 'exit', so the lock is released
  const log=line=>console.log(`${new Date().toISOString()} ${line}`);
  const shown=(r,first)=>r&&(!loop||first||r.repaired.length||r.skipped.length||r.failed.length);
@@ -185,7 +265,9 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(realpathSync(process.argv[1]
   if(shown(r,first))log(`pass: ${r.checked} RefundAuthorized purchase(s), ${r.repaired.length} repaired, ${r.skipped.length} skipped, ${r.failed.length} failed`);
   const w=await repairStuckWithdrawals({log,attempts}).catch(e=>{log(`error: ${e.message}`);return null;});
   if(shown(w,first))log(`pass: ${w.checked} WithdrawAuthorized payment(s), ${w.repaired.length} repaired, ${w.skipped.length} skipped, ${w.failed.length} failed`);
-  if(!loop)process.exit(r&&!r.failed.length&&w&&!w.failed.length?0:1);
+  const h=await repairHeldRefunds({log,attempts,alarms}).catch(e=>{log(`error: ${e.message}`);return null;});
+  if(shown(h,first))log(`pass: ${h.checked} Disputed payment(s) checked for a refund RechnungsMeister decided, ${h.repaired.length} repaired, ${h.skipped.length} skipped, ${h.failed.length} failed`);
+  if(!loop)process.exit(r&&!r.failed.length&&w&&!w.failed.length&&h&&!h.failed.length?0:1);
   await new Promise(resolve=>setTimeout(resolve,LOOP_MS));
  }
 }

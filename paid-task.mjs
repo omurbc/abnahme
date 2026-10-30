@@ -9,6 +9,10 @@ const MINUTE=60*1000;
 const CHARGED=' Die Zahlungsanforderung war bereits gestellt: Sokosumi hat dafür Credits gebucht, die bei diesem Abbruch nicht automatisch erstattet werden.';
 // DELTA-WORKER-2: the answer took effect (the e-mail is out), but MPS takes no result after submitResultTime.
 const LATE='Hinweis: Die E-Mail ist versendet, das Ergebnis wurde aber nicht vor Ablauf der Frist auf Cardano eingereicht (der Büro-Agent war unterbrochen). Das Büro wird dafür nicht aus der Escrow bezahlt; die 1 tUSDM gehen an den Käufer (Sokosumi) zurück.';
+// The result was submitted, but MPS shows no confirmed ResultSubmitted by submitResultTime + CONFIRM_MARGIN. A SubmitResult
+// must be valid before submitResultTime; the margin covers block confirmation and MPS tx-sync.
+const UNCONFIRMED='Hinweis: Die E-Mail ist versendet. Das Ergebnis wurde eingereicht, aber nicht vor Ablauf der Frist auf Cardano bestätigt. Ohne bestätigtes Ergebnis wird das Büro nicht aus der Escrow bezahlt; die 1 tUSDM gehen dann an den Käufer (Sokosumi) zurück.';
+const CONFIRM_MARGIN=10*MINUTE;
 export const USDM='16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde0014df10745553444d';
 export function taskHash(text){return createHash('sha256').update(text,'utf8').digest('hex')}
 export function confirmedState(payment,expected){
@@ -103,6 +107,8 @@ export async function createPaidAdapter({save,answer,recover,core:providedCore,m
     return persist(task,state,{...p,stage:'result-saved',result,resultHash:taskHash(result)});
    }
    if(p.stage==='awaiting-result'&&observed.resultHash===p.resultHash&&confirmedState(observed,'ResultSubmitted')&&observed.onChainState==='ResultSubmitted')return persist(task,state,{...p,stage:'complete-ready'});
+   // DELTA-WORKER-2: the e-mail is out, so an unconfirmed result past the deadline closes the Task once, like a late result-saved.
+   if(p.stage==='awaiting-result'&&Date.now()>=Number(p.payment.submitResultTime)+CONFIRM_MARGIN)return persist(task,state,{...p,stage:'complete-ready',late:true,unconfirmed:true});
    if(p.stage==='awaiting-withdrawal'&&['Withdrawn','DisputedWithdrawn'].includes(observed.onChainState)){const evidence=await verifySettlement({core:await verifyRuntimeTask(await getCore(),task.id,target),taskId:task.id,payment:observed,sellerAddress:registration().registration?.SmartContractWallet?.walletAddress,unit:USDM});return persist(task,state,{...p,stage:evidence.verified?'settled':'awaiting-withdrawal',settlement:evidence});}
    return state;
   }
@@ -131,7 +137,7 @@ export async function createPaidAdapter({save,answer,recover,core:providedCore,m
   }
   if(p.stage==='complete-ready'){
    state=await persist(task,state,{...p,stage:'complete-pending'});
-   const response=await (await verifyRuntimeTask(await getCore(),task.id,target)).post(`/v1/tasks/${encodeURIComponent(task.id)}/events`,{status:'COMPLETED',comment:p.late?`${p.result}\n\n${LATE}`:p.result});
+   const response=await (await verifyRuntimeTask(await getCore(),task.id,target)).post(`/v1/tasks/${encodeURIComponent(task.id)}/events`,{status:'COMPLETED',comment:p.late?`${p.result}\n\n${p.unconfirmed?UNCONFIRMED:LATE}`:p.result});
    return persist(task,{...state,phase:'completed'},{...p,stage:p.late?'completed-late':'awaiting-withdrawal',completionEventId:response.data.id});
   }
   if(p.stage==='gate-failed'){

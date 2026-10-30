@@ -3,7 +3,10 @@
 // empty result_hash, applies only what the preview derived, never forces, and is idempotent.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {repairStuckRefunds,repairStuckWithdrawals} from './refund-repair.mjs';
+import {mkdtempSync,writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {repairStuckRefunds,repairStuckWithdrawals,repairHeldRefunds} from './refund-repair.mjs';
 
 const ADMIN='sentinel-admin-key',BF='sentinel-blockfrost-key',CONTRACT='addr_test1wcontract',BUYER='addr_test1qbuyer';
 const hex=c=>c.repeat(64);
@@ -208,7 +211,7 @@ function payWorld(payments,{chain=Object.assign({},...payments.map(p=>awChainFor
    if(body.requestVersion!==version(p))return fail(409,'Request changed after preview; preview the repair again');
    const out=ownOut(body.txHash,p);
    p.resultHash=out.datum.fields[11].bytes||null;
-   Object.assign(p.CurrentTransaction,{previousOnChainState:p.onChainState,newOnChainState:'WithdrawAuthorized'});
+   Object.assign(p.CurrentTransaction,{previousOnChainState:p.onChainState,newOnChainState:STATES[out.datum.fields[18].constructor]});
    if(!p.TransactionHistory.some(t=>t.id===p.CurrentTransaction.id))p.TransactionHistory.push(structuredClone(p.CurrentTransaction));
    bump(p);
    return ok({requestId:p.id,txHash:body.txHash,transactionId:p.CurrentTransaction.id,previousOnChainState:'WithdrawAuthorized',newOnChainState:'WithdrawAuthorized',forced:false});
@@ -229,8 +232,9 @@ function payWorld(payments,{chain=Object.assign({},...payments.map(p=>awChainFor
  };
  const lines=[];
  const pass=(o={})=>repairStuckWithdrawals({url:'http://mps.test',adminKey:ADMIN,blockfrostKey:BF,fetchImpl,log:l=>lines.push(l),now:()=>NOW,...o});
+ const held=(o={})=>repairHeldRefunds({url:'http://mps.test',adminKey:ADMIN,blockfrostKey:BF,fetchImpl,log:l=>lines.push(l),now:()=>NOW,...o});
  const at=path=>calls.filter(c=>c.path===`/api/v1${path}`);
- return {calls,lines,pass,at,writes:()=>[...at('/request-repair'),...at('/payment/error-state-recovery')],chainCalls:()=>calls.filter(c=>c.host==='cardano-preprod.blockfrost.io')};
+ return {calls,lines,pass,held,at,writes:()=>[...at('/request-repair'),...at('/payment/error-state-recovery')],chainCalls:()=>calls.filter(c=>c.host==='cardano-preprod.blockfrost.io')};
 }
 
 test('LB2-1: WaitingForManualAction over an unspent WithdrawAuthorized escrow: preview, repair, re-read, clear without retry; the AuthorizeWithdrawal stays current; a second pass does nothing',async()=>{
@@ -372,7 +376,7 @@ test('DELTA-OPERATOR-3: a record that changed after the listing is re-read after
 test('DELTA-OPERATOR-3: one instance at a time: a second pass or loop is refused by the lock in .local/, and a pass releases it',async()=>{
  const {spawnSync}=await import('node:child_process');const {mkdtempSync,mkdirSync,writeFileSync,existsSync}=await import('node:fs');const {tmpdir}=await import('node:os');const {join}=await import('node:path');const {fileURLToPath}=await import('node:url');
  const cli=fileURLToPath(new URL('./refund-repair.mjs',import.meta.url));
- const env={PATH:process.env.PATH,MPS_URL:'http://127.0.0.1:1',ADMIN_KEY:'x',BLOCKFROST_API_KEY_PREPROD:'y'};
+ const env={PATH:process.env.PATH,ABNAHME_ENV_PROFILE:'mps-admin',MPS_URL:'http://127.0.0.1:1',ADMIN_KEY:'x',BLOCKFROST_API_KEY_PREPROD:'y'};
  const locked=mkdtempSync(join(tmpdir(),'repair-'));mkdirSync(join(locked,'.local'),{mode:0o700});writeFileSync(join(locked,'.local/refund-repair.lock'),String(process.pid));
  for(const args of [[],['--loop']]){
   const r=spawnSync(process.execPath,[cli,...args],{cwd:locked,env,encoding:'utf8',timeout:20000});
@@ -382,4 +386,94 @@ test('DELTA-OPERATOR-3: one instance at a time: a second pass or loop is refused
  const r=spawnSync(process.execPath,[cli],{cwd:free,env,encoding:'utf8',timeout:20000});
  assert.equal(r.status,1,'MPS is not reachable, so the pass fails');assert.match(r.stdout,/error: /);
  assert.equal(existsSync(join(free,'.local/refund-repair.lock')),false,'the lock is released on exit');
+});
+test('DELTA-SECRETS-5: refund-repair.mjs refuses to start with a foreign secret or another profile, before the lock',async()=>{
+ const {spawnSync}=await import('node:child_process');const {mkdtempSync,existsSync}=await import('node:fs');const {tmpdir}=await import('node:os');const {join}=await import('node:path');const {fileURLToPath}=await import('node:url');
+ const cli=fileURLToPath(new URL('./refund-repair.mjs',import.meta.url));
+ const base={PATH:process.env.PATH,MPS_URL:'http://127.0.0.1:1',ADMIN_KEY:'x',BLOCKFROST_API_KEY_PREPROD:'y'};
+ for(const [env,named] of [[{ABNAHME_ENV_PROFILE:'mps-admin',MPS_BUYER_TOKEN:'sentinel-buyer'},/MPS_BUYER_TOKEN/],[{ABNAHME_ENV_PROFILE:'buero'},/expected mps-admin/],[{},/expected mps-admin/]]){
+  const cwd=mkdtempSync(join(tmpdir(),'repair-guard-'));
+  const r=spawnSync(process.execPath,[cli,'--loop'],{cwd,env:{...base,...env},encoding:'utf8',timeout:20000});
+  assert.equal(r.status,1,JSON.stringify(env));assert.match(r.stderr,named);assert.doesNotMatch(r.stderr,/sentinel-buyer/);
+  assert.equal(existsSync(join(cwd,'.local/refund-repair.lock')),false,'refused before the lock');assert.doesNotMatch(r.stdout,/pass:/);
+ }
+});
+
+// ---- DELTA-SELLER-2: RechnungsMeister decided the refund (phase refund-pending in its job file), MPS holds the Disputed payment.
+const JOB_TOKEN='sentinel-job-token-0123456789';
+function heldPay(n,over={}){
+ const dispute=n.toString(16).padStart(64,'d'),first=n.toString(16).padStart(64,'1');
+ return {id:`payment-${n}`,blockchainIdentifier:`pay-bcid-${n}`,inputHash:'b'+n.toString(16).padStart(63,'0'),resultHash:hex('7'),onChainState:'Disputed',
+  updatedAt:ago(100),nextActionOrOnChainStateOrResultLastChangedAt:ago(100),
+  NextAction:{requestedAction:'WaitingForManualAction',errorType:'Unknown',errorNote:'Submitting result failed: transaction build failed'},
+  CurrentTransaction:{id:`tx-dispute-${n}`,txHash:dispute,status:'Confirmed',previousOnChainState:'ResultSubmitted',newOnChainState:'Disputed',createdAt:ago(100)},
+  TransactionHistory:[{id:`tx-first-${n}`,txHash:first,status:'Confirmed',previousOnChainState:'FundsLocked',newOnChainState:'ResultSubmitted',createdAt:ago(130)}],
+  PaymentSource:{smartContractAddress:CONTRACT},...over};
+}
+// The buyer's dispute tx holds this payment's escrow output (state 3 = Disputed) with the first result's hash.
+const heldChainFor=(p,{datumOver={},consumed=null}={})=>({[p.CurrentTransaction.txHash]:[
+ {address:CONTRACT,output_index:0,data_hash:`dh-${p.id}`,consumed_by_tx:consumed,datum:datum({inputHash:p.inputHash,resultHash:hex('7'),state:3,...datumOver})}]});
+function rmJobs(jobs){
+ const dir=mkdtempSync(join(tmpdir(),'rm-jobs-'));
+ jobs.forEach(([bcid,phase,extra={}],i)=>writeFileSync(join(dir,`0000000${i}-0000-4000-8000-000000000000.json`),JSON.stringify({id:`job-${i}`,token:JOB_TOKEN,phase,refundReasons:['Nachbesserung ausgeschöpft.'],payment:{blockchainIdentifier:bcid},...extra})));
+ writeFileSync(join(dir,'00000099-0000-4000-8000-000000000000.json'),'{torn');
+ return dir;
+}
+
+test('DELTA-SELLER-2: a decided refund held in WaitingForManualAction (a failed cure tx): preview, repair, re-read, clear without retry on the unspent Disputed tx; others are left alone; a second pass does nothing',async()=>{
+ const p=heldPay(60),undecided=heldPay(61),idle=heldPay(62,{NextAction:{requestedAction:'WaitingForExternalAction',errorType:null}});
+ const w=payWorld([p,undecided,idle],{chain:Object.assign({},...[p,undecided,idle].map(x=>heldChainFor(x)))});
+ const jobsDir=rmJobs([['pay-bcid-60','refund-pending'],['pay-bcid-61','result-confirmed'],['pay-bcid-62','refund-pending']]);
+ const dispute=p.CurrentTransaction.txHash,before=p.updatedAt;
+ const r=await w.held({jobsDir});
+ assert.deepEqual(r,{checked:3,repaired:['payment-60'],skipped:[],failed:[]});
+ const [list]=w.at('/payment');
+ assert.equal(list.query.filterPaymentSourceType,'Web3CardanoV2');assert.equal(list.query.filterOnChainState,'Disputed');assert.equal(list.query.network,'Preprod');
+ assert.deepEqual(w.calls.filter(c=>c.method==='POST').map(c=>c.path),['/api/v1/request-repair/preview','/api/v1/payment/resolve-blockchain-identifier','/api/v1/request-repair','/api/v1/payment/resolve-blockchain-identifier','/api/v1/payment/error-state-recovery']);
+ const [preview]=w.at('/request-repair/preview'),[repair]=w.at('/request-repair'),[recover]=w.at('/payment/error-state-recovery');
+ assert.deepEqual(preview.body,{kind:'Payment',network:'Preprod',blockchainIdentifier:'pay-bcid-60',txHash:dispute});
+ assert.deepEqual(repair.body,{kind:'Payment',network:'Preprod',blockchainIdentifier:'pay-bcid-60',txHash:dispute,requestVersion:`v-payment-60-${before}-tx-dispute-60-${hex('7')}`});
+ assert.deepEqual(recover.body,{blockchainIdentifier:'pay-bcid-60',network:'Preprod',updatedAt:new Date(Date.parse(before)+1000).toISOString()},'fresh updatedAt, no retryPreviousAction');
+ assert.equal(p.NextAction.requestedAction,'WaitingForExternalAction');assert.equal(p.onChainState,'Disputed');
+ assert.equal(p.CurrentTransaction.txHash,dispute,'not repointed to the spent first result');
+ assert.equal(undecided.NextAction.requestedAction,'WaitingForManualAction','no refund decided: not touched');
+ assert.match(w.lines.find(l=>/^repaired payment-60/.test(l)),/RechnungsMeister/);
+ for(const l of w.lines)assert.doesNotMatch(l,new RegExp(`${ADMIN}|${BF}|${JOB_TOKEN}`));
+ const again=await w.held({jobsDir});
+ assert.deepEqual(again.repaired,[]);assert.equal(w.writes().length,2);
+});
+
+test('DELTA-SELLER-2: SubmitResultInitiated (a batched cure) has no supported way out: one alarm after 15 min unchanged, no write; an unsafe chain shape alarms instead of a repair',async()=>{
+ const batched=heldPay(63,{NextAction:{requestedAction:'SubmitResultInitiated',errorType:null}}),fresh=heldPay(64,{NextAction:{requestedAction:'SubmitResultInitiated',errorType:null},nextActionOrOnChainStateOrResultLastChangedAt:ago(2)});
+ const spent=heldPay(65),other=heldPay(66),hash=heldPay(67);
+ const chain=Object.assign({},heldChainFor(batched),heldChainFor(fresh),heldChainFor(spent,{consumed:hex('e')}),heldChainFor(other,{datumOver:{state:1}}),heldChainFor(hash,{datumOver:{resultHash:hex('6')}}));
+ const w=payWorld([batched,fresh,spent,other,hash],{chain});
+ const jobsDir=rmJobs([63,64,65,66,67].map(n=>[`pay-bcid-${n}`,'refund-pending']));
+ const attempts=new Map(),alarms=new Set();
+ for(let i=0;i<3;i++)await w.held({jobsDir,attempts,alarms});
+ assert.equal(w.writes().length,0);assert.equal(w.at('/request-repair/preview').length,0);
+ const alarmOf=id=>w.lines.filter(l=>l.startsWith(`alarm ${id} `));
+ assert.equal(alarmOf('payment-63').length,1);assert.match(alarmOf('payment-63')[0],/SubmitResultInitiated.*no supported MPS endpoint/s);
+ assert.equal(alarmOf('payment-64').length,0,'a cure that is still moving is not alarmed yet');
+ for(const [id,why] of [['payment-65',/spent/],['payment-66',/not Disputed/],['payment-67',/is not MPS's/]]){assert.equal(alarmOf(id).length,1,id);assert.match(alarmOf(id)[0],why);}
+ assert.equal(w.chainCalls().filter(c=>c.path.includes(batched.CurrentTransaction.txHash)).length,0,'SubmitResultInitiated is not looked up on chain');
+});
+
+test('DELTA-SELLER-2: the DELTA-OPERATOR-1 backoff applies: a payment MPS parks again is repaired at most once an hour and three times in all, then one alarm',async()=>{
+ const parked={requestedAction:'WaitingForManualAction',errorType:'Unknown',errorNote:'Authorizing refund failed: Insufficient collateral'};
+ const p=heldPay(68,{NextAction:{...parked}}),w=payWorld([p],{chain:heldChainFor(p)}),jobsDir=rmJobs([['pay-bcid-68','refund-pending']]);
+ const attempts=new Map(),alarms=new Set();let t=NOW;
+ for(let i=0;i<10;i++){await w.held({jobsDir,attempts,alarms,now:()=>t});p.NextAction={...parked};p.updatedAt=new Date(Date.parse(p.updatedAt)+1000).toISOString();t+=30*MIN;}
+ assert.equal(w.at('/request-repair').length,3);assert.equal(w.at('/payment/error-state-recovery').length,3);
+ const alarms68=w.lines.filter(l=>/^alarm payment-68/.test(l));
+ assert.equal(alarms68.length,1);assert.match(alarms68[0],/3 automatic repairs.*Insufficient collateral/s);
+});
+
+test('DELTA-SELLER-2: without a decided refund in the RechnungsMeister job files nothing is listed or written',async()=>{
+ const p=heldPay(69),w=payWorld([p],{chain:heldChainFor(p)});
+ for(const jobsDir of [join(tmpdir(),'no-such-rm-jobs-dir'),rmJobs([['pay-bcid-69','refund-authorized'],['pay-bcid-69','refund-pending',{closed:'RefundWithdrawn'}]])]){
+  const r=await w.held({jobsDir});
+  assert.deepEqual(r,{checked:0,repaired:[],skipped:[],failed:[]});
+ }
+ assert.equal(w.calls.length,0);
 });

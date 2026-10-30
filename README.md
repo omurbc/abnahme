@@ -25,7 +25,7 @@ A defect freezes the converter's money on chain until the converter fixes it.
 
 > [!IMPORTANT]
 > **Build status, Fri 30 Oct 2026 (hackathon day 1, afternoon).** All three agents are built and run on Cardano preprod. The refuse → cure → accept loop ran end to end through the Masumi V2 escrow (8 min 9 s from payment request to `Withdrawn`), with both inspections paid to the x402 Gutachter. A paid Sokosumi Task settled on chain and e-mailed an accepted XRechnung to the Mailpit inbox. These are separate recorded runs, each labelled under [Recorded runs](#recorded-runs). Every hash under [On-chain evidence](#on-chain-evidence) is a confirmed preprod transaction.
-> `npm test` runs 297 tests (296 pass, 1 opt-in Claude test is skipped), and [CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml) runs them against a live KoSIT validator on every push. A two-part internal [security review](#security-review) (not a third-party audit) was followed by two fix rounds. Pins and accepted risks are in [SECURITY.md](SECURITY.md). What is still open is under [Status](#status), and what is mocked is under [What this proves](#what-this-proves-and-what-it-doesnt).
+> `npm test` runs 386 tests (385 pass, 1 opt-in Claude test is skipped), and [CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml) runs them against a live KoSIT validator on every push. A two-part internal [security review](#security-review) (not a third-party audit) was followed by two fix rounds. Pins and accepted risks are in [SECURITY.md](SECURITY.md). What is still open is under [Status](#status), and what is mocked is under [What this proves](#what-this-proves-and-what-it-doesnt).
 
 ## Contents
 
@@ -825,7 +825,7 @@ node --env-file=.local/env/<process>.env --import=./scripts/env-guard.mjs <entry
 
 The profiles and their secrets are listed in [`plan/MPS.md`](plan/MPS.md) ("Env files per process").
 
-With Claude extraction from the free-text invoice (needs `ANTHROPIC_API_KEY` in `.env`, then `node scripts/env-split.mjs`):
+With Claude extraction from the free-text invoice (needs `ANTHROPIC_API_KEY` in `.local/secrets.env`, then `node scripts/env-split.mjs`):
 
 ```sh
 node --env-file=.local/env/buero-local.env einvoice/cli.mjs fixtures/b-abschlag-13b-bau-isar.txt bau-isar 18400.00
@@ -836,9 +836,9 @@ RUN_LLM_TESTS=1 node --env-file=.local/env/buero-local.env --test einvoice/extra
 
 ```sh
 cd gutachter
-npm test                                        # 31 pass: verdicts, replay ledger, resend, budget, bind host (no chain, no KoSIT)
-npm run wallet                                  # once: appends GUTACHTER_* wallets to ../.env, prints addresses only, reruns env-split
-npm run balance                                 # buyer balance via Blockfrost (needs BLOCKFROST_API_KEY_PREPROD in ../.env)
+npm test                                        # 48 pass: verdicts, replay ledger, resend, budget, bind host (no chain, no KoSIT)
+npm run wallet                                  # once: appends GUTACHTER_* wallets to ../.local/secrets.env, prints addresses only, reruns env-split
+npm run balance                                 # buyer balance via Blockfrost (needs BLOCKFROST_API_KEY_PREPROD in ../.local/secrets.env)
 npm run seller                                  # terminal 1: Gutachter on 127.0.0.1:4021 (../.local/env/gutachter-seller.env, no secrets)
 npm run buy -- fixtures/xrechnung-ok.xml        # terminal 2: pays 1 tADA, prints ACCEPTABLE and the tx hash
 npm run buy -- fixtures/xrechnung-no-bt10.xml   # pays 1 tADA, prints REJECT (BR-DE-15)
@@ -856,7 +856,7 @@ The compose file needs private files that are not in the repo. Generate the two 
  printf 'ENCRYPTION_KEY=%s\n' "$(openssl rand -hex 32)" > .local/mps-secrets.env)  # 64 hex characters
 ```
 
-Then add `PURCHASE_WALLET_PREPROD_MNEMONIC` and `SELLING_WALLET_PREPROD_MNEMONIC` (two fresh preprod mnemonics you generate yourself) to `.local/mps-secrets.env`, and `BLOCKFROST_API_KEY_PREPROD` to `.env`.
+Then add `PURCHASE_WALLET_PREPROD_MNEMONIC` and `SELLING_WALLET_PREPROD_MNEMONIC` (two fresh preprod mnemonics you generate yourself) to `.local/mps-secrets.env`, and `BLOCKFROST_API_KEY_PREPROD` to `.local/secrets.env`. Secrets go there, not into the repo-root `.env`: the template's dev server loads `.env` itself, so the env guard refuses `npm start` while `.env` holds a secret.
 
 ```sh
 mps/mps.sh up -d                                  # MPS 0.29.0 + Postgres; the first start builds the setup image from the pinned commit
@@ -1094,7 +1094,7 @@ Hackathon build, Cardano preprod only. Build window Fri 30 Oct 09:00 → Sat 31 
 - [x] Internal security review in two parts and two fix rounds; CI green on `main`
 - [x] Upstream issue and fix for MPS (#1327, #1328)
 - [x] Live test campaign 1 (Fri afternoon, code `140aec4`): 22 scenarios, 20 PASS, 1 FAIL (A3: the test expectation was wrong; the cure from the recipient profile is by design), 1 PARTIAL; 88 transactions, all `valid_contract: true`. It includes the chained run: PRÜFEN A1 with two x402 inspections, then SENDEN of that invoice into Mailpit. See [`audit/raw/e2e-campaign.md`](audit/raw/e2e-campaign.md) and [`plan/EVIDENCE.md`](plan/EVIDENCE.md)
-- [x] `npm test`: 297 tests, 296 pass, 1 opt-in Claude test skipped
+- [x] `npm test`: 386 tests, 385 pass, 1 opt-in Claude test skipped
 
 **Open:**
 
