@@ -75,11 +75,13 @@ export async function createPaidAdapter({save,answer,core:providedCore,mps:provi
    p={...p,observed};state=await persist(task,state,p);
    if(p.stage==='awaiting-escrow'){
     if(observed.onChainState!=='FundsLocked'||!confirmedState(observed,'FundsLocked'))return state;
-    if(Date.now()>=Number(p.payment.submitResultTime))throw new Error('Result deadline expired before model');
     state=await persist(task,state,{...p,stage:'model-pending'});
-    if(Date.now()>=Number(p.payment.submitResultTime))throw new Error('Result deadline expired before model send');
-    const result=await answer(state.input,`.local/${task.id}-session.json`,Number(p.payment.submitResultTime));
-    if(typeof result!=='string'||!result.trim())throw new Error('Model did not return a result');
+    let result;
+    try{
+     if(Date.now()>=Number(p.payment.submitResultTime))throw new Error('Result deadline expired before model send');
+     result=await answer(state.input,`.local/${task.id}-session.json`,Number(p.payment.submitResultTime));
+     if(typeof result!=='string'||!result.trim())throw new Error('Model did not return a result');
+    }catch(error){return persist(task,state,{...p,stage:'gate-failed',error:String(error?.message??error).slice(0,1000)});}
     writeFileSync(`.local/${task.id}.txt`,result,{mode:0o600});
     return persist(task,state,{...p,stage:'result-saved',result,resultHash:taskHash(result)});
    }
@@ -97,6 +99,11 @@ export async function createPaidAdapter({save,answer,core:providedCore,mps:provi
    state=await persist(task,state,{...p,stage:'complete-pending'});
    const response=await (await verifyRuntimeTask(await getCore(),task.id,target)).post(`/v1/tasks/${encodeURIComponent(task.id)}/events`,{status:'COMPLETED',comment:p.result});
    return persist(task,{...state,phase:'completed'},{...p,stage:'awaiting-withdrawal',completionEventId:response.data.id});
+  }
+  if(p.stage==='gate-failed'){
+   state=await persist(task,state,{...p,stage:'fail-pending'});
+   const response=await (await verifyRuntimeTask(await getCore(),task.id,target)).post(`/v1/tasks/${encodeURIComponent(task.id)}/events`,{status:'FAILED',comment:`Abgebrochen, kein Ergebnis eingereicht: ${p.error}`});
+   return persist(task,{...state,phase:'failed'},{...p,stage:'failed',failedEventId:response.data.id});
   }
   if(p.stage.endsWith('-pending'))throw new Error(`Uncertain ${p.stage}. Inspect prior operation before recovery; automatic retry disabled.`);
   return state;

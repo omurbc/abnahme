@@ -31,8 +31,20 @@ test('unconfirmed escrow does not invoke model',async()=>{
 test('expired deadline prevents model after confirmed read',async()=>{
  let sends=0;const expired={...payment,submitResultTime:'1'};
  const adapter=await createPaidAdapter({target,core,registration,save:async()=>{},answer:async()=>{sends++;},mps:async()=>({...expired,onChainState:'FundsLocked',CurrentTransaction:{status:'Confirmed',newOnChainState:'FundsLocked'}})});
- await assert.rejects(()=>adapter.advance(task,{input:'abc',paid:{stage:'awaiting-escrow',payment:expired}}),/deadline expired/);
- assert.equal(sends,0);
+ const state=await adapter.advance(task,{input:'abc',paid:{stage:'awaiting-escrow',payment:expired}});
+ assert.equal(sends,0);assert.equal(state.paid.stage,'gate-failed');assert.match(state.paid.error,/deadline expired/);
+});
+test('failed answer after FundsLocked ends in gate-failed and FAILED, never model-pending or submit',async()=>{
+ const posts=[],calls=[];const locked={...payment,onChainState:'FundsLocked',CurrentTransaction:{status:'Confirmed',newOnChainState:'FundsLocked'}};
+ const adapter=await createPaidAdapter({target,registration,save:async()=>{},answer:async()=>{throw Error('§ 14c duplicate')},
+  core:{...core,post:async(path,body)=>{posts.push(body);return {data:{id:'event'}}}},mps:async path=>{calls.push(path);return locked}});
+ let state=await adapter.advance(task,{input:'abc',paid:{stage:'awaiting-escrow',payment}});
+ assert.equal(state.paid.stage,'gate-failed');assert.match(state.paid.error,/14c/);
+ state=await adapter.advance(task,state);
+ assert.equal(state.paid.stage,'failed');assert.equal(state.phase,'failed');
+ assert.deepEqual(posts.map(b=>b.status),['FAILED']);assert.match(posts[0].comment,/14c/);
+ assert.equal(calls.includes('/api/v1/payment/submit-result'),false);
+ state=await adapter.advance(task,state);assert.equal(posts.length,1);
 });
 
 test('confirmed history proves lock when CurrentTransaction is absent',()=>{
