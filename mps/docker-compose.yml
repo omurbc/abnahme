@@ -1,0 +1,91 @@
+# Masumi Payment Service (Cardano Preprod) for Abnahme.
+# Derived from the official https://github.com/masumi-network/masumi-services-dev-quickstart
+# (commit 9b48523, payment-service 0.29.0). Changes: payment service only (no registry
+# service), dedicated project/volume names, API bound to 127.0.0.1:${MPS_PORT} (38127),
+# database not published on the host, amd64 image pinned for Apple Silicon.
+#
+# Start/stop from the repo root with mps/mps.sh (it passes the private env files).
+name: abnahme-mps
+
+services:
+  # The payment-service image (0.29.0) cannot seed: it lacks the workspace
+  # packages the seed script imports. This one-shot service builds the same
+  # release from source, applies the migrations, seeds the database and exits.
+  payment-setup:
+    build:
+      context: https://github.com/masumi-network/masumi-payment-service.git#0.29.0
+      dockerfile_inline: |
+        FROM node:20-slim
+        RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+        RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
+        WORKDIR /usr/src/app
+        COPY . .
+        RUN pnpm install --frozen-lockfile
+    image: masumi-payment-setup:0.29.0
+    container_name: abnahme-mps-setup
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres-payment:5432/postgres?schema=public
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?set in .local/mps-secrets.env}
+      - ADMIN_KEY=${ADMIN_KEY:?set in .local/mps.env}
+      - BLOCKFROST_API_KEY_PREPROD=${BLOCKFROST_API_KEY_PREPROD:?set in .env}
+      - PURCHASE_WALLET_PREPROD_MNEMONIC=${PURCHASE_WALLET_PREPROD_MNEMONIC:?set in .local/mps-secrets.env}
+      - SELLING_WALLET_PREPROD_MNEMONIC=${SELLING_WALLET_PREPROD_MNEMONIC:?set in .local/mps-secrets.env}
+      - SEED_ONLY_IF_EMPTY=TRUE
+    depends_on:
+      postgres-payment:
+        condition: service_healthy
+    command: sh -c "pnpm run prisma:migrate && pnpm run prisma:seed"
+    networks:
+      - mps
+    restart: "no"
+
+  payment-service:
+    image: ghcr.io/masumi-network/masumi-payment-service:0.29.0
+    platform: linux/amd64
+    container_name: abnahme-mps-service
+    ports:
+      - "127.0.0.1:${MPS_PORT:-38127}:3001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres-payment:5432/postgres?schema=public
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - BLOCK_CONFIRMATIONS_THRESHOLD=${BLOCK_CONFIRMATIONS_THRESHOLD:-0}
+      - CHECK_TX_INTERVAL=${CHECK_TX_INTERVAL:-15}
+    depends_on:
+      payment-setup:
+        condition: service_completed_successfully
+    # The image's default command (pnpm run start) tries to download another
+    # pnpm version and fails, so start the server directly.
+    command: ["node", "./dist/index.js"]
+    networks:
+      - mps
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-payment:
+    image: postgres:15
+    container_name: abnahme-mps-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mps
+    restart: unless-stopped
+
+networks:
+  mps:
+    driver: bridge
+
+volumes:
+  pgdata:
+    name: abnahme_mps_pgdata
