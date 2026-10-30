@@ -47,7 +47,7 @@ A defect freezes the converter's money on chain until the converter fixes it.
 - [Repo map](#repo-map)
 - [Tech stack](#tech-stack)
 - [On-chain evidence](#on-chain-evidence)
-- [Upstream contribution](#upstream-contribution-a-refund-bug-in-the-masumi-payment-service)
+- [Upstream contributions](#upstream-contributions-two-bugs-in-the-masumi-payment-service)
 - [Security review](#security-review)
 - [Status](#status)
 - [Credits](#credits)
@@ -1045,13 +1045,20 @@ Addresses to watch on [preprod.cardanoscan.io](https://preprod.cardanoscan.io) (
 
 ---
 
-## Upstream contribution: a refund bug in the Masumi Payment Service
+## Upstream contributions: two bugs in the Masumi Payment Service
 
 While building the refusal path we found that MPS 0.28.0 (the first release with V2 escrows) through 0.30.0 and `main` never refund a V2 purchase automatically once the seller has authorized the refund on a dispute. tx-sync writes the previous `resultHash` back after `AuthorizeRefund` empties it on chain (`decodedNewContract?.resultHash ?? decodedOldContract.resultHash`). The refund jobs select only `resultHash: null`. No funds are at risk, because only the buyer can spend a `RefundAuthorized` escrow, but the escrow waits for an operator.
 
 - Issue with the on-chain and API evidence: [masumi-network/masumi-payment-service#1327](https://github.com/masumi-network/masumi-payment-service/issues/1327) (open).
 - Fix with a regression test: [masumi-network/masumi-payment-service#1328](https://github.com/masumi-network/masumi-payment-service/pull/1328) (open, awaiting maintainer review). We ran the regression test (fails before, passes after), the full suite, lint and typecheck locally; upstream CI has not run on the PR yet.
 - Workaround, verified on our 0.29.0 instance: after `POST /api/v1/request-repair` (10:35:47Z), MPS submitted `WithdrawRefund` [`becff7ad…`](https://preprod.cardanoscan.io/transaction/becff7ad2aa0d3efeb1f8b46e4a5e8a41f35995885a6a991f33b5a6bccb6df04) at 10:37:09Z. It spent the stuck `RefundAuthorized` escrow `adbfbd34…#0` and returned 1 tUSDM to the Büro-Agent's purchasing wallet.
+
+
+**Second bug, found in live test campaign 2: payouts lost after a batched cure.** When MPS batches several `SubmitResult`s into one tx, the idempotency guard in the V2 tx-sync handler skips every escrow after the first whose state does not change (a cure keeps the escrow `Disputed`). That payment stays at `SubmitResultInitiated`, turns into `WaitingForManualAction` after the buyer's `AuthorizeWithdrawal`, and the seller's `Withdraw` is never built. Present in 0.29.0, `main` and `dev`.
+
+- Issue with on-chain evidence and root cause: [masumi-network/masumi-payment-service#1331](https://github.com/masumi-network/masumi-payment-service/issues/1331) (open).
+- Fix with a regression spec (fails 4/4 on `dev`, passes 4/4 with the fix): [masumi-network/masumi-payment-service#1332](https://github.com/masumi-network/masumi-payment-service/pull/1332) (open).
+- Workaround, verified on our instance: `request-repair` with the `AuthorizeWithdrawal` tx, then `error-state-recovery`; the three stuck payouts were paid in [`d6d48469…`](https://preprod.cardanoscan.io/transaction/d6d484694ce2d8af2f1bae88d11cb41e9495124782dbf91be33da0cae614da08) and [`4d580b35…`](https://preprod.cardanoscan.io/transaction/4d580b35eb441be0ed25701c9f4c1ef254fd6cbbc267fcb877d6a95d2590c17a). [`mps/refund-repair.mjs`](mps/refund-repair.mjs) detects and repairs both bugs automatically, after checking the escrow datum on chain.
 
 ---
 
