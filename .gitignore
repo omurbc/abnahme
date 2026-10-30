@@ -17,3 +17,6 @@ env.backup*
 *.mnemonic
 *.pem
 *.key
+# raw audit working files (contain local paths and operator details; the report is audit/abnahme-audit.md)
+audit/raw/
+plan/ideation-result.json

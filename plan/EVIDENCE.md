@@ -637,7 +637,7 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 
 ## Live test campaign, Fri 30 Oct afternoon
 
-Cardano preprod, 13:47Z to 15:14Z (first Task to last tx), code `2bafa11`, worker pid 60653, RechnungsMeister `DEMO_SEED_DEFECT=1`. Lane A: 17 Sokosumi Tasks through the live worker. Lane B: 11 `buero/run.mjs` processes with concurrency and fault injection. Full aggregate, re-check method and the list of all 88 txs: `audit/raw/e2e-campaign.md`. Lane reports: `audit/raw/e2e-lane-a.md`, `audit/raw/e2e-lane-b.md`.
+Cardano preprod, 13:47Z to 15:14Z (first Task to last tx), code `140aec4`, worker pid 60653, RechnungsMeister `DEMO_SEED_DEFECT=1`. Lane A: 17 Sokosumi Tasks through the live worker. Lane B: 11 `buero/run.mjs` processes with concurrency and fault injection. Full aggregate, re-check method and the list of all 88 txs: `audit/raw/e2e-campaign.md`. Lane reports: `audit/raw/e2e-lane-a.md`, `audit/raw/e2e-lane-b.md`.
 
 - **Verdicts:** 22 scenarios, 20 PASS, 1 FAIL (A3: fixture c was cured from the recipient profile; the campaign expected a refusal), 1 PARTIAL (A12: premise not met).
 - **On chain:** 88 distinct txs, all `valid_contract: true` on Blockfrost (all 88 re-checked at 15:18Z). 21 escrows: 19 RechnungsMeister purchases (14 Withdrawn, 3 RefundWithdrawn, **2 RefundAuthorized still open: A4, A9b**) and 2 paid SENDEN escrows (both Withdrawn to the Abnahme-Büro, settlement verified).
