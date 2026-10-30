@@ -1,6 +1,7 @@
 {
   "id": "hv-giesing",
   "name": "Hausverwaltung Giesing GmbH",
+  "postcode": "81539",
   "rolle": "Hausverwaltung, Regelbesteuerung 19 %",
   "vatId": null,
   "reverseCharge13b": false,

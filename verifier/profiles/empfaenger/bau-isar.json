@@ -1,6 +1,7 @@
 {
   "id": "bau-isar",
   "name": "Bau Isar Generalunternehmer GmbH",
+  "postcode": "81671",
   "rolle": "Generalunternehmer, empfängt Bauleistungen nach § 13b UStG",
   "vatId": "DE287654321",
   "reverseCharge13b": true,

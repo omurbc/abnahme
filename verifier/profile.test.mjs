@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {canonicalJson,loadProfile,profileHash,recipientIds,loadAcceptance} from './profile.mjs';
+import {canonicalJson,parseJson,loadProfile,profileHash,recipientIds,loadAcceptance} from './profile.mjs';
 import {XRECHNUNG_UBL_SCENARIO} from './kosit.mjs';
 
 test('canonical JSON sorts keys recursively and has no whitespace',()=>{
@@ -8,6 +8,15 @@ test('canonical JSON sorts keys recursively and has no whitespace',()=>{
  assert.equal(canonicalJson({'€':1,'\r':2,'1':3}),'{"\\r":2,"1":3,"€":1}');
  assert.equal(canonicalJson([1e21,1e-7,-0,0.1]),'[1e+21,1e-7,0,0.1]');
  assert.throws(()=>canonicalJson({x:NaN}),/non-finite/);
+});
+
+test('JCS refuses what RFC 8785 refuses: lone surrogates and duplicate property names',()=>{
+ assert.throws(()=>canonicalJson('\ud800'),/lone surrogate/);
+ assert.throws(()=>canonicalJson({['a\udc00']:1}),/lone surrogate/);
+ assert.equal(canonicalJson('\ud83d\ude00'),'"\ud83d\ude00"');
+ assert.throws(()=>parseJson('{"vatId":"DE1","vatId":"DE2"}'),/duplicate key "vatId"/);
+ assert.throws(()=>parseJson('{"x":{"a":1,"b":{"a":2},"\\u0061":3}}'),/duplicate key "a"/);
+ assert.deepEqual(parseJson('{"a":{"a":1},"b":[{"a":1},{"a":2}],"s":"\\"a\\":"}'),{a:{a:1},b:[{a:1},{a:2}],s:'"a":'});
 });
 
 test('profile hash ignores key order and changes with content',()=>{
@@ -20,8 +29,8 @@ test('profile hash ignores key order and changes with content',()=>{
 // Changing a profile file changes the escrow input hash. Update these values only on purpose.
 test('profile hashes are stable',()=>{
  assert.deepEqual(recipientIds(),['bau-isar','hv-giesing']);
- assert.equal(loadProfile('bau-isar').profileHash,'0d799b1362b6e476f1d1f1b52dacc7458abdca0f4e8b99bf91d0a11034eacd74');
- assert.equal(loadProfile('hv-giesing').profileHash,'ec6c8f6765e37e8fbc97416d6fc4e5198dcc15ab91167e1303560a88fe8984c0');
+ assert.equal(loadProfile('bau-isar').profileHash,'64a8294cadfaca2383bd7f944cdf016cb7683e904e99b938b39c4001c6cedc10');
+ assert.equal(loadProfile('hv-giesing').profileHash,'a9c6f943c29dff31221fd6b18db4a4ea5391adcd9d4f5550e25da320a815189a');
 });
 
 test('acceptance profile pins the KoSIT scenario the client enforces',()=>{

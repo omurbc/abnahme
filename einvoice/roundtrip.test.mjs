@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {parseFixed} from './parse-fixed.mjs';
-import {buildXml} from './build.mjs';
+import {buildXml,invoiceData} from './build.mjs';
 import {validate,kositAvailable,XRECHNUNG_UBL_SCENARIO} from '../verifier/kosit.mjs';
 import {runChecks} from '../verifier/checks.mjs';
 import {loadProfile} from '../verifier/profile.mjs';
@@ -37,6 +37,30 @@ test('build leaves CustomizationID to the library: XRechnung 3.0, never plain EN
  assert.match(b,/<cbc:TaxExemptionReasonCode>VATEX-EU-AE<\/cbc:TaxExemptionReasonCode>/);
 });
 
+test('line nets and VAT are rounded half-up like a paper invoice, also where binary floats fall below the half cent',()=>{
+ const a=parseFixed(fixture('a-reparatur-hv-giesing.fixed.txt'));
+ const invoice=lines=>invoiceData({...a,lines:lines.map(([quantity,unitPrice])=>({...a.lines[0],quantity,unitPrice}))})['ubl:Invoice'];
+ const nets=lines=>invoice(lines)['cac:InvoiceLine'].map(l=>l['cbc:LineExtensionAmount']);
+ assert.deepEqual(nets([[0.5,2.01],[0.25,0.58]]),['1.01','0.15']);
+ // Quarter quantities x cent prices: exact half-up in integers is floor((q*p+2)/4) cents for quantity q/4, price p cents.
+ for(let q=1;q<=40;q++){
+  const prices=Array.from({length:1000},(_,k)=>k+1);
+  assert.deepEqual(nets(prices.map(p=>[q/4,p/100])),prices.map(p=>(Math.floor((q*p+2)/4)/100).toFixed(2)),`quantity ${q/4}`);
+ }
+ // Negative taxable amount on a half cent: -0,50 x 19 % = -0,095 -> -0,10 (symmetric), not -0,09.
+ assert.equal(invoice([[1,-0.5]])['cac:TaxTotal'][0]['cbc:TaxAmount'],'-0.10');
+});
+
+test('the § 13b note and the line categories must agree',async()=>{
+ await assert.rejects(buildXml({...parseFixed(fixture('a-reparatur-hv-giesing.fixed.txt')),reverseCharge:true}),/§ 13b UStG.*Steuerkategorien/);
+ await assert.rejects(buildXml({...parseFixed(fixture('b-abschlag-13b-bau-isar.fixed.txt')),reverseCharge:false}),/§ 13b UStG.*Steuerkategorien/);
+});
+
+test('the fixed-layout parser accepts only the invoice types the builder supports',()=>{
+ for(const type of ['877','325','389'])
+  assert.throws(()=>parseFixed(fixture('a-reparatur-hv-giesing.fixed.txt').replace('invoiceType: 380',`invoiceType: ${type}`)),/invoiceType must be 380 or 875/);
+});
+
 for(const c of CASES){
  test(`round trip ${c.name} -> ${c.recipient}: ${c.passed?'abgenommen':c.codes.join(' + ')}`,{skip},async()=>{
   const {acceptance,recipient}=loadProfile(c.recipient);
@@ -52,3 +76,16 @@ for(const c of CASES){
   for(const f of checks.failures)assert.ok(f.textDe&&!/^BR-|^\[/.test(f.textDe),`German text for ${f.code}: ${f.textDe}`);
  });
 }
+
+test('an invoice without Leistungsdatum passes KoSIT (information only) but is ABGELEHNT',{skip},async()=>{
+ const {acceptance,recipient}=loadProfile('hv-giesing');
+ const fields={...parseFixed(fixture('a-reparatur-hv-giesing.fixed.txt')),serviceDate:null};
+ const xml=await buildXml(fields);
+ const kosit=await validate(xml,{scenario:acceptance.scenario});
+ assert.equal(kosit.accepted,true);
+ assert.deepEqual(kosit.messages.map(m=>`${m.level}:${m.code}`),['information:BR-DE-TMP-32']);
+ const checks=runChecks({xml,kosit,acceptance,recipient,expectedTotal:527.17});
+ assert.equal(checks.passed,false);
+ assert.deepEqual(checks.failures.map(f=>f.code),['BR-DE-TMP-32']);
+ assert.match(checks.failures[0].textDe,/§ 14 Abs\. 4 Satz 1 Nr\. 6 UStG/);
+});

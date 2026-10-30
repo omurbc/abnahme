@@ -1,6 +1,6 @@
 {
   "id": "abnahme-xrechnung-v1",
-  "beschreibung": "Abnahmeprüfung für XRechnung-UBL: staatlicher KoSIT-Prüfer mit festgelegtem Szenario plus fachliche Prüfungen gegen das Empfängerprofil.",
+  "beschreibung": "Abnahmeprüfung für XRechnung-UBL: staatlicher KoSIT-Prüfer mit festgelegtem Szenario plus fachliche Prüfungen gegen das Empfängerprofil. Geprüft werden Beträge, Steuer, Währung, Rechnungsart, Daten und die Identität von Verkäufer, Käufer und Konto; Freitexte (Positionsbezeichnungen, Zahlungsbedingungen, Kontaktdaten) werden nicht inhaltlich geprüft.",
   "format": "XRECHNUNG-UBL",
   "validator": {
     "name": "KoSIT Validator",
@@ -21,11 +21,23 @@
     "warning": "minor",
     "information": "minor"
   },
+  "kositRules": {
+    "BR-DE-TMP-32": "failure",
+    "BR-DE-17": "failure",
+    "BR-DE-26": "failure",
+    "PEPPOL-EN16931-R120": "failure"
+  },
   "semanticChecks": [
     {"id": "payable-amount", "bt": ["BT-115"], "beschreibung": "Zahlbetrag entspricht dem erwarteten Rechnungsbetrag."},
     {"id": "seller-vat-id", "bt": ["BT-31"], "beschreibung": "USt-IdNr. des Verkäufers steht in den Kreditorenstammdaten des Empfängers."},
     {"id": "seller-iban", "bt": ["BT-84"], "beschreibung": "IBAN entspricht der IBAN aus den Kreditorenstammdaten."},
     {"id": "reverse-charge", "bt": ["BT-151", "BT-118", "BT-48"], "beschreibung": "Bei §-13b-Empfängern: alle Positionen und die Steueraufschlüsselung in Kategorie AE, BT-48 gleich der USt-IdNr. des Empfängers. Sonst keine Kategorie AE."},
-    {"id": "buyer-reference", "bt": ["BT-10"], "beschreibung": "Käuferreferenz entspricht dem Muster des Empfängers."}
+    {"id": "buyer-reference", "bt": ["BT-10"], "beschreibung": "Käuferreferenz entspricht dem Muster des Empfängers."},
+    {"id": "currency", "bt": ["BT-5", "BT-6"], "currency": "EUR", "beschreibung": "Rechnungswährung und jede Betragswährung (currencyID) ist EUR."},
+    {"id": "invoice-type", "bt": ["BT-3"], "codes": ["380", "875"], "beschreibung": "Rechnungsart ist 380 (Rechnung) oder 875 (Abschlagsrechnung Bau)."},
+    {"id": "reverse-charge-wording", "bt": ["BT-120", "BT-22"], "beschreibung": "Bei Kategorie AE steht „Steuerschuldnerschaft des Leistungsempfängers“ (§ 14a Abs. 5 UStG) in BT-120 oder BT-22."},
+    {"id": "vat-arithmetic", "bt": ["BT-116", "BT-117", "BT-119"], "beschreibung": "Steuerbetrag je Kategorie ist genau BT-116 × BT-119 / 100, kaufmännisch auf Cent gerundet (KoSIT lässt ±0,99 zu)."},
+    {"id": "buyer-identity", "bt": ["BT-44", "BT-53"], "beschreibung": "Name und Postleitzahl des Käufers entsprechen dem Empfängerprofil."},
+    {"id": "dates", "bt": ["BT-2", "BT-9"], "beschreibung": "Rechnungsdatum nicht nach heute (Europe/Berlin), Fälligkeitsdatum nicht vor dem Rechnungsdatum."}
   ]
 }

@@ -3,6 +3,7 @@
 // one "line: quantity | unit | unitPrice | vatCategory | vatRate | description" per invoice line.
 // Empty values and missing optional keys become null. Lines starting with # are comments.
 export const FIXED_HEADER='ABNAHME-FIXED/1';
+export const INVOICE_TYPES=['380','875'];
 const TEXT=['invoiceNumber','invoiceDate','invoiceType','serviceDate','sellerName','sellerStreet','sellerPostcode','sellerCity','sellerCountry','sellerVatId','sellerIban','sellerContactName','sellerPhone','sellerEmail','buyerName','buyerStreet','buyerPostcode','buyerCity','buyerCountry','buyerVatId','buyerEmail','buyerReference','dueDate','paymentTerms'];
 const NUMBERS=['netTotal','vatTotal','grossTotal'];
 const REQUIRED=['invoiceNumber','invoiceDate','invoiceType','sellerName','sellerStreet','sellerPostcode','sellerCity','sellerCountry','buyerName','buyerStreet','buyerPostcode','buyerCity','buyerCountry','reverseCharge'];
@@ -42,6 +43,7 @@ export function parseFixed(text){
  }
  const missing=REQUIRED.filter(k=>fields[k]==null);
  if(missing.length)throw new Error(`Missing required keys: ${missing.join(', ')}`);
+ if(!INVOICE_TYPES.includes(fields.invoiceType))throw new Error(`invoiceType must be ${INVOICE_TYPES.join(' or ')}, got ${JSON.stringify(fields.invoiceType)}`);
  if(!fields.lines.length)throw new Error('At least one line is required');
  return fields;
 }

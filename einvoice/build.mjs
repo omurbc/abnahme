@@ -3,7 +3,10 @@ import {InvoiceService} from '@e-invoice-eu/core';
 // Flat invoice fields (see einvoice/extract.mjs FIELDS_SCHEMA) -> XRECHNUNG-UBL XML string.
 // cbc:CustomizationID is left out on purpose: the XRECHNUNG-UBL format then fills in the XRechnung 3.0 ID.
 // Setting the plain EN16931 ID would select a scenario without the German BR-DE rules.
-const cents=n=>Math.round(n*100);
+// Half-up away from zero (kaufmännisch) to whole cents. toFixed(6) first drops binary float noise: 0.5*2.01*100 is
+// 100.49999999999999, which Math.round alone takes down to 1,00 instead of 1,01.
+const halfUp=x=>{const v=Number(x.toFixed(6));return Math.sign(v)*Math.round(Math.abs(v));};
+const cents=n=>halfUp(n*100);
 const amount=c=>(c/100).toFixed(2);
 const number=n=>String(Number(n.toFixed(6)));
 const AE_REASON='Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)';
@@ -11,6 +14,7 @@ const taxCategory=(category,rate)=>({'cbc:ID':category,'cbc:Percent':number(rate
 const address=(street,postcode,city,country)=>({'cbc:StreetName':street,'cbc:CityName':city,'cbc:PostalZone':postcode,'cac:Country':{'cbc:IdentificationCode':country||'DE'}});
 
 export function invoiceData(f){
+ if(f.reverseCharge!==f.lines.some(l=>l.vatCategory==='AE'))throw new Error('XRechnung kann nicht erzeugt werden: der Hinweis auf § 13b UStG (reverseCharge) passt nicht zu den Steuerkategorien der Positionen.');
  const currency=f.currency||'EUR';
  const lines=f.lines.map(l=>({...l,net:cents(l.quantity*l.unitPrice)}));
  const groups=new Map();
@@ -19,7 +23,7 @@ export function invoiceData(f){
   const g=groups.get(key)||{category:l.vatCategory,rate:l.vatRate,taxable:0};
   g.taxable+=l.net;groups.set(key,g);
  }
- const subtotals=[...groups.values()].map(g=>({...g,tax:Math.round(g.taxable*g.rate/100)}));
+ const subtotals=[...groups.values()].map(g=>({...g,tax:halfUp(g.taxable*g.rate/100)}));
  const net=lines.reduce((s,l)=>s+l.net,0);
  const tax=subtotals.reduce((s,g)=>s+g.tax,0);
  const invoice={

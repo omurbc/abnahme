@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import {jsonSchemaOutputFormat} from '@anthropic-ai/sdk/helpers/json-schema';
-import {parseFixed} from './parse-fixed.mjs';
+import {parseFixed,INVOICE_TYPES} from './parse-fixed.mjs';
 
 // Flat invoice fields shared by extract (LLM), parse-fixed (deterministic) and build.
 const str={type:'string'};
@@ -10,7 +10,7 @@ const opt=s=>({anyOf:[s,{type:'null'}]});
 const object=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 export const UNITS=['HUR','H87','C62','LS','MTR','KGM','DAY'];
 export const FIELDS_SCHEMA=object({
- invoiceNumber:str,invoiceDate:date,invoiceType:{type:'string',enum:['380','875']},serviceDate:opt(date),
+ invoiceNumber:str,invoiceDate:date,invoiceType:{type:'string',enum:INVOICE_TYPES},serviceDate:opt(date),
  sellerName:str,sellerStreet:str,sellerPostcode:str,sellerCity:str,sellerCountry:str,
  sellerVatId:opt(str),sellerIban:opt(str),sellerContactName:opt(str),sellerPhone:opt(str),sellerEmail:opt(str),
  buyerName:str,buyerStreet:str,buyerPostcode:str,buyerCity:str,buyerCountry:str,buyerVatId:opt(str),buyerEmail:opt(str),
@@ -32,8 +32,11 @@ Copy values exactly as printed; never invent a value. If a field is not in the t
 - unitPrice is the net price per unit; netTotal, vatTotal and grossTotal are the totals printed on the invoice.`;
 
 export const MODEL='claude-opus-5-5';
+// Same limit as RechnungsMeister's input_data. Caps the spend of one (free) PRÜFEN before the model is called.
+export const MAX_TEXT_CHARS=16000;
 
 export async function extractLlm(text,client=new Anthropic()){
+ if(text.length>MAX_TEXT_CHARS)throw new Error(`Der Rechnungstext ist zu lang (${text.length.toLocaleString('de-DE')} Zeichen, höchstens ${MAX_TEXT_CHARS.toLocaleString('de-DE')}). Bitte nur die Rechnung selbst einfügen.`);
  const response=await client.beta.messages.parse({
   model:MODEL,
   max_tokens:16000,
