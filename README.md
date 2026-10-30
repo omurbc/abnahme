@@ -25,7 +25,7 @@ A defect freezes the converter's money on chain until the converter fixes it.
 
 > [!IMPORTANT]
 > **Build status, Fri 30 Oct 2026 (hackathon day 1, afternoon).** All three agents are built and run on Cardano preprod. The refuse → cure → accept loop ran end to end through the Masumi V2 escrow (8 min 9 s from payment request to `Withdrawn`), with both inspections paid to the x402 Gutachter. A paid Sokosumi Task settled on chain and e-mailed an accepted XRechnung to the Mailpit inbox. These are separate recorded runs, each labelled under [Recorded runs](#recorded-runs). Every hash under [On-chain evidence](#on-chain-evidence) is a confirmed preprod transaction.
-> `npm test` runs 386 tests (385 pass, 1 opt-in Claude test is skipped), and [CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml) runs them against a live KoSIT validator on every push. A two-part internal [security review](#security-review) (not a third-party audit) was followed by two fix rounds. Pins and accepted risks are in [SECURITY.md](SECURITY.md). What is still open is under [Status](#status), and what is mocked is under [What this proves](#what-this-proves-and-what-it-doesnt).
+> `npm test` runs 387 tests (386 pass, 1 opt-in Claude test is skipped), and [CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml) runs them against a live KoSIT validator on every push. An internal [security review](#security-review) (not a third-party audit) in two parts, two live test campaigns and a delta review found 216 findings, all 4 HIGH fixed, over five fix rounds. Pins and accepted risks are in [SECURITY.md](SECURITY.md). What is still open is under [Status](#status), and what is mocked is under [What this proves](#what-this-proves-and-what-it-doesnt).
 
 ## Contents
 
@@ -1079,16 +1079,27 @@ Abnahme is a hackathon build on Cardano preprod, run by one founder with no comp
 
 ## Security review
 
-Abnahme went through an internal security review during the hackathon, in two parts (full report: [`audit/abnahme-audit.md`](audit/abnahme-audit.md)). It is not a third-party audit.
+Abnahme went through an internal security review during the hackathon (full report: [`audit/abnahme-audit.md`](audit/abnahme-audit.md)). It is not a third-party audit.
 
-| Part | Review tracks | Findings |
+| Stage | What | Findings |
 |---|---|---|
-| 1 | 8: x402 payments, keys and secrets, LLM and prompt injection, e-invoice and German tax, QA of every user path, clean-clone reproducibility, dependencies and supply chain, local API penetration test | 88 |
-| 2 (after fix round 1, at `1814dbc`) | 6: Masumi V2 escrow and eUTXO, escrow state machine and journal, live preprod scenarios, on-chain forensics, RechnungsMeister and Büro API penetration test, claims vs reality | 59 |
+| Part 1 | 8 review tracks: x402 payments, keys and secrets, LLM and prompt injection, e-invoice and German tax, QA of every user path, clean-clone reproducibility, dependencies and supply chain, local API penetration test | 88 |
+| Part 2 (after fix round 1, at `1814dbc`) | 6 review tracks: Masumi V2 escrow and eUTXO, escrow state machine and journal, live preprod scenarios, on-chain forensics, RechnungsMeister and Büro API penetration test, claims vs reality | 59 |
+| Live test campaigns 1 and 2 | 43 scenarios on preprod (20 of 22 and 16 of 21 PASS), with fault injection, kills and concurrency | 23 |
+| Delta review (at `0e6ea18`) | 8 review tracks re-checked 118 fixes (89 closed, 21 partial, 8 not closed) and looked for new problems | 46, none HIGH |
 
-- **14 review tracks, 147 findings (88 + 59).** Every HIGH and MEDIUM finding went to 2 adversarial refuters before it counted.
-- **2 fix rounds.** Round 1: `4621ab5`, `0cff46a`, `ab937bd`, `c006ffe`, `1814dbc`, then CI in `324b035`. Round 2: `7b6acd8`, `f53d11d`, `ca81443`. Every fix came with a regression test that failed first.
-- **The full report** is [`audit/abnahme-audit.md`](audit/abnahme-audit.md). The status of each finding is in its ledger. The working notes of the review tracks are not published, because they hold local paths and operator details; the report marks the numbers it takes from them.
+| Severity | Findings | Fixed | Partially fixed | Accepted | Open |
+|---|---|---|---|---|---|
+| HIGH | 4 | 4 | 0 | 0 | 0 |
+| MEDIUM | 31 | 25 | 4 | 1 | 1 |
+| LOW | 131 | 100 | 16 | 8 | 7 |
+| INFO | 50 | 26 | 6 | 8 | 10 |
+| **All** | **216** | **155** | **26** | **17** | **18** |
+
+- **Adversarial verification.** Every HIGH and MEDIUM finding went to 2 refuters before it counted.
+- **5 fix rounds**, every fix with a regression test that failed first. Round 1: `4621ab5`, `0cff46a`, `ab937bd`, `c006ffe`, `1814dbc`, then CI in `324b035`. Round 2: `7b6acd8`, `f53d11d`, `ca81443`. Round 3 (after campaign 1): `def3ac3`, `f26f956`. Round 4 (after campaign 2): `4a3bb34`, `d8e19b1`. Round 5 (after the delta review): `30ec44c` to `13d51cf`, followed by a live escrow run on the new code. Round 5 was not re-reviewed.
+- **The open MEDIUM** is CLEANCLONE-1 (the repository is private until submission). The accepted one is DEPS-1 (MPS 0.29.0 on Node 20, [`SECURITY.md`](SECURITY.md)).
+- **The full report** has the scope, trust boundaries, threat model and attack trees, invariants, the ledger of all 216 findings, the Cardano-specific analysis, on-chain forensics of 42 re-checked transactions, the scenario matrices and the commands to reproduce it. The working notes of the review tracks are not published, because they hold local paths and operator details; the report marks the numbers it takes from them.
 - **Pins, accepted risks and upgrade paths** are in [`SECURITY.md`](SECURITY.md).
 
 ---
@@ -1106,10 +1117,10 @@ Hackathon build, Cardano preprod only. Build window Fri 30 Oct 09:00 → Sat 31 
 - [x] Büro-Agent: refuse → cure → accept on the V2 escrow, with a crash-safe journal, failing closed
 - [x] Sokosumi Coworker *Abnahme-Büro*: free PRÜFEN and paid SENDEN Tasks, settled on preprod
 - [x] E-mail of an accepted XRechnung to Mailpit
-- [x] Internal security review in two parts and two fix rounds; CI green on `main`
+- [x] Internal security review: two parts, two live test campaigns, a delta review and five fix rounds ([report](audit/abnahme-audit.md)); CI green on `main`
 - [x] Upstream issue and fix for MPS (#1327, #1328)
 - [x] Live test campaign 1 (Fri afternoon, code `140aec4`): 22 scenarios, 20 PASS, 1 FAIL (A3: the test expectation was wrong; the cure from the recipient profile is by design), 1 PARTIAL; 88 transactions, all `valid_contract: true`. It includes the chained run: PRÜFEN A1 with two x402 inspections, then SENDEN of that invoice into Mailpit. See [security report §11](audit/abnahme-audit.md#11-live-preprod-scenario-matrices) and [`plan/EVIDENCE.md`](plan/EVIDENCE.md)
-- [x] `npm test`: 386 tests, 385 pass, 1 opt-in Claude test skipped
+- [x] `npm test`: 387 tests, 386 pass, 1 opt-in Claude test skipped
 
 **Open:**
 
