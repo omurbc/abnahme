@@ -1,0 +1,77 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash # bash -eo pipefail, so a failing command in a pipe fails the step
+
+jobs:
+  test:
+    name: Every suite against KoSIT 1.6.3 (Docker, no secrets)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      KOSIT_URL: http://127.0.0.1:8090/
+      EXTRACT_MODE: fixed
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            gutachter/package-lock.json
+      - name: Container images and the MPS build context are pinned
+        run: |
+          refs=$(grep -hE '^[[:space:]]*(image:|FROM |IMAGE=|context: )' mps/docker-compose.yml kosit/start.sh mail/start.sh)
+          printf '%s\n' "$refs"
+          # masumi-payment-setup is built locally from the pinned context, never pulled.
+          bad=$(printf '%s\n' "$refs" | grep -vE '@sha256:[0-9a-f]{64}|\.git#[0-9a-f]{40}( |$)|image: masumi-payment-setup:' || true)
+          if [ -n "$bad" ]; then echo "::error::not pinned by digest or commit:"; printf '%s\n' "$bad"; exit 1; fi
+      - name: Install both packages (lockfiles only, no install scripts; engine-strict refuses Node < 24.2)
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund --prefix gutachter
+      - name: Start KoSIT 1.6.3 with XRechnung configuration 2026-08-31 (sha256-checked)
+        run: kosit/start.sh
+      - name: npm test (every suite; a skipped KoSIT test fails the job)
+        run: |
+          npm test 2>&1 | tee "$RUNNER_TEMP/test.log"
+          if grep -q 'KoSIT not running' "$RUNNER_TEMP/test.log"; then
+            echo "::error::KoSIT tests were skipped, so the acceptance test was not exercised"; exit 1
+          fi
+      - name: CLI verdicts and exit codes on all four fixtures
+        run: |
+          check() { # fixture, recipient, expected exit, expected first line
+            set +e; out=$(node einvoice/cli.mjs "fixtures/$1.fixed.txt" "$2"); got=$?; set -e
+            printf '%s\n' "$out"
+            [ "$got" = "$3" ] || { echo "::error::$1: exit $got, expected $3"; exit 1; }
+            [ "$(printf '%s\n' "$out" | head -n1)" = "$4" ] || { echo "::error::$1: first line is not '$4'"; exit 1; }
+          }
+          check a-reparatur-hv-giesing    hv-giesing 0 'Abnahme: ABGENOMMEN'
+          check b-abschlag-13b-bau-isar   bau-isar   0 'Abnahme: ABGENOMMEN'
+          check c-abschlag-13b-ohne-ustid bau-isar   1 'Abnahme: ABGELEHNT'
+          check d-reparatur-ohne-bt10     hv-giesing 1 'Abnahme: ABGELEHNT'
+          set +e; node einvoice/cli.mjs; got=$?; set -e
+          [ "$got" = 2 ] || { echo "::error::CLI without arguments: exit $got, expected 2"; exit 1; }
+      - name: Tests leave the checkout clean
+        run: |
+          git status --porcelain
+          [ -z "$(git status --porcelain)" ] || { echo "::error::files changed or untracked after the test run"; exit 1; }
+      - name: KoSIT logs
+        if: failure()
+        run: docker logs abnahme-kosit || true
