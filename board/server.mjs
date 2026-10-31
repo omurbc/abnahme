@@ -25,7 +25,9 @@ const PUBLIC=fileURLToPath(new URL('./public/',import.meta.url));
 const BLOCKFROST='https://cardano-preprod.blockfrost.io/api/v0';
 const DEMO_FIXTURE='fixtures/b-abschlag-13b-bau-isar.txt',DEMO_NUMBER='AR-2026-0087';
 const STATIC={'/':['index.html','text/html; charset=utf-8'],'/app.js':['app.js','text/javascript; charset=utf-8'],'/styles.css':['styles.css','text/css; charset=utf-8'],'/favicon.svg':['favicon.svg','image/svg+xml']};
-const CSP="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+// Self-hosted fonts (no third-party request): every file in public/fonts, served by exact name.
+for(const f of existsSync(join(PUBLIC,'fonts'))?readdirSync(join(PUBLIC,'fonts')):[])if(/^[A-Za-z0-9.-]+\.(woff2|css)$/.test(f))STATIC[`/fonts/${f}`]=[`fonts/${f}`,f.endsWith('.css')?'text/css; charset=utf-8':'font/woff2'];
+const CSP="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const LOOPBACK=new Set(['127.0.0.1','::1','::ffff:127.0.0.1']);
 const JOURNAL_ID=/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9-]+Z-[0-9a-f]{6}$/;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -208,7 +210,7 @@ export function createBoard({
    if(req.method!=='GET'&&req.method!=='HEAD')return send(res,405,{error:'read-only'},undefined,{allow:'GET, HEAD'});
    if(STATIC[url.pathname]){
     const [file,type]=STATIC[url.pathname];
-    let body=readFileSync(join(PUBLIC,file),'utf8');
+    let body=type==='font/woff2'?readFileSync(join(PUBLIC,file)):readFileSync(join(PUBLIC,file),'utf8');
     if(file==='index.html')body=body.replace('{{BOARD_NONCE}}',nonce);
     return send(res,200,body,type);
    }

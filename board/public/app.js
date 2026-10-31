@@ -139,9 +139,9 @@ function renderSteps(t){
  const was=seen.steps[t.id]??{};
  const items=t.steps.map(s=>{
   const just=was[s.key]&&was[s.key]!==s.status&&(s.status==='done'||s.status==='failed');
-  const icon=s.status==='failed'?'x':s.status==='done'&&s.key!=='paid'&&s.key!=='mail'?'check':STEP_ICON[s.key]??'check';
+  const icon=s.status==='failed'?'x':s.status==='done'&&!['paid','mail','disputed'].includes(s.key)?'check':STEP_ICON[s.key]??'check';
   const showNote=s.note&&(s.status==='active'||s.status==='failed'||s.conditional||s.key==='cure'||s.key.startsWith('inspection')||/Demo/.test(s.note)||(s.key==='disputed'&&t.protective));
-  return `<li class="step s-${s.status} ${s.tone?`t-${s.tone}`:''} ${s.conditional?'conditional':''} ${just?'just':''}">
+  return `<li class="step k-${s.key} s-${s.status} ${s.tone?`t-${s.tone}`:''} ${s.conditional?'conditional':''} ${just?'just':''}">
    <div class="dotc" title="${esc(s.status)}">${svg(icon)}</div>
    <div class="step-t">${esc(s.title)}</div>
    ${s.term?`<div class="step-de">(${esc(s.term)})</div>`:''}
@@ -162,12 +162,11 @@ function renderSteps(t){
  </article>`;
 }
 
-// Stamp drawn like assets/hero.svg: double ring, mark, German verdict on the band, English caption below.
+// Stamp: double hairline frame, German verdict, English caption below.
 function stampHtml(t,kind,label,caption){
  const key=`${t.id}:${kind}`;
  const animate=seen.stamp[t.id]!==undefined&&seen.stamp[t.id]!==key;
- const mark=kind==='ok'?'<path class="st-mark" d="M-15 -38L-4 -27L17 -50"/>':'<path class="st-mark" d="M-11 -50L11 -28M11 -50L-11 -28"/>';
- return {key,html:`<div class="stamp stamp-${kind} ${animate?'stamp-in':''}" role="img" aria-label="${esc(label)} (${esc(caption)})"><svg viewBox="-96 -96 192 192" aria-hidden="true"><circle class="st-bg" r="76"/><circle class="st-ring" r="74"/><circle class="st-ring2" r="65"/>${mark}<rect class="st-band" x="-90" y="-16" width="180" height="32" rx="3"/><text class="st-label" x="0" y="7.5" text-anchor="middle">${esc(label)}</text><text class="st-small" x="0" y="42" text-anchor="middle">${esc(caption)}</text></svg></div>`};
+ return {key,html:`<div class="stamp stamp-${kind} ${animate?'stamp-in':''}" role="img" aria-label="${esc(label)} (${esc(caption)})"><b aria-hidden="true">${esc(label)}</b><span aria-hidden="true">${esc(caption)}</span></div>`};
 }
 const panelTop=(title,small,sub,stamp,chip='')=>`<div class="panel-top"><div class="panel-hd"><div class="card-h"><h3>${title}<small>${small}</small></h3>${chip}</div>${sub?`<p class="sub">${sub}</p>`:''}</div>${stamp?stamp.html:''}</div>`;
 const defectLi=f=>`<li><code>${esc(f.code)}</code><span class="kind">${esc(f.kind??'')}</span>${f.en?`<p class="en">${esc(f.en)}</p>`:''}<p lang="de">${esc(f.textDe)}</p></li>`;
@@ -266,7 +265,7 @@ function renderHistory(){
 }
 
 // ---------- evidence ----------
-const RAIL={escrow:['Escrow','chip-blue'],x402:['x402','chip-violet'],registry:['Registry','chip-green'],sokosumi:['Sokosumi','chip-amber'],funding:['Funding','chip-grey']};
+const RAIL={escrow:['Escrow','chip-blue'],x402:['x402','chip-violet'],registry:['Registry','chip-grey'],sokosumi:['Sokosumi','chip-grey'],funding:['Funding','chip-grey']};
 const runTime=id=>fmtHm(`${id.slice(0,10)}T${id.slice(11,19).replaceAll('-',':')}Z`);
 function renderEvidence(){
  const el=$('#view-evidence');

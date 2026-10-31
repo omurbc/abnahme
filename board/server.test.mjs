@@ -50,6 +50,19 @@ before(async()=>{
 });
 after(()=>{board.stop();server.close();});
 
+test('self-hosted fonts are served byte for byte and allowed by the CSP (font-src self only)', async()=>{
+ const css=await call('GET','/fonts/fonts.css');
+ assert.equal(css.status,200);
+ assert.match(css.headers['content-type'],/^text\/css/);
+ const file=css.text.match(/url\(([^)]+\.woff2)\)/)[1];
+ const font=await fetch(`http://127.0.0.1:${server.address().port}/fonts/${file}`,{headers:{host:'127.0.0.1'}});
+ assert.equal(font.status,200);
+ assert.equal(font.headers.get('content-type'),'font/woff2');
+ assert.equal(Buffer.from(await font.arrayBuffer()).subarray(0,4).toString('latin1'),'wOF2');
+ assert.match(css.headers['content-security-policy'],/font-src 'self'/);
+ assert.equal((await call('GET','/fonts/../server.mjs')).status,404);
+});
+
 test('the page carries the demo nonce and a strict CSP; static files only from the whitelist', async()=>{
  const r=await call('GET','/');
  assert.equal(r.status,200);
