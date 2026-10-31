@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Abnahme-Board · Snapshot</title>
+<meta name="description" content="Abnahme: e-invoices that get paid only after acceptance. Read-only snapshot of the live console on Cardano preprod.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="snapshot-strip" role="note"><div class="wrap"><span><b>Read-only snapshot of the live console</b> · taken <time datetime="2026-10-31T10:05:03.883Z">31 Oct 2026, 11:05</time> Munich time · the live console runs locally at the booth</span><a href="https://omurbc.github.io/abnahme/demo2/">Try the demo →</a></div></div>
+<header class="topbar">
+ <div class="wrap topbar-in">
+  <a class="brand" href="#live" aria-label="Abnahme-Board, live view">
+   <svg class="brand-mark" viewBox="0 0 100 100" aria-hidden="true"><circle class="bm-disc" cx="50" cy="50" r="46"/><path class="bm-check" d="M32 51L45 63L68 39"/></svg>
+   <span class="brand-text"><span class="brand-line"><b class="wordmark">Abnahme</b><span class="brand-kind">-Board</span></span><span class="brand-tag">No acceptance, no payment <i lang="de">· Ohne Abnahme kein Geld</i></span></span>
+  </a>
+  <div class="topbar-right">
+   <span class="badge badge-net" title="Every transaction runs on the Cardano preprod testnet (tUSDM, tADA), no real money"><span class="dot"></span>Cardano preprod</span>
+   <span class="badge badge-live" id="live-indicator" data-state="connecting" title="Static copy of the board state, no live updates"><span class="dot"></span><span class="live-label">Loading …</span></span>
+   <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle light and dark" title="Light / dark">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" fill="currentColor"/></svg>
+   </button>
+  </div>
+ </div>
+</header>
+
+<section class="product" aria-labelledby="product-title">
+ <div class="wrap product-in">
+  <div class="product-pitch">
+   <p class="eyebrow">Agent SaaS · XRechnung · Cardano</p>
+   <h1 id="product-title">Abnahme</h1>
+   <p class="value">E-invoices that get paid only after acceptance.</p>
+   <p class="value-en" lang="de">E-Rechnungen, die erst bezahlt werden, wenn sie abgenommen sind.</p>
+   <div class="cta-row">
+    <a class="btn btn-cta" href="https://preprod.sokosumi.com" target="_blank" rel="noopener noreferrer">Order on Sokosumi <span aria-hidden="true">→</span></a>
+    <span class="cta-note">Coworker “Abnahme-Büro” · Sokosumi preprod</span>
+   </div>
+  </div>
+  <div class="how" aria-label="How it works">
+   <h2>How it works</h2>
+   <ol>
+    <li><b>Submit the invoice in Sokosumi</b><span>Frau Berger pastes the invoice text. No wallet needed.</span></li>
+    <li><b>An agent converts it to XRechnung, the buyer's agent inspects it</b><span>against KoSIT and the recipient profile, paying per inspection over x402.</span></li>
+    <li><b>Acceptance (Abnahme) on Cardano releases the payment</b><span>A defect (Mangel) freezes the money in escrow until it is cured.</span></li>
+   </ol>
+  </div>
+  <aside class="price" aria-label="Pricing">
+   <p class="price-tag">Planned mainnet price</p>
+   <p class="price-main"><b>€1.49</b> net</p>
+   <p class="price-sub">per accepted invoice (~90 credits)</p>
+   <p class="price-free"><span aria-hidden="true">✓</span> Refused invoices are free</p>
+   <p class="price-note">Today on preprod: one 1 tUSDM escrow per invoice, 1 tADA per inspection. Mainnet: one escrow per customer and month (designed, not built yet).</p>
+  </aside>
+ </div>
+</section>
+
+<main class="console wrap" id="console">
+ <div class="console-head">
+  <div class="customer">
+   <p class="eyebrow">Console · customer</p>
+   <p class="customer-name">Toni Huber Elektrotechnik GmbH <span class="chip chip-grey" title="Toni Huber and Frau Berger are composite personas; Bau Isar and Hausverwaltung Giesing are invented">Demo data · persona</span></p>
+  </div>
+  <nav class="tabs" aria-label="Views">
+   <a href="#live" data-view="live">Live</a>
+   <a href="#history" data-view="history">History</a>
+   <a href="#evidence" data-view="evidence">Evidence</a>
+  </nav>
+  <div class="demo">
+   <a class="btn btn-demo" id="demo-btn" href="https://omurbc.github.io/abnahme/demo2/">Try the demo</a>
+   <span class="demo-note" id="demo-note">click-through demo, no purchase</span>
+  </div>
+ </div>
+
+ <section id="view-live" class="view" aria-live="polite"></section>
+ <section id="view-history" class="view" hidden></section>
+ <section id="view-evidence" class="view" hidden></section>
+</main>
+
+<footer class="foot wrap">
+ <span>Abnahme · TUM Blockchain &amp; AI Hackathon 2026, Cardano track · testnet only (preprod), no real payments.</span>
+ <span id="foot-sources"></span>
+</footer>
+</body>
+</html>

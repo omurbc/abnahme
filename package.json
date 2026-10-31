@@ -9,6 +9,7 @@
     "start": "node --env-file=.local/env/eve.env --import=./scripts/env-guard.mjs start.mjs",
     "worker": "node --env-file=.local/env/buero.env --import=./scripts/env-guard.mjs worker.mjs",
     "api": "node --env-file=.local/env/buero-api.env --import=./scripts/env-guard.mjs agent-api.mjs",
+    "board:snapshot": "node board/snapshot.mjs",
     "test": "node --test *.test.mjs board/*.test.mjs buero/*.test.mjs einvoice/*.test.mjs kosit/*.test.mjs mail/*.test.mjs mps/*.test.mjs rechnungsmeister/*.test.mjs scripts/*.test.mjs verifier/*.test.mjs && npm test --prefix gutachter"
   },
   "dependencies": {
