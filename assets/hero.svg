@@ -1,155 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-labelledby="t d">
 <title id="t">Abnahme</title>
-<desc id="d">Ohne Abnahme kein Geld. No acceptance, no payment. An XRechnung invoice with an ABGENOMMEN stamp next to a locked escrow on Cardano.</desc>
-<defs>
-<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#071640"/><stop offset="0.55" stop-color="#0B2A8A"/><stop offset="1" stop-color="#0033AD"/></linearGradient>
-<radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#3D7BFF" stop-opacity="0.35"/><stop offset="1" stop-color="#3D7BFF" stop-opacity="0"/></radialGradient>
-</defs>
-<rect width="1280" height="400" fill="url(#bg)"/>
-<circle cx="1010" cy="200" r="230" fill="url(#glow)"/>
-<g fill="#FFFFFF">
-<circle cx="1130.0" cy="200.0" r="3.2" fill-opacity="0.16"/>
-<circle cx="1122.8" cy="241.0" r="3.2" fill-opacity="0.16"/>
-<circle cx="1101.9" cy="277.1" r="3.2" fill-opacity="0.16"/>
-<circle cx="1070.0" cy="303.9" r="3.2" fill-opacity="0.16"/>
-<circle cx="1030.8" cy="318.2" r="3.2" fill-opacity="0.16"/>
-<circle cx="989.2" cy="318.2" r="3.2" fill-opacity="0.16"/>
-<circle cx="950.0" cy="303.9" r="3.2" fill-opacity="0.16"/>
-<circle cx="918.1" cy="277.1" r="3.2" fill-opacity="0.16"/>
-<circle cx="897.2" cy="241.0" r="3.2" fill-opacity="0.16"/>
-<circle cx="890.0" cy="200.0" r="3.2" fill-opacity="0.16"/>
-<circle cx="897.2" cy="159.0" r="3.2" fill-opacity="0.16"/>
-<circle cx="918.1" cy="122.9" r="3.2" fill-opacity="0.16"/>
-<circle cx="950.0" cy="96.1" r="3.2" fill-opacity="0.16"/>
-<circle cx="989.2" cy="81.8" r="3.2" fill-opacity="0.16"/>
-<circle cx="1030.8" cy="81.8" r="3.2" fill-opacity="0.16"/>
-<circle cx="1070.0" cy="96.1" r="3.2" fill-opacity="0.16"/>
-<circle cx="1101.9" cy="122.9" r="3.2" fill-opacity="0.16"/>
-<circle cx="1122.8" cy="159.0" r="3.2" fill-opacity="0.16"/>
-<circle cx="1173.6" cy="221.4" r="2.6" fill-opacity="0.12"/>
-<circle cx="1162.5" cy="263.0" r="2.6" fill-opacity="0.12"/>
-<circle cx="1141.0" cy="300.3" r="2.6" fill-opacity="0.12"/>
-<circle cx="1110.6" cy="330.8" r="2.6" fill-opacity="0.12"/>
-<circle cx="1073.3" cy="352.4" r="2.6" fill-opacity="0.12"/>
-<circle cx="1031.7" cy="363.6" r="2.6" fill-opacity="0.12"/>
-<circle cx="988.6" cy="363.6" r="2.6" fill-opacity="0.12"/>
-<circle cx="947.0" cy="352.5" r="2.6" fill-opacity="0.12"/>
-<circle cx="909.7" cy="331.0" r="2.6" fill-opacity="0.12"/>
-<circle cx="879.2" cy="300.6" r="2.6" fill-opacity="0.12"/>
-<circle cx="857.6" cy="263.3" r="2.6" fill-opacity="0.12"/>
-<circle cx="846.4" cy="221.7" r="2.6" fill-opacity="0.12"/>
-<circle cx="846.4" cy="178.6" r="2.6" fill-opacity="0.12"/>
-<circle cx="857.5" cy="137.0" r="2.6" fill-opacity="0.12"/>
-<circle cx="879.0" cy="99.7" r="2.6" fill-opacity="0.12"/>
-<circle cx="909.4" cy="69.2" r="2.6" fill-opacity="0.12"/>
-<circle cx="946.7" cy="47.6" r="2.6" fill-opacity="0.12"/>
-<circle cx="988.3" cy="36.4" r="2.6" fill-opacity="0.12"/>
-<circle cx="1031.4" cy="36.4" r="2.6" fill-opacity="0.12"/>
-<circle cx="1073.0" cy="47.5" r="2.6" fill-opacity="0.12"/>
-<circle cx="1110.3" cy="69.0" r="2.6" fill-opacity="0.12"/>
-<circle cx="1140.8" cy="99.4" r="2.6" fill-opacity="0.12"/>
-<circle cx="1162.4" cy="136.7" r="2.6" fill-opacity="0.12"/>
-<circle cx="1173.6" cy="178.3" r="2.6" fill-opacity="0.12"/>
-<circle cx="1212.9" cy="254.0" r="2.1" fill-opacity="0.09"/>
-<circle cx="1197.3" cy="295.0" r="2.1" fill-opacity="0.09"/>
-<circle cx="1173.4" cy="331.9" r="2.1" fill-opacity="0.09"/>
-<circle cx="1142.5" cy="363.0" r="2.1" fill-opacity="0.09"/>
-<circle cx="1105.7" cy="386.9" r="2.1" fill-opacity="0.09"/>
-<circle cx="1064.7" cy="402.7" r="2.1" fill-opacity="0.09"/>
-<circle cx="1021.4" cy="409.7" r="2.1" fill-opacity="0.09"/>
-<circle cx="977.5" cy="407.5" r="2.1" fill-opacity="0.09"/>
-<circle cx="935.1" cy="396.2" r="2.1" fill-opacity="0.09"/>
-<circle cx="895.9" cy="376.3" r="2.1" fill-opacity="0.09"/>
-<circle cx="861.8" cy="348.8" r="2.1" fill-opacity="0.09"/>
-<circle cx="834.1" cy="314.7" r="2.1" fill-opacity="0.09"/>
-<circle cx="814.1" cy="275.6" r="2.1" fill-opacity="0.09"/>
-<circle cx="802.6" cy="233.2" r="2.1" fill-opacity="0.09"/>
-<circle cx="800.3" cy="189.4" r="2.1" fill-opacity="0.09"/>
-<circle cx="807.1" cy="146.0" r="2.1" fill-opacity="0.09"/>
-<circle cx="822.7" cy="105.0" r="2.1" fill-opacity="0.09"/>
-<circle cx="846.6" cy="68.1" r="2.1" fill-opacity="0.09"/>
-<circle cx="877.5" cy="37.0" r="2.1" fill-opacity="0.09"/>
-<circle cx="914.3" cy="13.1" r="2.1" fill-opacity="0.09"/>
-<circle cx="955.3" cy="-2.7" r="2.1" fill-opacity="0.09"/>
-<circle cx="998.6" cy="-9.7" r="2.1" fill-opacity="0.09"/>
-<circle cx="1042.5" cy="-7.5" r="2.1" fill-opacity="0.09"/>
-<circle cx="1084.9" cy="3.8" r="2.1" fill-opacity="0.09"/>
-<circle cx="1124.1" cy="23.7" r="2.1" fill-opacity="0.09"/>
-<circle cx="1158.2" cy="51.2" r="2.1" fill-opacity="0.09"/>
-<circle cx="1185.9" cy="85.3" r="2.1" fill-opacity="0.09"/>
-<circle cx="1205.9" cy="124.4" r="2.1" fill-opacity="0.09"/>
-<circle cx="1217.4" cy="166.8" r="2.1" fill-opacity="0.09"/>
-<circle cx="1219.7" cy="210.6" r="2.1" fill-opacity="0.09"/>
-<circle cx="1245.9" cy="296.9" r="1.7" fill-opacity="0.06"/>
-<circle cx="1225.4" cy="336.4" r="1.7" fill-opacity="0.06"/>
-<circle cx="1198.5" cy="371.8" r="1.7" fill-opacity="0.06"/>
-<circle cx="1165.8" cy="401.9" r="1.7" fill-opacity="0.06"/>
-<circle cx="838.2" cy="388.5" r="1.7" fill-opacity="0.06"/>
-<circle cx="808.1" cy="355.8" r="1.7" fill-opacity="0.06"/>
-<circle cx="784.1" cy="318.4" r="1.7" fill-opacity="0.06"/>
-<circle cx="767.0" cy="277.3" r="1.7" fill-opacity="0.06"/>
-<circle cx="757.3" cy="234.0" r="1.7" fill-opacity="0.06"/>
-<circle cx="755.2" cy="189.6" r="1.7" fill-opacity="0.06"/>
-<circle cx="760.9" cy="145.5" r="1.7" fill-opacity="0.06"/>
-<circle cx="774.1" cy="103.1" r="1.7" fill-opacity="0.06"/>
-<circle cx="794.6" cy="63.6" r="1.7" fill-opacity="0.06"/>
-<circle cx="821.5" cy="28.2" r="1.7" fill-opacity="0.06"/>
-<circle cx="854.2" cy="-1.9" r="1.7" fill-opacity="0.06"/>
-<circle cx="1181.8" cy="11.5" r="1.7" fill-opacity="0.06"/>
-<circle cx="1211.9" cy="44.2" r="1.7" fill-opacity="0.06"/>
-<circle cx="1235.9" cy="81.6" r="1.7" fill-opacity="0.06"/>
-<circle cx="1253.0" cy="122.7" r="1.7" fill-opacity="0.06"/>
-<circle cx="1262.7" cy="166.0" r="1.7" fill-opacity="0.06"/>
-<circle cx="1264.8" cy="210.4" r="1.7" fill-opacity="0.06"/>
-<circle cx="1259.1" cy="254.5" r="1.7" fill-opacity="0.06"/>
+<desc id="d">Abnahme. Ohne Abnahme kein Geld. No acceptance, no payment. An XRechnung invoice sheet with four checked fields and an ABGENOMMEN (accepted, § 640 BGB) stamp.</desc>
+<rect width="1280" height="400" fill="#F6F4EE"/>
+<g font-family="'JetBrains Mono',Menlo,Consolas,monospace" font-size="15" font-weight="500" letter-spacing="2.4" fill="#565E78">
+<text x="80" y="92">XRECHNUNG · MASUMI ESCROW · CARDANO PREPROD</text>
 </g>
-<g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif">
-<text x="80" y="104" font-size="15" font-weight="600" letter-spacing="2.4" fill="#8FB3FF">XRECHNUNG · MASUMI V2 ESCROW · CARDANO PREPROD</text>
-<text x="74" y="212" font-size="108" font-weight="800" letter-spacing="-2" fill="#FFFFFF">Abnahme</text>
-<text x="80" y="268" font-size="34" font-weight="700" fill="#FFFFFF">Ohne Abnahme kein Geld.</text>
-<text x="80" y="308" font-size="26" font-weight="500" fill="#B9CCF5">No acceptance, no payment.</text>
-<rect x="80" y="334" width="56" height="4" rx="2" fill="#3DDC97"/>
-<text x="150" y="341" font-size="16" fill="#9FB6E8">The buyer's agent runs the acceptance test. Then the escrow pays.</text>
+<text x="74" y="204" font-family="'Hanken Grotesk','Helvetica Neue',Arial,sans-serif" font-size="116" font-weight="700" letter-spacing="-2.3" fill="#0F1630">Abnahme</text>
+<text x="80" y="266" font-family="'Instrument Serif',Georgia,serif" font-size="46" font-style="italic" fill="#0F1630">Ohne Abnahme kein Geld.</text>
+<text x="80" y="314" font-family="'Hanken Grotesk','Helvetica Neue',Arial,sans-serif" font-size="28" font-weight="600" fill="#0F1630">No acceptance, no payment.</text>
+<g transform="translate(772,33)">
+<rect x="0.5" y="0.5" width="399" height="333" rx="12" fill="#FFFFFF" stroke="#DDD9CF"/>
+<text x="26" y="44" font-family="'Hanken Grotesk','Helvetica Neue',Arial,sans-serif" font-size="24" font-weight="700" fill="#0F1630">XRechnung</text>
+<g font-family="'JetBrains Mono',Menlo,Consolas,monospace" font-weight="500">
+<text x="26" y="66" font-size="14" fill="#565E78">UBL · EN 16931 · 3.0.2</text>
+<g fill="#EDEAE2">
+<rect x="26" y="84" width="348" height="36" rx="6"/>
+<rect x="26" y="127" width="348" height="36" rx="6"/>
+<rect x="26" y="170" width="348" height="36" rx="6"/>
+<rect x="26" y="213" width="348" height="36" rx="6"/>
 </g>
-<g transform="translate(790,150)">
-<path d="M 18 34 V 20 A 22 22 0 0 1 62 20 V 34" fill="none" stroke="#8FB3FF" stroke-width="9" stroke-linecap="round"/>
-<rect x="4" y="32" width="72" height="60" rx="12" fill="#0B1D51" stroke="#8FB3FF" stroke-width="3"/>
-<circle cx="40" cy="56" r="8" fill="#8FB3FF"/><rect x="36.5" y="58" width="7" height="18" rx="3" fill="#8FB3FF"/>
-<text x="40" y="118" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="1.5" fill="#8FB3FF">ESCROW</text>
+<g font-size="15" fill="#565E78">
+<text x="40" y="107">BT-10</text>
+<text x="40" y="150">BT-31</text>
+<text x="40" y="193">BT-48</text>
+<text x="40" y="236">BT-151</text>
 </g>
-<path d="M 872 200 H 906" stroke="#8FB3FF" stroke-width="2.5" stroke-dasharray="5 5" stroke-linecap="round"/>
-<rect x="920" y="68" width="250" height="292" rx="12" fill="#020A26" fill-opacity="0.45"/>
-<rect x="912" y="58" width="250" height="292" rx="12" fill="#FFFFFF"/>
-<path d="M 1116 58 H 1150 A 12 12 0 0 1 1162 70 V 104 Z" fill="#E3EAFB"/>
-<g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif">
-<text x="934" y="96" font-size="19" font-weight="800" fill="#0B1D51">XRechnung</text>
-<text x="934" y="116" font-size="11.5" font-weight="600" fill="#5B6B93">UBL · EN 16931 · 3.0.2</text>
+<g font-size="15" fill="#0F1630">
+<text x="110" y="107">BV-2026-014</text>
+<text x="110" y="150">DE312456789</text>
+<text x="110" y="236">AE · § 13b</text>
 </g>
-<g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="11.5">
-<rect x="930" y="135" width="214" height="21" rx="4" fill="#F2F5FC"/>
-<text x="938" y="150" font-weight="700" fill="#0B2A8A">BT-10</text>
-<text x="994" y="150" fill="#33415F">BV-2026-014</text>
-<rect x="930" y="161" width="214" height="21" rx="4" fill="#F2F5FC"/>
-<text x="938" y="176" font-weight="700" fill="#0B2A8A">BT-31</text>
-<text x="994" y="176" fill="#33415F">DE312456789</text>
-<rect x="930" y="187" width="214" height="21" rx="4" fill="#E8F8F0"/>
-<text x="938" y="202" font-weight="700" fill="#0B2A8A">BT-48</text>
-<text x="994" y="202" fill="#33415F">DE287654321</text>
-<rect x="930" y="213" width="214" height="21" rx="4" fill="#F2F5FC"/>
-<text x="938" y="228" font-weight="700" fill="#0B2A8A">BT-151</text>
-<text x="994" y="228" fill="#33415F">AE · § 13b</text>
+<path d="M 113.3 188.3 L 116.8 191.8 L 124.2 183.8" fill="none" stroke="#17704A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="132" y="193" font-size="15" fill="#17704A">DE287654321</text>
+<rect x="26" y="265" width="348" height="1" fill="#DDD9CF"/>
+<text x="26" y="302" font-size="13" letter-spacing="2.1" fill="#565E78">PROGRESS INVOICE</text>
+<text x="374" y="302" font-size="26" font-weight="600" text-anchor="end" fill="#0F1630">18.400,00 €</text>
 </g>
-<rect x="934" y="258" width="150" height="6" rx="3" fill="#DCE3F3"/>
-<rect x="934" y="271" width="110" height="6" rx="3" fill="#DCE3F3"/>
-<rect x="934" y="284" width="170" height="6" rx="3" fill="#DCE3F3"/>
-<rect x="930" y="302" width="214" height="1.5" fill="#C9D3EA"/>
-<text x="934" y="325" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#5B6B93">Abschlagsbetrag</text>
-<text x="934" y="343" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="800" fill="#0B1D51">18.400,00 €</text>
-<g transform="translate(1158,290) rotate(-14)" opacity="0.95">
-<circle r="76" fill="#F4FBF7" fill-opacity="0.96"/><circle r="74" fill="none" stroke="#18A85C" stroke-width="5"/><circle r="65" fill="none" stroke="#18A85C" stroke-width="1.6"/>
-<path d="M -15 -36 L -4 -25 L 17 -48" fill="none" stroke="#18A85C" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
-<rect x="-88" y="-15" width="176" height="31" rx="3" fill="#18A85C"/>
-<text y="7" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="18" font-weight="800" letter-spacing="1.8" fill="#FFFFFF">ABGENOMMEN</text>
-<text y="41" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.2" fill="#18A85C">KoSIT · § 640 BGB</text>
+</g>
+<g transform="translate(1120,244) rotate(-6)">
+<rect x="-100" y="-33" width="200" height="66" rx="6" fill="#FFFFFF" stroke="#17704A" stroke-width="2"/>
+<rect x="-94" y="-27" width="188" height="54" rx="3" fill="none" stroke="#17704A" stroke-width="1"/>
+<text y="-1" text-anchor="middle" font-family="'Hanken Grotesk','Helvetica Neue',Arial,sans-serif" font-size="20" font-weight="700" letter-spacing="1.6" fill="#17704A">ABGENOMMEN</text>
+<text y="17" text-anchor="middle" font-family="'JetBrains Mono',Menlo,Consolas,monospace" font-size="12" font-weight="500" letter-spacing="0.5" fill="#17704A">Accepted · § 640 BGB</text>
 </g>
 </svg>

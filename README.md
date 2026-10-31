@@ -1,31 +1,32 @@
 <div align="center">
 
-<img src="assets/hero.svg" alt="Abnahme: Ohne Abnahme kein Geld. No acceptance, no payment. An XRechnung invoice with an ABGENOMMEN stamp next to a locked escrow on Cardano." width="100%" />
-
-### Ohne Abnahme kein Geld. No acceptance, no payment.
+<img src="assets/hero.svg" alt="Abnahme. Ohne Abnahme kein Geld. No acceptance, no payment. An XRechnung invoice sheet with an ABGENOMMEN (accepted) stamp." width="100%" />
 
 Abnahme is a **buyer-run acceptance test for German e-invoices, enforced by a Masumi escrow on Cardano**.
-An agent that converts invoices into XRechnung gets paid only after the buyer's agent has run the KoSIT validator and the client's own acceptance profile on the result.
+An agent converts invoices into XRechnung. It gets paid only after the buyer's agent has run the KoSIT validator and the client's own acceptance profile on the result.
 A defect freezes the converter's money on chain until the converter fixes it.
 
+**[Try the demo](https://omurbc.github.io/abnahme/demo2/)** (replay of a real preprod run) · **[Website](https://omurbc.github.io/abnahme/)** · **[Security review](audit/abnahme-audit.md)**
+
 [![CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/omurbc/abnahme/actions/workflows/ci.yml)
-[![Security](https://img.shields.io/badge/security-SECURITY.md-DC2626)](SECURITY.md)
-[![Cardano preprod](https://img.shields.io/badge/Cardano-preprod-0033AD)](https://preprod.cardanoscan.io)
-[![Masumi V2 escrow](https://img.shields.io/badge/Masumi-V2%20escrow-6D28D9)](https://github.com/masumi-network/masumi-payment-service)
-[![Sokosumi Coworker](https://img.shields.io/badge/Sokosumi-Coworker-111827)](https://preprod.sokosumi.com)
-[![x402](https://img.shields.io/badge/x402-1%20tADA%20per%20inspection-0B1D51)](https://developers.cardano.org/templates/x402-express/)
-[![XRechnung 3.0.2](https://img.shields.io/badge/XRechnung-3.0.2-18A85C)](https://github.com/itplr-kosit/validator-configuration-xrechnung)
-[![KoSIT validator 1.6.3](https://img.shields.io/badge/KoSIT%20validator-1.6.3-18A85C)](https://github.com/itplr-kosit/validator)
-[![Node.js 24.2+](https://img.shields.io/badge/Node.js-%E2%89%A524.2-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![TUM Blockchain & AI Hackathon](https://img.shields.io/badge/TUM%20Blockchain%20%26%20AI%20Hackathon-Cardano%20track-0033AD)](https://www.masumi.network/tum-hackathon)
+[![Security](https://img.shields.io/badge/security-SECURITY.md-0F1630)](SECURITY.md)
+[![Cardano preprod](https://img.shields.io/badge/Cardano-preprod-0F1630)](https://preprod.cardanoscan.io)
+[![Masumi V2 escrow](https://img.shields.io/badge/Masumi-V2%20escrow-0F1630)](https://github.com/masumi-network/masumi-payment-service)
+[![Sokosumi Coworker](https://img.shields.io/badge/Sokosumi-Coworker-0F1630)](https://preprod.sokosumi.com)
+[![x402](https://img.shields.io/badge/x402-1%20tADA%20per%20inspection-0F1630)](https://developers.cardano.org/templates/x402-express/)
+[![XRechnung 3.0.2](https://img.shields.io/badge/XRechnung-3.0.2-0F1630)](https://github.com/itplr-kosit/validator-configuration-xrechnung)
+[![KoSIT validator 1.6.3](https://img.shields.io/badge/KoSIT%20validator-1.6.3-0F1630)](https://github.com/itplr-kosit/validator)
+[![Node.js 24.2+](https://img.shields.io/badge/Node.js-%E2%89%A524.2-0F1630?logo=node.js&logoColor=white)](https://nodejs.org)
+[![TUM Blockchain & AI Hackathon](https://img.shields.io/badge/TUM%20Blockchain%20%26%20AI%20Hackathon-Cardano%20track-0F1630)](https://www.masumi.network/tum-hackathon)
 
 </div>
 
 ---
 
 > [!IMPORTANT]
-> **Build status, Fri 30 Oct 2026 (hackathon day 1, afternoon).** All three agents are built and run on Cardano preprod. The refuse → cure → accept loop ran end to end through the Masumi V2 escrow (8 min 9 s from payment request to `Withdrawn`), with both inspections paid to the x402 Gutachter. A paid Sokosumi Task settled on chain and e-mailed an accepted XRechnung to the Mailpit inbox. These are separate recorded runs, each labelled under [Recorded runs](#recorded-runs). Every hash under [On-chain evidence](#on-chain-evidence) is a confirmed preprod transaction.
-> `npm test` runs 387 tests (386 pass, 1 opt-in Claude test is skipped), and [CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml) runs them against a live KoSIT validator on every push. An internal [security review](#security-review) (not a third-party audit) in two parts, two live test campaigns and a delta review found 216 findings, all 4 HIGH fixed, over five fix rounds. Pins and accepted risks are in [SECURITY.md](SECURITY.md). What is still open is under [Status](#status), and what is mocked is under [What this proves](#what-this-proves-and-what-it-doesnt).
+> **Build status, Fri 30 Oct 2026 (hackathon day 1, afternoon).** This is a prototype. All three agents are built and run on Cardano preprod. The refuse → cure → accept loop ran end to end through the Masumi V2 escrow: 8 min 9 s from payment request to `Withdrawn`. Both inspections were paid to the x402 Gutachter. A paid Sokosumi Task settled on chain and e-mailed an accepted XRechnung to the Mailpit inbox. These are separate recorded runs, each labelled under [Recorded runs](#recorded-runs). Every hash under [On-chain evidence](#on-chain-evidence) is a confirmed preprod transaction.
+>
+> `npm test` runs 387 tests (386 pass, 1 opt-in Claude test is skipped). [CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml) runs them against a live KoSIT validator on every push. An internal [security review](#security-review) (not a third-party audit) found 216 findings in two parts, two live test campaigns and a delta review. All 4 HIGH are fixed, over five fix rounds. Pins and accepted risks are in [SECURITY.md](SECURITY.md). People and firms are fictional. Open items are under [Status](#status), mocked parts under [What this proves](#what-this-proves-and-what-it-doesnt).
 
 ## Contents
 
