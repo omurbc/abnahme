@@ -24,7 +24,7 @@ A defect freezes the converter's money on chain until the converter fixes it.
 ---
 
 > [!IMPORTANT]
-> **Build status, Fri 30 Oct 2026 (hackathon day 1, afternoon).** This is a prototype. All three agents are built and run on Cardano preprod. The refuse → cure → accept loop ran end to end through the Masumi V2 escrow: 8 min 9 s from payment request to `Withdrawn`. Both inspections were paid to the x402 Gutachter. A paid Sokosumi Task settled on chain and e-mailed an accepted XRechnung to the Mailpit inbox. These are separate recorded runs, each labelled under [Recorded runs](#recorded-runs). Every hash under [On-chain evidence](#on-chain-evidence) is a confirmed preprod transaction.
+> **Build status, Sat 31 Oct 2026 (final).** This is a prototype. All three agents are built and run on Cardano preprod. The refuse → cure → accept loop ran end to end through the Masumi V2 escrow: 8 min 9 s from payment request to `Withdrawn`. Both inspections were paid to the x402 Gutachter. A paid Sokosumi Task settled on chain and e-mailed an accepted XRechnung to the Mailpit inbox. On the final code, two more full runs (Fri 22:54 and Sat 09:52, Munich) went from the request to the payout in under 10 minutes. These are separate recorded runs, each labelled under [Recorded runs](#recorded-runs). Every hash under [On-chain evidence](#on-chain-evidence) is a confirmed preprod transaction.
 >
 > `npm test` runs 387 tests (386 pass, 1 opt-in Claude test is skipped). [CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml) runs them against a live KoSIT validator on every push. An internal [security review](#security-review) (not a third-party audit) found 216 findings in two parts, two live test campaigns and a delta review. All 4 HIGH are fixed, over five fix rounds. Pins and accepted risks are in [SECURITY.md](SECURITY.md). People and firms are fictional. Open items are under [Status](#status), mocked parts under [What this proves](#what-this-proves-and-what-it-doesnt).
 
@@ -944,7 +944,7 @@ The CLI commands to create Tasks and read their events and receipts are in [`pla
 node --env-file=.local/env/board.env --import=./scripts/env-guard.mjs board/server.mjs   # http://127.0.0.1:8787
 ```
 
-It listens on 127.0.0.1 only, checks the Host header, returns no keys, tokens or local paths, and its only write is a guarded "Start demo" button that runs one fresh escrow job at a time (1 tUSDM on preprod). The marketing site is in [`site/`](site), the business case in [`docs/business.md`](docs/business.md).
+A read-only snapshot of it is public at **[omurbc.github.io/abnahme/board](https://omurbc.github.io/abnahme/board/)**: static data, no demo button, privacy-checked by `npm run board:snapshot`, which writes it to `site/board/`. The live console listens on 127.0.0.1 only, checks the Host header, returns no keys, tokens or local paths, and its only write is a guarded "Start demo" button that runs one fresh escrow job at a time (1 tUSDM on preprod). The marketing site is in [`site/`](site), the business case in [`docs/business.md`](docs/business.md).
 
 ## Repo map
 
@@ -964,14 +964,15 @@ It listens on 127.0.0.1 only, checks the Host header, returns no keys, tokens or
 | [`fixtures/`](fixtures) | Four invoices from Toni, each as free text and in fixed layout | |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | CI: pins, `npm ci`, KoSIT, `npm test`, CLI verdicts, clean checkout | green on `main` |
 | [`SECURITY.md`](SECURITY.md) | What is pinned, accepted risks for the demo, upgrade paths | |
-| [`audit/`](audit) | `abnahme-audit.md` (compiled report, lands Sat 31 Oct) and `raw/` (the auditors' own reports) | |
+| [`audit/`](audit) | `abnahme-audit.md`, the compiled security review report (the reviewers' working notes are not published) | |
 | [`plan/`](plan) | `MPS.md` (payment service), `SOKOSUMI.md` (Coworker runbook), `FUNDING.md` (wallets), `EVIDENCE.md` (every recorded run) | |
-| [`board/`](board) | Abnahme-Board, the live console (`server.mjs`, `model.mjs`, `public/`) | 15 tests |
-| [`site/`](site) | Static marketing site (landing, security, imprint) | |
+| [`board/`](board) | Abnahme-Board, the live console (`server.mjs`, `model.mjs`, `public/`), and `snapshot.mjs` (the public read-only copy) | 23 tests |
+| [`site/`](site) | Website on GitHub Pages ([omurbc.github.io/abnahme](https://omurbc.github.io/abnahme/)): landing, security, imprint, logo (`brand/`), self-hosted fonts (`fonts/`), console snapshot (`board/`) | published by `pages.yml` |
+| [`demo2/`](demo2) | Click-through replay of a real preprod run ([omurbc.github.io/abnahme/demo2](https://omurbc.github.io/abnahme/demo2/)) | published by `pages.yml` |
 | [`docs/business.md`](docs/business.md) | Business case with sources: market, pricing, unit economics, go-to-market | |
 | Root `*.mjs`, [`agent/`](agent) | The rest of the Masumi TUM quickstart template: `agent-api.mjs` (the Abnahme-Büro's MIP-003 API, not needed for Sokosumi), `payment-registration.mjs`, the Eve agent (`start.mjs`, not used) | template |
 | [`docs/masumi-quickstart.md`](docs/masumi-quickstart.md) | The template's original README | |
-| [`assets/hero.svg`](assets/hero.svg) | The banner above | |
+| [`assets/`](assets) | `hero.svg` (the banner above), `logo-lockup.svg`, `board-live.jpg` | |
 
 ---
 
@@ -1018,7 +1019,7 @@ Live test campaign (Fri afternoon): see [`plan/EVIDENCE.md`](plan/EVIDENCE.md).
 
 ### Recorded runs
 
-Each run is separate. Before the live test campaign, no run went all the way from Sokosumi through the escrow and x402 to the e-mail; in the campaign, A1 (PRÜFEN with two x402 inspections) and A1-S (SENDEN of that invoice into Mailpit) did. Times are UTC on 30 Oct.
+Each run is separate. Before the live test campaign, no run went all the way from Sokosumi through the escrow and x402 to the e-mail; in the campaign, A1 (PRÜFEN with two x402 inspections) and A1-S (SENDEN of that invoice into Mailpit) did. Times are UTC, on 30 Oct unless noted.
 
 | Run | Started from | Escrow | Inspections | Profile at lock | Outcome | Txs |
 |---|---|---|---|---|---|---|
@@ -1031,6 +1032,9 @@ Each run is separate. Before the live test campaign, no run went all the way fro
 | Deemed acceptance, 11:46 (audit) | CLI, fixture a, `hv-giesing` | V2: no dispute | local KoSIT | `a9c6f943…` | ACCEPTED on the first delivery; MPS withdrew for RechnungsMeister about 10 min after `unlock_time` | [`bdb84f45…`](https://preprod.cardanoscan.io/transaction/bdb84f45e8cf1720bf29cc0adf31d2bc12dbfd7bfd99fc27190aaed12971f253) → [`1ec56faf…`](https://preprod.cardanoscan.io/transaction/1ec56faf0d1167beb8d7b3b2e6388bd5d3cea39ee86a3a7e5cc7a5d3fdbc3dd1) |
 | Escrow run, 11:50 (audit) | CLI, `DEMO_SEED_DEFECT=1` | V2: dispute → cure → accept | x402 [`4991bca3…`](https://preprod.cardanoscan.io/transaction/4991bca3b5c973dc74fdfe3ec8761620a5ec44e9efa6480d4c96907806af3743), [`138b9c0a…`](https://preprod.cardanoscan.io/transaction/138b9c0a11d991f1306277a23e2273bcd60ac5c75d92e9944df4d24684714a4e) | `64a8294c…` (current) | ACCEPTED; the audit recomputed `input_hash` from the datum | [`470f87f0…`](https://preprod.cardanoscan.io/transaction/470f87f0e958b03880e2b9f70b3d17de559bfdffc06e87987679c4cbccaf78cd) → [`49fa546b…`](https://preprod.cardanoscan.io/transaction/49fa546bc27f522e70b48cfe68742e44be98eb1dd7da41065aff09a00e2432f7) |
 | Live test campaign 1, 13:47-15:14 | 17 Sokosumi Tasks through the live worker (lane A) and 11 `buero/run.mjs` processes with fault injection (lane B), code `140aec4` | 21 escrows: 19 RechnungsMeister purchases, 2 paid SENDEN | 12 paid x402 inspections; the rest local KoSIT | | 22 scenarios: 20 PASS, 1 FAIL (A3: the test expectation was wrong; the cure from the recipient profile is by design), 1 PARTIAL (A12). All 5 refusals needed an operator refund repair ([#1327](https://github.com/masumi-network/masumi-payment-service/issues/1327)) | 88 txs, all `valid_contract: true`; [security report §11](audit/abnahme-audit.md#11-live-preprod-scenario-matrices), [`plan/EVIDENCE.md`](plan/EVIDENCE.md) |
+| Live test campaign 2, 16:00-17:10 | 14 Sokosumi Tasks (lane A) and 13 `buero/run.mjs` processes with fault injection (lane B), code `b8c781d` | dispute, cure, accept, refund and deemed paths | paid x402 | `64a8294c…`, `a9c6f943…` | 21 scenarios, 16 PASS; the failures were fixed in `d8e19b1` | see [`plan/EVIDENCE.md`](plan/EVIDENCE.md) |
+| Final-code run, 21:54 | CLI, `DEMO_SEED_DEFECT=1`, code after fix round 5 | V2: dispute → cure → accept | x402, 2 paid inspections | `e9a2831b…` | ACCEPTED, `Withdrawn` 9 min 39 s after the request | [`fac4e80e…`](https://preprod.cardanoscan.io/transaction/fac4e80e38920f2d7c74ce1a959153996a0441471de051a1ce7a92f935b8356f) lock, [`324e757f…`](https://preprod.cardanoscan.io/transaction/324e757fbd400d63fffc546c3622ef5f53a201be68a4cfd52d385521271b9572) paid |
+| Board demo run, 31 Oct 08:52 | Board "Start demo" | V2: dispute → cure → accept | x402, 2 paid inspections | `e9a2831b…` | ACCEPTED, paid | [`24617592…`](https://preprod.cardanoscan.io/transaction/24617592a3cf4bbf22bac83a239c62d6241d1b9efc65c832ed08c1fc9d494dc7) lock, [`5cee1f47…`](https://preprod.cardanoscan.io/transaction/5cee1f47c48f0a853feb05a817f236451cf792f0a043b944aac7d4aad6ba5bba) paid |
 
 Sokosumi records: Coworker *Abnahme-Büro* `01a18c0c-c2b5-72ea-93e6-a678359b9cc2`. Tasks `01a18c29-f636-7378-aa12-8a4eb654a255` (PRÜFEN), `01a18c2a-6912-7478-9755-8872eb2ff753` (SENDEN, paid), `01a18c2e-6de2-76ca-b42e-5d48cbef591e` (second SENDEN), `01a18c4b-3a89-717e-905d-6fd3d92b67c5` (PRÜFEN with escrow). The audit's live scenario matrix (lying delivery, x402 replay, concurrent purchases, late dispute) is in [`plan/EVIDENCE.md`](plan/EVIDENCE.md).
 
@@ -1099,7 +1103,7 @@ Abnahme went through an internal security review during the hackathon (full repo
 
 - **Adversarial verification.** Every HIGH and MEDIUM finding went to 2 refuters before it counted.
 - **5 fix rounds**, every fix with a regression test that failed first. Round 1: `4621ab5`, `0cff46a`, `ab937bd`, `c006ffe`, `1814dbc`, then CI in `324b035`. Round 2: `7b6acd8`, `f53d11d`, `ca81443`. Round 3 (after campaign 1): `def3ac3`, `f26f956`. Round 4 (after campaign 2): `4a3bb34`, `d8e19b1`. Round 5 (after the delta review): `30ec44c` to `13d51cf`, followed by a live escrow run on the new code. Round 5 was not re-reviewed.
-- **The open MEDIUM** is CLEANCLONE-1 (the repository is private until submission). The accepted one is DEPS-1 (MPS 0.29.0 on Node 20, [`SECURITY.md`](SECURITY.md)).
+- **The open MEDIUM in the table** was CLEANCLONE-1 (the repository was private at review time); it closed when the repository went public on Sat 31 Oct. The accepted one is DEPS-1 (MPS 0.29.0 on Node 20, [`SECURITY.md`](SECURITY.md)).
 - **The full report** has the scope, trust boundaries, threat model and attack trees, invariants, the ledger of all 216 findings, the Cardano-specific analysis, on-chain forensics of 42 re-checked transactions, the scenario matrices and the commands to reproduce it. The working notes of the review tracks are not published, because they hold local paths and operator details; the report marks the numbers it takes from them.
 - **Pins, accepted risks and upgrade paths** are in [`SECURITY.md`](SECURITY.md).
 
@@ -1107,7 +1111,7 @@ Abnahme went through an internal security review during the hackathon (full repo
 
 ## Status
 
-Hackathon build, Cardano preprod only. Build window Fri 30 Oct 09:00 → Sat 31 Oct 15:00 (Munich time). As of Fri 30 Oct, afternoon:
+Hackathon build, Cardano preprod only. Build window Fri 30 Oct 09:00 → Sat 31 Oct 15:00 (Munich time). As of Sat 31 Oct, morning:
 
 **Done, and run on preprod:**
 
@@ -1119,14 +1123,16 @@ Hackathon build, Cardano preprod only. Build window Fri 30 Oct 09:00 → Sat 31 
 - [x] Sokosumi Coworker *Abnahme-Büro*: free PRÜFEN and paid SENDEN Tasks, settled on preprod
 - [x] E-mail of an accepted XRechnung to Mailpit
 - [x] Internal security review: two parts, two live test campaigns, a delta review and five fix rounds ([report](audit/abnahme-audit.md)); CI green on `main`
-- [x] Upstream issue and fix for MPS (#1327, #1328)
+- [x] Upstream issues and fixes for MPS: #1327/#1328 and #1331/#1332
 - [x] Live test campaign 1 (Fri afternoon, code `140aec4`): 22 scenarios, 20 PASS, 1 FAIL (A3: the test expectation was wrong; the cure from the recipient profile is by design), 1 PARTIAL; 88 transactions, all `valid_contract: true`. It includes the chained run: PRÜFEN A1 with two x402 inspections, then SENDEN of that invoice into Mailpit. See [security report §11](audit/abnahme-audit.md#11-live-preprod-scenario-matrices) and [`plan/EVIDENCE.md`](plan/EVIDENCE.md)
+- [x] Live test campaign 2 (Fri evening, code `b8c781d`): 21 scenarios, 16 PASS; the failures were fixed in `d8e19b1`
+- [x] Fix round 5 after the delta review, then two full runs on the final code (Fri 22:54 and Sat 09:52, Munich), both ACCEPTED and paid
+- [x] Compiled security review report [`audit/abnahme-audit.md`](audit/abnahme-audit.md)
+- [x] Public repository, website, click-through demo and console snapshot on GitHub Pages
 - [x] `npm test`: 387 tests, 386 pass, 1 opt-in Claude test skipped
 
 **Open:**
 
-- [ ] The compiled audit report [`audit/abnahme-audit.md`](audit/abnahme-audit.md) (Sat morning)
-- [ ] Public repository
 - [ ] Demo video (Sat)
 - Not planned for the hackathon: answers to follow-up comments on Sokosumi Tasks, and the risks accepted for the demo in [`SECURITY.md`](SECURITY.md) (MPS 0.29.0 on Node 20, the running KoSIT and Mailpit containers predate the hardening, the Sokosumi CLI outside the lockfile, `@x402/*` 2.26.0).
 
