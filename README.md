@@ -6,7 +6,7 @@ Abnahme is a **buyer-run acceptance test for German e-invoices, enforced by a Ma
 An agent converts invoices into [XRechnung](https://xeinkauf.de/xrechnung/). It gets paid only after the buyer's agent has run the KoSIT validator and the client's own acceptance profile on the result.
 A defect freezes the converter's money on chain until the converter fixes it.
 
-**[Try the demo](https://omurbc.github.io/abnahme/demo2/)** (replay of a real preprod run) · **[Website](https://omurbc.github.io/abnahme/)** · **[Security review](audit/abnahme-audit.md)**
+**[Try the demo](https://omurbc.github.io/abnahme/demo2/)** (replay of a real preprod run) · **[Website](https://omurbc.github.io/abnahme/)** · **[Console snapshot](https://omurbc.github.io/abnahme/board/)** · **[Security review](audit/abnahme-audit.md)**
 
 [![CI](https://github.com/omurbc/abnahme/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/omurbc/abnahme/actions/workflows/ci.yml)
 [![Security](https://img.shields.io/badge/security-SECURITY.md-0F1630)](SECURITY.md)
@@ -968,7 +968,7 @@ A read-only snapshot of it is public at **[omurbc.github.io/abnahme/board](https
 | [`plan/`](plan) | `MPS.md` (payment service), `SOKOSUMI.md` (Coworker runbook), `FUNDING.md` (wallets), `EVIDENCE.md` (every recorded run) | |
 | [`board/`](board) | Abnahme-Board, the live console (`server.mjs`, `model.mjs`, `public/`), and `snapshot.mjs` (the public read-only copy) | 23 tests |
 | [`site/`](site) | Website on GitHub Pages ([omurbc.github.io/abnahme](https://omurbc.github.io/abnahme/)): landing, security, imprint, logo (`brand/`), self-hosted fonts (`fonts/`), console snapshot (`board/`) | published by `pages.yml` |
-| [`demo2/`](demo2) | Click-through replay of a real preprod run ([omurbc.github.io/abnahme/demo2](https://omurbc.github.io/abnahme/demo2/)) | published by `pages.yml` |
+| [`demo2/`](demo2) | Click-through replay of a real preprod run ([omurbc.github.io/abnahme/demo2](https://omurbc.github.io/abnahme/demo2/)): each transaction pauses with what it means, the German law it maps to and its Cardanoscan link, and stays listed in an escrow statement | published by `pages.yml` |
 | [`docs/business.md`](docs/business.md) | Business case with sources: market, pricing, unit economics, go-to-market | |
 | Root `*.mjs`, [`agent/`](agent) | The rest of the Masumi TUM quickstart template: `agent-api.mjs` (the Abnahme-Büro's MIP-003 API, not needed for Sokosumi), `payment-registration.mjs`, the Eve agent (`start.mjs`, not used) | template |
 | [`docs/masumi-quickstart.md`](docs/masumi-quickstart.md) | The template's original README | |
