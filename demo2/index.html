@@ -154,7 +154,25 @@ canvas.fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z
 .hint{font-size:13px;color:var(--slate)}
 
 /* transaction strip */
-.ledger-wrap{overflow-x:auto;border-radius:var(--r-sm)}
+.ledger-wrap{display:none}
+.explain{position:absolute;inset:0;z-index:30;display:grid;place-items:center;padding:16px;background:rgba(246,244,238,.86)}
+.explain[hidden]{display:none}
+.ex-card{width:min(460px,100%);background:var(--sheet);border:1.5px solid var(--ink);border-radius:var(--r-md);padding:20px 22px;display:flex;flex-direction:column;gap:10px;text-align:left}
+.ex-card.pending{border-color:var(--pending)}.ex-card.defect{border-color:var(--defect)}.ex-card.accept{border-color:var(--accept)}
+.ex-step{font:500 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--slate)}
+.ex-title{display:flex;align-items:center;gap:10px;font:700 20px/1.25 var(--sans);color:var(--ink);margin:0}
+.ex-title i{width:10px;height:10px;border-radius:50%;flex:none;background:var(--ink)}
+.ex-card.pending .ex-title i{background:var(--pending)}.ex-card.defect .ex-title i{background:var(--defect)}.ex-card.accept .ex-title i{background:var(--accept)}
+.ex-body{margin:0;font:400 15px/1.5 var(--sans);color:var(--slate)}
+.ex-law{margin:0;font:400 15px/1.45 var(--sans);color:var(--ink)}
+.ex-law a{color:var(--ink);text-underline-offset:3px}
+.ex-meta{margin:0;font:500 13px/1.4 var(--mono);color:var(--slate)}
+.ex-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ex-actions a,.ex-actions button{display:inline-flex;align-items:center;gap:6px;height:42px;padding:0 18px;border-radius:999px;font:600 15px/1 var(--sans);text-decoration:none;cursor:pointer}
+.ex-actions a{border:1px solid var(--line);color:var(--ink);background:transparent}
+.ex-actions a svg{width:15px;height:15px}
+.ex-actions button{border:0;background:var(--ink);color:var(--paper)}
+.ex-actions a:focus-visible,.ex-actions button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .ledger{display:flex;gap:8px;min-height:44px;padding:2px}
 .tx{flex:0 0 auto;display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--ink);background:var(--sheet);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 12px;font:600 13px/1 var(--sans);transition:border-color .15s ease-out}
 .tx:hover{border-color:var(--ink)}
@@ -229,6 +247,7 @@ canvas.fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z
   <div class="honest">Replay of a real Cardano preprod run · 30 Oct 2026 · demo persona</div>
 
   <section class="stage" id="stage">
+    <div class="explain" id="explain" hidden></div>
     <svg class="net" id="net" aria-hidden="false"></svg>
     <div class="inbox" id="inbox"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Bau Isar · AP inbox</div>
     <div class="band" id="band">
@@ -282,7 +301,7 @@ canvas.fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z
     <button class="ghost" id="auto" aria-pressed="false">Auto-play</button>
     <button class="ghost" id="replay" hidden>Replay</button>
   </div>
-  <div class="hint" style="text-align:center">Click, or press Space · every chip below opens the real transaction</div>
+  <div class="hint" style="text-align:center">Click, or press Space · each transaction is explained as it happens, with its link on Cardanoscan</div>
 
   <div class="ledger-wrap"><div class="ledger" id="ledger"></div></div>
 </div>
@@ -310,6 +329,17 @@ const TX={
  paid:['Withdrawn','324e757fbd400d63fffc546c3622ef5f53a201be68a4cfd52d385521271b9572','23:04:23'],
 };
 const MARK={lock:'pending',submit:'pending',rej:'defect',dispute:'defect',cure:'pending',ok:'accept',auth:'accept',paid:'accept'};
+const EXPLAIN={
+ lock:{title:'Money locked in escrow',body:'The Büro-Agent locks 1 tUSDM in the Masumi escrow on Cardano. The acceptance test (KoSIT validator plus the recipient’s rules) is pinned in the escrow before any money moves.',law:'German law: a contract for work (Werkvertrag, <a href="'+'https://www.gesetze-im-internet.de/'+'bgb/__631.html" target="_blank" rel="noopener">§631 BGB</a>)'},
+ submit:{title:'The converter delivered the e-invoice',body:'RechnungsMeister submits the XRechnung. Its fingerprint (result hash) goes on chain, so the delivery cannot be swapped later.',law:'Standard: XRechnung, EN 16931 (<a href="https://xeinkauf.de/xrechnung/" target="_blank" rel="noopener">official XRechnung page</a>)'},
+ rej:{title:'Inspector paid per check: defect found',body:'The Büro-Agent pays the Gutachter 1 tADA over x402. The official KoSIT validator finds BR-AE-02: under reverse charge the buyer’s VAT ID is missing.',law:'Tax law: reverse charge (Steuerschuldnerschaft, <a href="'+'https://www.gesetze-im-internet.de/'+'ustg_1980/__13b.html" target="_blank" rel="noopener">§13b UStG</a>)'},
+ dispute:{title:'Defect notice filed on chain',body:'The buyer’s agent tells the escrow the invoice has a defect. The 1 tUSDM is now frozen: the converter can’t take it until the invoice is fixed and accepted.',law:'German law: defect notice (Mängelrüge, <a href="'+'https://www.gesetze-im-internet.de/'+'bgb/__640.html" target="_blank" rel="noopener">§640(2) BGB</a>)'},
+ cure:{title:'The converter fixed the invoice',body:'RechnungsMeister delivers a corrected XRechnung while the money stays frozen: the buyer VAT ID DE287654321 is now in field BT-48.',law:'German law: cure (Nacherfüllung, <a href="'+'https://www.gesetze-im-internet.de/'+'bgb/__635.html" target="_blank" rel="noopener">§635 BGB</a>)'},
+ ok:{title:'Inspector paid again: the invoice passes',body:'A second paid check over x402. KoSIT accepts the XRechnung and the recipient’s rules pass, so the buyer’s agent may now accept.',law:'Tax law: invoice requirements (<a href="'+'https://www.gesetze-im-internet.de/'+'ustg_1980/__14.html" target="_blank" rel="noopener">§14 UStG</a>)'},
+ auth:{title:'Accepted',body:'The buyer’s agent accepts the delivery on chain. This cannot be taken back, and it releases the money to the converter.',law:'German law: acceptance (Abnahme, <a href="'+'https://www.gesetze-im-internet.de/'+'bgb/__640.html" target="_blank" rel="noopener">§640(1) BGB</a>)'},
+ paid:{title:'The converter is paid',body:'RechnungsMeister withdraws the 1 tUSDM from the escrow. Payment came only after acceptance.',law:'German law: payment due on acceptance (<a href="'+'https://www.gesetze-im-internet.de/'+'bgb/__641.html" target="_blank" rel="noopener">§641 BGB</a>)'},
+};
+let explainQ=[],explaining=false,explainDone=null,gen=0;
 const sec=t=>{const[h,m,s]=t.split(':').map(Number);return h*3600+m*60+s};
 
 // waits and animations that a click can fast-forward
@@ -351,6 +381,7 @@ function addTx(key){
  a.innerHTML=`<i class="${MARK[key]}"></i><span class="l">${label}</span> <code>${hash.slice(0,8)}…</code><span class="t">${time}</span>${EXT}`;
  ledger.appendChild(a);ledger.parentElement.scrollTo({left:ledger.scrollWidth,behavior:reduce?'auto':'smooth'});
  anim(a,[{transform:'translateY(12px)',opacity:0,borderColor:tok('ink')},{transform:'none',opacity:1,borderColor:tok('ink'),offset:.5},{borderColor:tok('line')}],{duration:900,easing:'ease-out'});
+ explainQ.push(key);
  txN++;const c=$('txCount');c.textContent=txN;anim(c,[{transform:'rotateX(90deg)'},{transform:'none'}],{duration:300});
  tick(sec(time)-START);
 }
@@ -592,17 +623,38 @@ const SCENES=[null,
 
 const rail=document.querySelector('.rail');for(let i=1;i<=9;i++)rail.appendChild(Object.assign(document.createElement('i'),{title:'Step '+i}));
 const dots=[...rail.children];
+function showExplain(key){
+ const[label,hash,time]=TX[key],e=EXPLAIN[key],box=$('explain');
+ box.innerHTML=`<div class="ex-card ${MARK[key]}" role="dialog" aria-modal="true" aria-labelledby="exTitle"><p class="ex-step">Transaction ${txOrder(key)} of 8 · Cardano preprod</p><h3 class="ex-title" id="exTitle"><i></i>${e.title}</h3><p class="ex-body">${e.body}</p><p class="ex-law">${e.law}</p><p class="ex-meta">${label} · ${time} CET · ${hash.slice(0,8)}…</p><div class="ex-actions"><a href="${EXPLORER+hash}" target="_blank" rel="noopener">View on Cardanoscan ${EXT}</a><button type="button" id="exGo">Continue →</button></div></div>`;
+ box.hidden=false;explaining=true;
+ $('exGo').addEventListener('click',continueExplain);
+ if(!reduce)anim(box.firstElementChild,[{transform:'translateY(10px)'},{transform:'none'}],{duration:200,easing:'ease-out'});
+ try{$('exGo').focus({preventScroll:true})}catch{}
+ return new Promise(r=>{explainDone=r;if(auto)autoTimer=setTimeout(continueExplain,6500)});
+}
+const txOrder=k=>Object.keys(TX).indexOf(k)+1;
+function continueExplain(){
+ if(!explaining)return;
+ clearTimeout(autoTimer);explaining=false;$('explain').hidden=true;$('explain').innerHTML='';
+ const r=explainDone;explainDone=null;r&&r();
+ try{nextBtn.focus({preventScroll:true})}catch{}
+}
+async function runExplains(){const g=gen;while(explainQ.length&&g===gen){await showExplain(explainQ.shift())}}
 function paint(){dots.forEach((d,i)=>d.classList.toggle('on',i<idx));nextBtn.innerHTML=(idx===0?'Start':idx>=9?'See the proof':'Next')+ARROW;nextBtn.hidden=idx>=10;$('replay').hidden=!(idx>=10&&!busy)}
 
 async function next(){
+ if(explaining){continueExplain();return}
  if(busy){fastForward();return}
  if(idx>=10)return;
- clearTimeout(autoTimer);busy=true;idx++;paint();
+ clearTimeout(autoTimer);busy=true;idx++;paint();const g=gen;
  try{await SCENES[idx]()}finally{busy=false;skip=false;paint();draw()}
+ await runExplains();
+ if(g!==gen)return;
  if(idx>=10){auto=false;$('auto').setAttribute('aria-pressed','false')}
  if(auto)autoTimer=setTimeout(next,idx===9?3200:2600);
 }
 function replay(){
+ gen++;explainQ=[];if(explaining)continueExplain();
  clearTimeout(autoTimer);fastForward();skip=false;busy=false;idx=0;txN=0;clockNow=0;
  $('final')?.remove();ledger.innerHTML='';$('txCount').textContent='0';$('clock').textContent='0:00';
  ['nBerger','nBuero','nRM','nGut'].forEach(id=>$(id).classList.remove('live','act'));
@@ -617,6 +669,7 @@ nextBtn.addEventListener('click',next);
 $('replay').addEventListener('click',()=>{replay();nextBtn.focus()});
 $('auto').addEventListener('click',e=>{auto=!auto;e.currentTarget.setAttribute('aria-pressed',String(auto));if(auto&&!busy)next();else clearTimeout(autoTimer)});
 document.addEventListener('keydown',e=>{
+ if(e.key==='Escape'&&explaining){e.preventDefault();continueExplain();return}
  if(e.target.closest('button,a'))return;
  if(e.key===' '||e.key==='ArrowRight'){e.preventDefault();next()}
  if(e.key==='r'||e.key==='R')replay();
