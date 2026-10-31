@@ -8,6 +8,27 @@
 **Line numbers:** every `file:line` names the commit it refers to.
 **People and firms:** Toni Huber, Frau Berger, Bau Isar and Hausverwaltung Giesing are composite or fictional personas from the fixtures. There are no customers, pilots or letters of intent.
 
+
+## At a glance
+
+- **No HIGH finding is open.** The review found four HIGH problems, all in our own code or documentation, and all four are fixed with regression tests ([§8.1](#81-high-and-medium-findings)).
+- **Nothing was found in the escrow contract.** The Masumi V2 contract was rebuilt from source, its script address recomputed, and 17 Aiken tests were added ([§9](#9-cardano-specific-analysis)).
+- **216 findings in total**, from two review parts, two live test campaigns and a delta review: 155 fixed, 26 partly fixed, 17 accepted, 18 open ([§1](#1-scorecard)). Since then the repository went public, which closes CLEANCLONE-1.
+- **Every fix came with a regression test that failed first.** The suite has 387 tests; CI runs them against a live KoSIT validator ([§12](#12-test-coverage)).
+- **Two bugs found in the Masumi Payment Service** while testing on preprod, with fixes sent upstream ([#1328](https://github.com/masumi-network/masumi-payment-service/pull/1328), [#1332](https://github.com/masumi-network/masumi-payment-service/pull/1332)). Our repair loop covers both until they are merged.
+- **Internal review, not a third-party audit.** Fix round 5 was not re-reviewed ([§16.5](#165-fix-round-5-after-the-delta-review)).
+
+## Where an external audit should start
+
+In the order we would ask a professional reviewer to look:
+
+1. **The buyer's deadlines against the escrow timers.** The Büro-Agent must get its defect notice on chain before `unlock_time`, or the seller is paid for an invoice nobody accepted. Our margins are 25, 15 and 5 minutes, and MPS 0.29.0 answers a late refund request with HTTP 200 but never builds the transaction (ESCROW-1, [§9](#9-cardano-specific-analysis)).
+2. **The Masumi Payment Service and its keys.** MPS 0.29.0 holds every hot-wallet key, runs on end-of-life Node 20, and has two open upstream bugs that our repair loop works around (DEPS-1, [§14](#14-residual-risks-and-what-was-not-tested)).
+3. **The acceptance test as an attack surface.** Crafted XRechnung deliveries (XML tricks, tax content, encodings) against the strict XML reader, the KoSIT pins and the semantic checks (EINVOICE-1, DELTA-VERIFIER-1, DELTA-VERIFIER-4).
+4. **The extraction step.** Invoice text goes through Claude (Anthropic API). A prompt injection that changes an IBAN or an amount is stopped only where the recipient profile pins the field ([§6](#6-threat-model), [§14.2](#142-structural-limits-of-this-build)).
+5. **The single-operator deployment.** Every agent, key and the MPS run on one host under one OS user; buyer and seller are separated logically, not physically ([§14.2](#142-structural-limits-of-this-build)).
+6. **Fix round 5** ([`30ec44c`](https://github.com/omurbc/abnahme/commit/30ec44c) to [`13d51cf`](https://github.com/omurbc/abnahme/commit/13d51cf)), which no review track has re-read.
+
 **Verdict.** Abnahme pays an e-invoice converter only after the buyer's own acceptance test has passed, and the Masumi V2 escrow on Cardano holds the money until then. The review found four HIGH problems. None is in the escrow contract; all four are in our own code or documentation. XML comments could fool the acceptance test (EINVOICE-1). A restart of the worker abandoned paid work (QA-2). The buyer engine failed open, so a silent or failing setup let the seller be paid at `unlock_time` (ESCROW-1). The README contradicted the chain (CLAIMS-1). Three of the four are fixed (EINVOICE-1 and ESCROW-1 with regression tests, CLAIMS-1 by a README rewrite that was re-checked against the chain). QA-2 was partly fixed at the delta review; fix round 5 closed its residual, DELTA-WORKER-2. The contract held up when it was rebuilt from source and probed with 17 added Aiken unit tests. For this report, 42 transaction hashes were re-checked on Blockfrost: 40 are on chain with `valid_contract: true` and move what the documents say, and the 2 that the documents call "never on chain" are indeed absent. Two bugs in the Masumi Payment Service 0.29.0 (upstream issues #1327 and #1331) left refunds and seller payouts waiting for an operator; our own repair loop now completes both, while the upstream fixes (#1328, #1332) are still open. The delta review at `0e6ea18` found 46 new findings, 6 of them MEDIUM and none HIGH. At the delta review those 6 MEDIUM findings were open. Fix round 5 fixed five of them and partly fixed the sixth (DELTA-SELLER-2), each with a regression test that failed first, and one live escrow run passed on the new code; no review track re-reviewed fix round 5 ([§16.5](#165-fix-round-5-after-the-delta-review)). Beyond them, the remaining risk sits in the deployment: one operator runs every agent on one host, MPS 0.29.0 runs on an end-of-life Node runtime, and copies of secrets exist on that host.
 
 ## Contents
