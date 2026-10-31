@@ -161,11 +161,17 @@ code { font: 500 13px/18px var(--font-mono); }
   min-height: 72px;
 }
 .wordmark {
-  font: 700 22px/1 var(--font-sans);
-  letter-spacing: -.02em;
+  display: inline-flex; align-items: center; gap: 13px; /* gap = 0.6 x icon */
+  font: 700 22px/1 "Space Grotesk", var(--font-sans);
+  letter-spacing: -.035em;
+  font-variant-ligatures: none;
   color: var(--ink);
   text-decoration: none;
 }
+/* Logo: the filled seal, favicon cut below 48 px (always mono), icon = 0.98 x the wordmark size */
+.wordmark-mark { width: 22px; height: 22px; flex: none; }
+.wordmark-mark circle { fill: var(--ink); }
+.wordmark-mark path { fill: none; stroke: var(--paper); stroke-width: 13; stroke-linecap: round; stroke-linejoin: round; }
 .nav { display: flex; gap: var(--space-6); margin-left: auto; }
 .nav a { color: var(--slate); text-decoration: none; font-weight: 600; font-size: 15px; }
 .nav a:hover, .nav a[aria-current="page"] { color: var(--ink); text-decoration: underline; }
