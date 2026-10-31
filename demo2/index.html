@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Click-through replay of a real Cardano preprod escrow run: lock, defect, freeze, cure, acceptance and payout, with every transaction linked.">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Abnahme demo2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one dark "stage" — five actors in a row with the escrow vault in the middle, a caption under it, the on-chain ledger strip below. Single deliberate dark look. */
+:root{
+  color-scheme:dark;
+  --bg:#090F31; --panel:#101948; --panel2:#16215A; --line:#26327A; --fg:#EEF1FF; --muted:#8B94CC;
+  --blue:#4C7DFF; --red:#FF4D63; --green:#2BE39B; --ice:#A8DCFF; --gold:#FFC94D;
+  --display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --ui:"Hanken Grotesk","Helvetica Neue",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);background-image:radial-gradient(1200px 600px at 50% -10%,#1A2A7A 0%,transparent 60%);color:var(--fg);font:15px/1.4 var(--ui);}
+.app{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:14px 24px;display:flex;flex-direction:column;gap:14px;min-height:100%}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--blue);outline-offset:3px;border-radius:10px}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{font:800 26px/1 var(--display);letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.ver{font:600 12px/1 var(--mono);padding:5px 8px;border-radius:999px;background:var(--panel2);color:var(--ice);border:1px solid var(--line)}
+.rail{display:flex;gap:7px;margin-inline:auto}
+.rail i{width:12px;height:12px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);transition:background .3s,transform .3s}
+.rail i.on{background:var(--blue);border-color:var(--blue);transform:scale(1.25);box-shadow:0 0 12px var(--blue)}
+.meters{display:flex;gap:10px}
+.meter{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 10px;display:flex;flex-direction:column;min-width:96px}
+.meter small{font:600 10px/1.2 var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.meter b{font:800 20px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.honest{font-size:11.5px;color:var(--muted);text-align:center}
+
+/* stage */
+.stage{position:relative;background:linear-gradient(180deg,var(--panel),#0C1440);border:1px solid var(--line);border-radius:22px;padding-block:28px 22px;padding-inline:12px;overflow:hidden;min-height:430px;display:flex;flex-direction:column;gap:22px}
+.cast{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:center;justify-items:center;gap:6px}
+.node{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;min-width:0;opacity:.55;transition:opacity .4s,transform .4s}
+.node.live{opacity:1}
+.node.act{animation:bob .7s ease}
+@keyframes bob{40%{transform:translateY(-10px)}}
+.orb{position:relative;width:78px;height:78px;border-radius:50%;display:grid;place-items:center;background:var(--panel2);border:2px solid var(--line);color:var(--fg)}
+.orb svg{width:38px;height:38px}
+.node.live .orb{border-color:var(--blue);box-shadow:0 0 0 6px rgba(76,125,255,.12)}
+.name{font:700 13.5px/1.15 var(--ui);overflow-wrap:anywhere;max-width:100%}
+.role{font-size:11.5px;color:var(--muted);margin-top:-6px}
+.badge{position:absolute;right:-8px;top:-6px;font:600 10.5px/1 var(--mono);padding:4px 6px;border-radius:999px;background:var(--gold);color:#2A1E00;transform:scale(0);transition:transform .35s cubic-bezier(.2,1.6,.4,1)}
+.badge.show{transform:scale(1)}
+.badge.paper{background:#fff;color:#14205a}
+
+/* vault */
+.vault{position:relative;width:118px;height:96px;border-radius:18px;background:#0B1238;border:2px solid var(--line);display:grid;place-items:center;overflow:hidden;transition:border-color .4s,box-shadow .4s}
+.vault.locked{border-color:var(--gold);box-shadow:0 0 22px rgba(255,201,77,.25)}
+.vault.frozen{border-color:var(--ice);box-shadow:0 0 26px rgba(168,220,255,.45)}
+.vault.open{border-color:var(--green);box-shadow:0 0 26px rgba(43,227,155,.4)}
+.vault .lock{width:34px;height:34px;color:var(--muted);transition:color .3s,transform .3s}
+.vault.locked .lock{color:var(--gold)}
+.vault.open .lock{color:var(--green)}
+.coin{position:absolute;left:12px;bottom:10px;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFF1B8,var(--gold) 55%,#C78C00);box-shadow:0 0 12px rgba(255,201,77,.7);transform:scale(0);transition:transform .3s cubic-bezier(.2,1.6,.4,1),filter .5s}
+.coin.show{transform:scale(1)}
+.coin.pale{filter:saturate(.2) brightness(1.3) hue-rotate(160deg)}
+.doc{position:absolute;right:12px;bottom:9px;width:24px;height:30px;border-radius:4px;background:#fff;transform:scale(0);transition:transform .3s cubic-bezier(.2,1.6,.4,1)}
+.doc::before{content:"";position:absolute;inset:7px 5px auto 5px;height:2px;background:#9aa6d8;box-shadow:0 5px 0 #9aa6d8,0 10px 0 #9aa6d8,0 15px 0 #9aa6d8}
+.doc.show{transform:scale(1)}
+.pin{position:absolute;left:8px;top:7px;font:600 9.5px/1 var(--mono);color:var(--ice);opacity:0;transition:opacity .4s}
+.pin.show{opacity:1}
+.frost{position:absolute;inset:0;background:radial-gradient(circle at 20% 30%,rgba(255,255,255,.85) 0 2px,transparent 3px),radial-gradient(circle at 70% 60%,rgba(255,255,255,.8) 0 2px,transparent 3px),radial-gradient(circle at 45% 80%,rgba(255,255,255,.7) 0 1.5px,transparent 2.5px),radial-gradient(circle at 50% 50%,rgba(168,220,255,.55),rgba(168,220,255,.2) 70%);clip-path:circle(0% at 50% 50%);pointer-events:none}
+.laser{position:absolute;left:-10%;right:-10%;height:3px;top:-6px;background:var(--blue);box-shadow:0 0 14px 3px var(--blue);opacity:0}
+.stamp{position:absolute;left:50%;top:50%;font:800 15px/1 var(--display);letter-spacing:.06em;padding:6px 8px;border:3px double currentColor;border-radius:6px;white-space:nowrap;transform:translate(-50%,-50%) rotate(-14deg) scale(1);opacity:0;pointer-events:none;background:rgba(9,15,49,.35)}
+.stamp small{display:block;font:700 9px/1.2 var(--ui);letter-spacing:.14em;text-align:center}
+.stamp.defect{color:var(--red)}
+.stamp.ok{color:var(--green);transform:translate(-50%,-50%) rotate(-9deg)}
+.state{font:600 11px/1.2 var(--mono);text-align:center;max-width:100%;padding:6px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);transition:color .3s,border-color .3s}
+.state.gold{color:var(--gold);border-color:var(--gold)}
+.state.ice{color:var(--ice);border-color:var(--ice)}
+.state.green{color:var(--green);border-color:var(--green)}
+
+.inbox{position:absolute;right:14px;top:12px;font:700 12px/1 var(--ui);padding:8px 11px;border-radius:12px;background:var(--panel2);border:1px solid var(--green);color:var(--green);transform:scale(0);transition:transform .35s cubic-bezier(.2,1.6,.4,1)}
+.inbox.show{transform:scale(1)}
+
+/* caption + chip */
+.say{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;min-height:118px;justify-content:center}
+.caption{font:800 clamp(28px,5.4vw,54px)/1.02 var(--display);letter-spacing:-.025em;text-wrap:balance;margin:0}
+.chip{font:500 13px/1.3 var(--mono);padding:8px 12px;border-radius:12px;background:#0B1238;border:1px solid var(--line);color:var(--ice);max-width:100%;overflow-wrap:anywhere}
+.chip:empty{visibility:hidden}
+.chip .del{color:var(--red);text-decoration:line-through}
+.chip .ins{color:var(--green)}
+
+/* flyers */
+.flyer{position:absolute;left:0;top:0;pointer-events:none;z-index:5}
+.flyer.coin-f{width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFF1B8,var(--gold) 55%,#C78C00);box-shadow:0 0 18px rgba(255,201,77,.9)}
+.flyer.ada{font:600 11px/1 var(--mono);padding:6px 8px;border-radius:999px;background:var(--blue);color:#fff;box-shadow:0 0 14px var(--blue)}
+.flyer.paper,.flyer.xml{width:30px;height:38px;border-radius:5px;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.flyer.xml::after{content:"XML";position:absolute;inset:auto 0 6px 0;text-align:center;font:600 9px/1 var(--mono);color:#14205a}
+.flyer.mail{width:38px;height:28px;border-radius:5px;background:var(--green);clip-path:polygon(0 0,50% 55%,100% 0,100% 100%,0 100%);box-shadow:0 0 16px var(--green)}
+canvas.fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:6}
+
+/* controls */
+.controls{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap}
+.next{position:relative;border:0;border-radius:18px;padding:16px 34px;font:800 22px/1 var(--display);background:var(--blue);color:#fff;box-shadow:0 10px 30px rgba(76,125,255,.45);transition:transform .12s}
+.next:active{transform:scale(.94)}
+.next::after{content:"";position:absolute;inset:-6px;border-radius:22px;border:2px solid var(--blue);animation:ring 1.6s ease-out infinite}
+@keyframes ring{from{opacity:.8;transform:scale(.96)}to{opacity:0;transform:scale(1.12)}}
+.ghost{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:12px 16px;font:700 14px/1 var(--ui)}
+.ghost[aria-pressed="true"]{border-color:var(--green);color:var(--green)}
+.hint{font-size:11.5px;color:var(--muted)}
+
+/* ledger */
+.ledger-wrap{overflow-x:auto;border-radius:14px}
+.ledger{display:flex;gap:8px;min-height:44px;padding:2px}
+.tx{flex:0 0 auto;display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 11px;font:600 12px/1 var(--ui);transition:border-color .2s,transform .2s}
+.tx:hover{border-color:var(--blue);transform:translateY(-2px)}
+.tx i{width:9px;height:9px;border-radius:2px;background:var(--blue);box-shadow:0 0 8px var(--blue)}
+.tx.x402 i{background:var(--gold);box-shadow:0 0 8px var(--gold)}
+.tx code{font:500 11.5px/1 var(--mono);color:var(--ice)}
+.tx span.t{color:var(--muted);font-weight:400}
+.ledger:empty::before{content:"On-chain transactions appear here";color:var(--muted);font-size:12px;padding:12px}
+
+/* final */
+.final{position:absolute;inset:0;z-index:7;background:rgba(9,15,49,.94);display:flex;flex-direction:column;justify-content:center;gap:14px;padding:22px 18px;overflow-y:auto}
+.final h2{margin:0;text-align:center;font:800 clamp(26px,4.4vw,44px)/1 var(--display);letter-spacing:-.02em}
+.row{display:flex;flex-direction:column;gap:7px}
+.row > small{font:700 10.5px/1 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-align:center}
+.badges{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.b{display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);font:600 13px/1.2 var(--ui);transform:scale(.6);opacity:0}
+.b strong{font:800 18px/1 var(--display);font-variant-numeric:tabular-nums}
+.b.ok{border-color:rgba(43,227,155,.5)}
+.b.ok::before{content:"✓";color:var(--green);font-weight:800}
+.foot{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;font-size:13px;color:var(--muted);text-align:center}
+.foot b{color:var(--fg)}
+.foot a{color:var(--ice)}
+
+@media (max-width:640px){
+  .cast{gap:2px}
+  .orb{width:48px;height:48px}.orb svg{width:24px;height:24px}
+  .vault{width:66px;height:58px;border-radius:12px}
+  .vault .lock{width:24px;height:24px}
+  .coin{width:18px;height:18px;left:7px;bottom:6px}.doc{width:16px;height:21px;right:7px;bottom:6px}.doc::before{inset:5px 3px auto 3px;height:1.5px;box-shadow:0 4px 0 #9aa6d8,0 8px 0 #9aa6d8}
+  .pin{font-size:8px;left:5px;top:4px}
+  .state{font-size:9.5px;padding:5px 6px}
+  .badge{font-size:9px;padding:3px 4px;right:-10px}
+  .role{display:none}.name{font-size:10.5px}
+  .stage{padding-inline:8px}
+  .meter{min-width:78px}.meter b{font-size:17px}
+  .rail{order:3;width:100%;justify-content:center}
+  .stage{min-height:400px}
+  .stamp{font-size:9.5px;padding:3px 4px;border-width:2px}
+  .stamp small{font-size:7px}
+  .meters{gap:6px}
+  .next{padding:14px 26px;font-size:19px}
+}
+@media (prefers-reduced-motion:reduce){
+  .next::after,.node.act{animation:none}
+  *{transition-duration:.01ms!important}
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">Abnahme <span class="ver">demo2</span></div>
+    <nav class="rail" aria-label="Progress"></nav>
+    <div class="meters">
+      <div class="meter"><small>On-chain txs</small><b id="txCount">0</b></div>
+      <div class="meter"><small>Real run</small><b id="clock">0:00</b></div>
+    </div>
+  </header>
+  <div class="honest">Replay of a real Cardano preprod run · 30 Oct 2026 · demo persona</div>
+
+  <section class="stage" id="stage">
+    <div class="inbox" id="inbox">✉ Bau Isar · AP inbox</div>
+    <div class="cast">
+      <div class="node" id="nBerger">
+        <div class="orb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.2-4.2 4.3-6.2 8-6.2s6.8 2 8 6.2"/></svg></div>
+        <div class="name">Frau Berger</div><div class="role">office · no wallet</div>
+      </div>
+      <div class="node" id="nBuero">
+        <div class="orb"><span class="badge paper" id="bInvoice">AR-0089</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="7" width="16" height="12" rx="3"/><circle cx="9" cy="13" r="1.4" fill="currentColor"/><circle cx="15" cy="13" r="1.4" fill="currentColor"/><path d="M12 7V4M10 4h4"/></svg></div>
+        <div class="name">Büro-Agent</div><div class="role">buyer agent</div>
+      </div>
+      <div class="node live" id="nVault">
+        <div class="vault" id="vault">
+          <span class="pin" id="pin">test pinned</span>
+          <svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path id="shackle" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+          <span class="coin" id="coin"></span><span class="doc" id="doc"></span>
+          <span class="frost" id="frost"></span><span class="laser" id="laser"></span>
+          <span class="stamp defect" id="sDefect">MANGEL<small>DEFECT</small></span>
+          <span class="stamp ok" id="sOk">ABGENOMMEN<small>ACCEPTED</small></span>
+        </div>
+        <div class="state" id="state">Escrow · Cardano</div>
+      </div>
+      <div class="node" id="nRM">
+        <div class="orb"><span class="badge" id="bPaid">+1 tUSDM</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7.5" stroke-width="3.2" stroke-dasharray="2.6 3.29"/><circle cx="12" cy="12" r="5.2"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/></svg></div>
+        <div class="name">Rechnungs<wbr>Meister</div><div class="role">converter agent</div>
+      </div>
+      <div class="node" id="nGut">
+        <div class="orb"><span class="badge" id="bAda" style="background:var(--blue);color:#fff">1 tADA</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg></div>
+        <div class="name">Gutachter</div><div class="role">inspector · x402</div>
+      </div>
+    </div>
+    <div class="say">
+      <h1 class="caption" id="caption" aria-live="polite">Paid only after acceptance.</h1>
+      <div class="chip" id="chip">German e-invoice · AI agents · Cardano escrow</div>
+    </div>
+  </section>
+
+  <div class="controls">
+    <button class="next" id="next">Start ▶</button>
+    <button class="ghost" id="auto" aria-pressed="false">Auto-play</button>
+    <button class="ghost" id="replay" hidden>↺ Replay</button>
+  </div>
+  <div class="hint" style="text-align:center">Click, or press Space · every chip below opens the real transaction</div>
+
+  <div class="ledger-wrap"><div class="ledger" id="ledger"></div></div>
+</div>
+
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const stage=$('stage'),ledger=$('ledger'),cap=$('caption'),chip=$('chip'),nextBtn=$('next');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const EXPLORER='https://preprod.cardanoscan.io/transaction/';
+const START=22*3600+54*60+44; // job request 22:54:44 CET
+const TX={
+ lock:['FundsLocked','fac4e80e38920f2d7c74ce1a959153996a0441471de051a1ce7a92f935b8356f','22:56:46'],
+ submit:['ResultSubmitted','b570cbb76a5da85da1ea1580c51b5ff9974c643e2640b7d61c1ac2a74eafdc37','22:57:45'],
+ rej:['x402 · REJECT','8e677fa9aae9e33b3f894b42a3aba5c1a5ae74c1de3d61beaeeb0aada598ffff','22:58:19',1],
+ dispute:['Disputed','d61baca2c8f7dc74cfc8317e35b925437940f186c74c1f4c6be1d100cba201ed','22:59:40'],
+ cure:['Cure resubmitted','a597363ff170b4013d782a3e520f944b7498814ab65db81f34bbd00358b6217e','23:00:24'],
+ ok:['x402 · ACCEPTABLE','0a65a8b66ac5c68a371eafa55b6ee4002f372583c61a68af600c49352749f557','23:01:04',1],
+ auth:['AuthorizeWithdrawal','946dbb3947507ed489a1f2b82caa8f7af96b6522672ade62c1a478daa764a544','23:03:36'],
+ paid:['Withdrawn','324e757fbd400d63fffc546c3622ef5f53a201be68a4cfd52d385521271b9572','23:04:23'],
+};
+const sec=t=>{const[h,m,s]=t.split(':').map(Number);return h*3600+m*60+s};
+
+// waits and animations that a click can fast-forward
+let skip=false,busy=false,idx=0,auto=false,autoTimer=null,txN=0,clockNow=0;
+let pending=[],running=[];
+const wait=ms=>new Promise(r=>{if(skip||reduce)return r();const id=setTimeout(()=>{pending=pending.filter(p=>p.id!==id);r()},ms);pending.push({id,r})});
+const anim=(el,frames,opts)=>{if(skip||reduce)return Promise.resolve();const a=el.animate(frames,opts);running.push(a);return a.finished.then(()=>{running=running.filter(x=>x!==a)}).catch(()=>{})};
+function fastForward(){skip=true;pending.forEach(p=>{clearTimeout(p.id);p.r()});pending=[];running.forEach(a=>{try{a.finish()}catch{}});running=[]}
+
+const center=el=>{const s=stage.getBoundingClientRect(),r=el.getBoundingClientRect();return{x:r.left-s.left+r.width/2,y:r.top-s.top+r.height/2}};
+async function fly(kind,from,to,{dur=900,arc=70,text=''}={}){
+ if(skip||reduce)return;
+ const f=document.createElement('div');f.className='flyer '+kind;if(text)f.textContent=text;stage.appendChild(f);
+ const w=f.offsetWidth/2,h=f.offsetHeight/2,a=center(from),b=center(to);
+ const mid={x:(a.x+b.x)/2,y:Math.min(a.y,b.y)-arc};
+ await anim(f,[{transform:`translate(${a.x-w}px,${a.y-h}px) scale(.6)`,opacity:.2},{transform:`translate(${mid.x-w}px,${mid.y-h}px) scale(1.15) rotate(8deg)`,opacity:1,offset:.5},{transform:`translate(${b.x-w}px,${b.y-h}px) scale(.85)`,opacity:1}],{duration:dur,easing:'cubic-bezier(.45,.05,.3,1)'});
+ f.remove();
+}
+const live=(...ids)=>ids.forEach(id=>{const n=$(id);n.classList.add('live');n.classList.remove('act');void n.offsetWidth;if(!reduce)n.classList.add('act')});
+function say(text,chipHtml=''){
+ cap.textContent=text;chip.innerHTML=chipHtml;
+ anim(cap,[{transform:'translateY(14px)',opacity:0},{transform:'none',opacity:1}],{duration:380,easing:'cubic-bezier(.2,1,.3,1)'});
+ if(chipHtml)anim(chip,[{transform:'scale(.9)',opacity:0},{transform:'none',opacity:1}],{duration:340,delay:120,fill:'backwards'});
+}
+function setState(text,tone){const s=$('state');s.textContent=text;s.className='state '+(tone||'');anim(s,[{transform:'scale(1.25)'},{transform:'none'}],{duration:320})}
+const fmt=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+function tick(to){
+ const from=clockNow;clockNow=to;const el=$('clock');
+ if(skip||reduce){el.textContent=fmt(to);return}
+ const t0=performance.now();
+ const step=t=>{const k=Math.min(1,(t-t0)/700);el.textContent=fmt(Math.round(from+(to-from)*(1-Math.pow(1-k,3))));if(k<1&&!skip)requestAnimationFrame(step);else el.textContent=fmt(to)};
+ requestAnimationFrame(step);
+}
+function addTx(key){
+ const[label,hash,time,x402]=TX[key];
+ const a=document.createElement('a');a.className='tx'+(x402?' x402':'');a.href=EXPLORER+hash;a.target='_blank';a.rel='noopener';
+ a.title='Open on preprod.cardanoscan.io';
+ a.innerHTML=`<i></i>${label} <code>${hash.slice(0,8)}…</code><span class="t">${time}</span>`;
+ ledger.appendChild(a);ledger.parentElement.scrollTo({left:ledger.scrollWidth,behavior:reduce?'auto':'smooth'});
+ anim(a,[{transform:'translateY(16px) scale(.8)',opacity:0,boxShadow:'0 0 0 0 rgba(76,125,255,0)'},{transform:'none',opacity:1,boxShadow:'0 0 22px 4px rgba(76,125,255,.6)',offset:.6},{boxShadow:'0 0 0 0 rgba(76,125,255,0)'}],{duration:900,easing:'ease-out'});
+ txN++;const c=$('txCount');c.textContent=txN;anim(c,[{transform:'rotateX(90deg)'},{transform:'none'}],{duration:300});
+ tick(sec(time)-START);
+}
+const show=(id,on=true)=>$(id).classList.toggle('show',on);
+async function laser(color){
+ const l=$('laser');l.style.background=color;l.style.boxShadow=`0 0 14px 3px ${color}`;
+ await anim(l,[{top:'-6px',opacity:1},{top:'100%',opacity:1,offset:.5},{top:'-6px',opacity:1,offset:.95},{opacity:0}],{duration:1100,easing:'ease-in-out'});
+}
+async function stamp(id){
+ const s=$(id);s.style.opacity=1;const rot=id==='sOk'?-9:-14;
+ await anim(s,[{transform:`translate(-50%,-50%) rotate(${rot}deg) scale(2.8)`,opacity:0},{transform:`translate(-50%,-50%) rotate(${rot}deg) scale(1)`,opacity:1}],{duration:300,easing:'cubic-bezier(.3,1.5,.5,1)'});
+ anim(stage,[{transform:'none'},{transform:'translate(-7px,3px)'},{transform:'translate(6px,-3px)'},{transform:'translate(-3px,1px)'},{transform:'none'}],{duration:380});
+}
+function confetti(){
+ if(skip||reduce)return;
+ const c=document.createElement('canvas');c.className='fx';stage.appendChild(c);
+ const r=stage.getBoundingClientRect(),dpr=devicePixelRatio||1;c.width=r.width*dpr;c.height=r.height*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
+ const o=center($('vault')),cols=['#2BE39B','#FFC94D','#4C7DFF','#A8DCFF','#FFFFFF'];
+ const P=Array.from({length:120},()=>({x:o.x,y:o.y,vx:(Math.random()-.5)*12,vy:-Math.random()*11-3,s:Math.random()*6+3,c:cols[Math.random()*5|0],r:Math.random()*6}));
+ const t0=performance.now();
+ (function f(t){g.clearRect(0,0,r.width,r.height);const k=(t-t0)/1600;P.forEach(p=>{p.vy+=.35;p.x+=p.vx;p.y+=p.vy;p.r+=.2;g.save();g.globalAlpha=Math.max(0,1-k);g.translate(p.x,p.y);g.rotate(p.r);g.fillStyle=p.c;g.fillRect(-p.s/2,-p.s/4,p.s,p.s/2);g.restore()});if(k<1&&!skip)requestAnimationFrame(f);else c.remove()})(t0);
+}
+const frost=(on)=>{const f=$('frost');if(on){f.style.clipPath='circle(80% at 50% 50%)';anim(f,[{clipPath:'circle(0% at 50% 50%)'},{clipPath:'circle(80% at 50% 50%)'}],{duration:900,easing:'ease-out'})}else{anim(f,[{clipPath:'circle(80% at 50% 50%)',opacity:1,filter:'brightness(2)'},{clipPath:'circle(80% at 50% 50%)',opacity:0,filter:'brightness(3)'}],{duration:500}).then(()=>{f.style.clipPath='circle(0% at 50% 50%)'});if(skip||reduce)f.style.clipPath='circle(0% at 50% 50%)'}};
+
+const V=()=>$('vault');
+const SCENES=[null,
+ async()=>{ // 1
+  live('nBerger');say('Invoice in.','AR-2026-0089 · €18,400 · §13b reverse charge');
+  await fly('paper',$('nBerger').querySelector('.orb'),$('nBuero').querySelector('.orb'));
+  live('nBuero');show('bInvoice');
+ },
+ async()=>{ // 2
+  say('Test pinned. Money locked.','KoSIT 1.6.3 + Bau Isar rules → input_hash e435aea1…');
+  show('pin');await wait(350);
+  await fly('coin-f',$('nBuero').querySelector('.orb'),V(),{arc:90});
+  V().classList.add('locked');show('coin');setState('FundsLocked','gold');
+  anim($('shackle'),[{transform:'translateY(-4px)'},{transform:'translateY(1px)'},{transform:'none'}],{duration:300});
+  addTx('lock');
+ },
+ async()=>{ // 3
+  live('nRM');say('Converter delivers.','XRechnung (UBL) · result_hash on chain');
+  await fly('xml',$('nRM').querySelector('.orb'),V());
+  show('doc');setState('ResultSubmitted','gold');addTx('submit');
+ },
+ async()=>{ // 4
+  live('nGut');say('Inspector checks. Paid per check.','x402 · 1 tADA per inspection');
+  await fly('ada',$('nBuero').querySelector('.orb'),$('nGut').querySelector('.orb'),{text:'1 tADA',arc:110});
+  show('bAda');addTx('rej');
+  await laser('#FF4D63');
+  await stamp('sDefect');
+  chip.innerHTML='BR-AE-02 · buyer VAT ID (BT-48) missing';
+  anim(chip,[{transform:'scale(1.12)',borderColor:'#FF4D63'},{transform:'none'}],{duration:400});
+ },
+ async()=>{ // 5
+  say('Defect notice. Money frozen.','§640(2) BGB Mängelrüge → escrow Disputed');
+  frost(true);$('coin').classList.add('pale');V().classList.remove('locked');V().classList.add('frozen');
+  await wait(500);setState('Disputed','ice');addTx('dispute');
+ },
+ async()=>{ // 6
+  say('Fixed.','BT-48: <span class="del">∅</span> → <span class="ins" id="ins"></span>');
+  const ins=$('ins'),v='DE287654321';
+  if(skip||reduce)ins.textContent=v;else for(const ch of v){if(skip){ins.textContent=v;break}ins.textContent+=ch;await wait(55)}
+  await fly('xml',$('nRM').querySelector('.orb'),V());
+  anim($('sDefect'),[{opacity:1},{opacity:0,transform:'translate(-50%,-50%) rotate(-30deg) scale(.6)'}],{duration:400});$('sDefect').style.opacity=0;
+  setState('Disputed · cure in','ice');addTx('cure');
+ },
+ async()=>{ // 7
+  say('Checked again: OK.','KoSIT: valid · EN 16931 XRechnung');
+  await fly('ada',$('nBuero').querySelector('.orb'),$('nGut').querySelector('.orb'),{text:'1 tADA',arc:110});
+  $('bAda').textContent='2 tADA';anim($('bAda'),[{transform:'scale(1.5)'},{transform:'scale(1)'}],{duration:300});addTx('ok');
+  await laser('#2BE39B');
+  await stamp('sOk');confetti();
+ },
+ async()=>{ // 8
+  say('Accepted. Converter paid.','§640(1) Abnahme → §641 payment due');
+  frost(false);$('coin').classList.remove('pale');V().classList.remove('frozen');V().classList.add('open');
+  anim($('shackle'),[{transform:'none'},{transform:'translateY(-5px) rotate(-12deg)'}],{duration:350,fill:'forwards'});
+  setState('WithdrawAuthorized','green');addTx('auth');await wait(500);
+  show('coin',false);
+  await fly('coin-f',V(),$('nRM').querySelector('.orb'),{arc:90});
+  show('bPaid');anim($('nRM').querySelector('.orb'),[{boxShadow:'0 0 0 0 rgba(255,201,77,.9)'},{boxShadow:'0 0 0 26px rgba(255,201,77,0)'}],{duration:700});
+  setState('Withdrawn','green');addTx('paid');
+ },
+ async()=>{ // 9
+  say('No acceptance, no payment.','Accepted XRechnung → Bau Isar (demo inbox)');
+  show('inbox');await wait(250);
+  await fly('mail',$('nBuero').querySelector('.orb'),$('inbox'),{arc:60});
+  anim($('inbox'),[{transform:'scale(1.2)'},{transform:'scale(1)'}],{duration:300});
+ },
+ async()=>{ // 10: final
+  const f=document.createElement('div');f.className='final';f.id='final';
+  f.innerHTML=`<h2>It works. On chain. By the rules.</h2>
+  <div class="row"><small>It works</small><div class="badges">
+   <span class="b"><strong data-n="8">0</strong>/8 txs valid on chain</span>
+   <span class="b"><strong>9:39</strong> min to payout</span>
+   <span class="b"><strong data-n="244">0</strong> preprod txs so far</span>
+   <span class="b"><strong data-n="387">0</strong> tests · CI green</span></div></div>
+  <div class="row"><small>Compliant by design</small><div class="badges">
+   <span class="b ok">XRechnung · EN 16931 (official KoSIT)</span>
+   <span class="b ok">§13b · §14a · §14c UStG</span>
+   <span class="b ok">DSGVO: only hashes on chain</span>
+   <span class="b ok">ZAG: only the agent fee escrowed</span>
+   <span class="b ok">MiCA: customer never touches crypto</span></div></div>
+  <div class="row"><small>Trusted</small><div class="badges">
+   <span class="b"><strong data-n="216">0</strong> findings · 4/4 HIGH fixed (internal review)</span>
+   <span class="b"><strong data-n="2">0</strong> Masumi bugs found · fixes sent upstream (#1328, #1332)</span></div></div>
+  <div class="foot"><span><b>€1.49</b> per accepted invoice · refused = free</span><a href="https://github.com/omurbc/abnahme" target="_blank" rel="noopener">github.com/omurbc/abnahme</a><span>Ömür Altunbey</span></div>`;
+  stage.appendChild(f);
+  const bs=[...f.querySelectorAll('.b')];
+  for(const b of bs){b.style.opacity=1;b.style.transform='none';anim(b,[{transform:'scale(.6)',opacity:0},{transform:'scale(1.08)',opacity:1,offset:.7},{transform:'none',opacity:1}],{duration:380,easing:'ease-out'});await wait(90)}
+  f.querySelectorAll('[data-n]').forEach(el=>{const n=+el.dataset.n;if(skip||reduce){el.textContent=n;return}const t0=performance.now();const st=t=>{const k=Math.min(1,(t-t0)/900);el.textContent=Math.round(n*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(st);else el.textContent=n};requestAnimationFrame(st)});
+  confetti();
+ },
+];
+
+const rail=document.querySelector('.rail');for(let i=1;i<=9;i++)rail.appendChild(Object.assign(document.createElement('i'),{title:'Step '+i}));
+const dots=[...rail.children];
+function paint(){dots.forEach((d,i)=>d.classList.toggle('on',i<idx));nextBtn.textContent=idx===0?'Start ▶':idx>=9?'See the proof ▶':'Next ▶';nextBtn.hidden=idx>=10;$('replay').hidden=!(idx>=10&&!busy)}
+
+async function next(){
+ if(busy){fastForward();return}
+ if(idx>=10)return;
+ clearTimeout(autoTimer);busy=true;idx++;paint();
+ try{await SCENES[idx]()}finally{busy=false;skip=false;paint()}
+ if(idx>=10){auto=false;$('auto').setAttribute('aria-pressed','false')}
+ if(auto)autoTimer=setTimeout(next,idx===9?3200:2600);
+}
+function replay(){
+ clearTimeout(autoTimer);fastForward();skip=false;busy=false;idx=0;txN=0;clockNow=0;
+ $('final')?.remove();ledger.innerHTML='';$('txCount').textContent='0';$('clock').textContent='0:00';
+ ['nBerger','nBuero','nRM','nGut'].forEach(id=>$(id).classList.remove('live','act'));
+ ['bInvoice','bAda','bPaid','pin','coin','doc','inbox'].forEach(id=>show(id,false));$('bAda').textContent='1 tADA';
+ V().className='vault';$('coin').classList.remove('pale');$('frost').style.clipPath='circle(0% at 50% 50%)';
+ $('sDefect').style.opacity=0;$('sOk').style.opacity=0;$('shackle').getAnimations().forEach(a=>a.cancel());
+ $('state').textContent='Escrow · Cardano';$('state').className='state';
+ cap.textContent='Paid only after acceptance.';chip.textContent='German e-invoice · AI agents · Cardano escrow';paint();
+}
+nextBtn.addEventListener('click',next);
+$('replay').addEventListener('click',()=>{replay();nextBtn.focus()});
+$('auto').addEventListener('click',e=>{auto=!auto;e.currentTarget.setAttribute('aria-pressed',String(auto));if(auto&&!busy)next();else clearTimeout(autoTimer)});
+document.addEventListener('keydown',e=>{
+ if(e.target.closest('button,a'))return;
+ if(e.key===' '||e.key==='ArrowRight'){e.preventDefault();next()}
+ if(e.key==='r'||e.key==='R')replay();
+});
+paint();
+})();
+</script>
+
+</body>
+</html>
