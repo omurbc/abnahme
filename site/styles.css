@@ -34,27 +34,9 @@
   --radius-icon: 22%;
   --radius-pill: 999px;
 
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #0B1028;
-    --sheet: #121935;
-    --sand: #182042;
-    --line: #2A3358;
-    --ink: #F2EFE7;
-    --ink-2: #D9D5CB;
-    --on-ink: #0B1028;
-    --slate: #A6ADC6;
-    --mist: #6D7593;
-    --accept: #4CC38A;
-    --on-accept: #062B19;
-    --defect: #FF7B72;
-    --pending: #E8B04B;
-    --focus: #F2EFE7;
-  }
-}
 
 /* Base */
 

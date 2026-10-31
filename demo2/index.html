@@ -13,7 +13,7 @@
 <style>
 /* Layout: a paper page. Five actors in a row with the escrow sheet in the middle, arrows between them on an SVG layer, a caption under it, the transaction strip below. */
 :root{
-  color-scheme:light dark;
+  color-scheme:light;
   --paper:#F6F4EE;--sheet:#FFFFFF;--sand:#EDEAE2;--line:#DDD9CF;
   --ink:#0F1630;--ink-2:#263052;--on-ink:#F6F4EE;--slate:#565E78;--mist:#8E95AA;
   --accept:#17704A;--on-accept:#FFFFFF;--defect:#B3261E;--pending:#8A5A00;--focus:#0F1630;
@@ -22,11 +22,6 @@
   --brand:"Space Grotesk","Hanken Grotesk","Helvetica Neue",Arial,sans-serif;
   --r-sm:6px;--r-md:12px;
 }
-@media (prefers-color-scheme:dark){:root{
-  --paper:#0B1028;--sheet:#121935;--sand:#182042;--line:#2A3358;
-  --ink:#F2EFE7;--ink-2:#D9D5CB;--on-ink:#0B1028;--slate:#A6ADC6;--mist:#6D7593;
-  --accept:#4CC38A;--on-accept:#062B19;--defect:#FF7B72;--pending:#E8B04B;--focus:#F2EFE7;
-}}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{background:var(--paper);color:var(--ink);font:400 15px/1.45 var(--sans);-webkit-font-smoothing:antialiased}

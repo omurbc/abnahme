@@ -314,7 +314,7 @@ function theme(){
  if(q==='dark'||q==='light')saved=q;
  if(saved)document.documentElement.dataset.theme=saved;
  $('#theme-toggle').addEventListener('click',()=>{
-  const dark=document.documentElement.dataset.theme?document.documentElement.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+  const dark=document.documentElement.dataset.theme==='dark';
   const next=dark?'light':'dark';document.documentElement.dataset.theme=next;
   try{localStorage.setItem('abnahme-theme',next);}catch{}
  });
