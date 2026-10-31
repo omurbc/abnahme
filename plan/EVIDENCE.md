@@ -1119,3 +1119,41 @@ RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-job
 - ABGENOMMEN. Der RechnungsMeister hat die Zahlung aus der Escrow erhalten (Withdrawn).
 
 </details>
+
+## Escrow run 2026-10-31T08-52-40-418Z-1d691f: ACCEPTED
+
+Invoice `AR-2026-D095240` (file `AR-2026-D095240.txt`), recipient `bau-isar`, expected 18400.00 EUR, x402 inspection, --follow. Finished 2026-10-31T09:02:38.214Z, 10.0 min in this process, job total 10.0 min across processes. Purchase `cmvw5xyel01tt01pgf1x8s13v`.
+RechnungsMeister demo switches are in its job file (`.local/rechnungsmeister-jobs/`), reported by `/status` as `demo`.
+
+| Step | Time (UTC) | Tx | Explorer |
+|---|---|---|---|
+| FundsLocked | 2026-10-31T08:55:13.000Z | `24617592a3cf4bbf22bac83a239c62d6241d1b9efc65c832ed08c1fc9d494dc7` | https://preprod.cardanoscan.io/transaction/24617592a3cf4bbf22bac83a239c62d6241d1b9efc65c832ed08c1fc9d494dc7 |
+| ResultSubmitted | 2026-10-31T08:55:43.000Z | `e873d218befa245851979758e3d83facd134857882cb48873e2c18d6c1d9bd46` | https://preprod.cardanoscan.io/transaction/e873d218befa245851979758e3d83facd134857882cb48873e2c18d6c1d9bd46 |
+| Disputed | 2026-10-31T08:57:37.000Z | `25ff0735b7b0cee370474d6dc4736b66a23d3683fc18f13bf471a018159ccf7d` | https://preprod.cardanoscan.io/transaction/25ff0735b7b0cee370474d6dc4736b66a23d3683fc18f13bf471a018159ccf7d |
+| ResultSubmitted (cure) | 2026-10-31T09:00:26.000Z | `72c19de975a04f0aba396f67770ea36c74d2b126590aaf027fb51825cec2bccc` | https://preprod.cardanoscan.io/transaction/72c19de975a04f0aba396f67770ea36c74d2b126590aaf027fb51825cec2bccc |
+| AuthorizeWithdrawal | 2026-10-31T09:01:32.000Z | `7cfe4b6d4efa3030a7d18c146f470bd8eee41b52bf974fb58a889d5b24040a86` | https://preprod.cardanoscan.io/transaction/7cfe4b6d4efa3030a7d18c146f470bd8eee41b52bf974fb58a889d5b24040a86 |
+| Withdrawn | 2026-10-31T09:02:12.000Z | `5cee1f47c48f0a853feb05a817f236451cf792f0a043b944aac7d4aad6ba5bba` | https://preprod.cardanoscan.io/transaction/5cee1f47c48f0a853feb05a817f236451cf792f0a043b944aac7d4aad6ba5bba |
+| x402 inspection 1 |  | `4cfd444c664151b70894c0e1a144ea2bc4852ba855f20eb26726229930e69107` | https://preprod.cardanoscan.io/transaction/4cfd444c664151b70894c0e1a144ea2bc4852ba855f20eb26726229930e69107 |
+| x402 inspection 2 |  | `027d36e732e16e646a224c942c2124ea4aa43b2d14e72c30321c929fb3e7c65f` | https://preprod.cardanoscan.io/transaction/027d36e732e16e646a224c942c2124ea4aa43b2d14e72c30321c929fb3e7c65f |
+
+<details><summary>Abnahmeprotokoll</summary>
+
+- Auftrag 2026-10-31T08-52-40-418Z-1d691f: Rechnung für Bau Isar Generalunternehmer GmbH, erwarteter Betrag 18.400,00 €, Prüfprofil e9a2831b3eb0…
+- Angebot von RechnungsMeister (Auftrag 6439686e-d696-4705-b0f5-40a21d4ec9e7): 1 tUSDM, Ergebnis bis 10:17, Freigabe ab 10:37. Eingabe-Hash geprüft.
+- Kauf an den Masumi Payment Service übergeben; 1 tUSDM wird in der Escrow auf Cardano gesperrt.
+- Geld gesperrt (FundsLocked). Der RechnungsMeister liest jetzt die Rechnung aus und erstellt die XRechnung; warte auf das Ergebnis.
+- Ergebnis auf Cardano eingereicht (ResultSubmitted). Starte die Abnahmeprüfung.
+- Prüfung 1 (Gutachter über x402, 1 tADA): Ergebnis-Hash (Datum (Blockfrost)) stimmt, KoSIT abgelehnt.
+- Mängel: [BR-AE-02] Bei Steuerschuldnerschaft des Leistungsempfängers (Kategorie „AE“) müssen beim Verkäufer die USt-IdNr. (BT-31), die Steuernummer (BT-32) oder die USt-IdNr. des Steuervertreters (BT-63) und beim Käufer die USt-IdNr. (BT-48) oder die Registernummer (BT-47) angegeben sein. [ABN-BT48] Die USt-IdNr. des Käufers (BT-48) fehlt; bei § 13b muss DE287654321 angegeben sein.
+- Mängelrüge auf Cardano: Rückerstattung verlangt, die Escrow geht in den Streitfall (Disputed).
+- Streitfall bestätigt (Disputed). Das Geld ist eingefroren. Sende das Prüfprotokoll an den RechnungsMeister.
+- RechnungsMeister bessert nach (Versuch 2): buyerVatId = DE287654321 (Quelle: input_data.invoiceText).
+- Nachbesserung 1 auf Cardano eingereicht. Prüfe erneut.
+- Prüfung 2 (Gutachter über x402, 1 tADA): Ergebnis-Hash (Datum (Blockfrost)) stimmt, KoSIT akzeptiert.
+- Nachbesserung besteht die Abnahme. Gebe die Zahlung frei (AuthorizeWithdrawal).
+- Freigabe auf Cardano beauftragt (cancel-refund-request → AuthorizeWithdrawal).
+- Zahlung freigegeben (WithdrawAuthorized). Warte auf die Auszahlung an den RechnungsMeister.
+- ABGENOMMEN. Der RechnungsMeister hat die Zahlung aus der Escrow erhalten (Withdrawn).
+- Escrow abgeschlossen: Withdrawn.
+
+</details>
