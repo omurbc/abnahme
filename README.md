@@ -1070,6 +1070,8 @@ While building the refusal path we found that MPS 0.28.0 (the first release with
 
 ## Regulatory compliance
 
+Every law and standard on this page, the website and the demo links to its official text: German federal law on [gesetze-im-internet.de](https://www.gesetze-im-internet.de/) (Federal Ministry of Justice), EU law on [EUR-Lex](https://eur-lex.europa.eu/), and the XRechnung standard on [xeinkauf.de](https://xeinkauf.de/xrechnung/).
+
 Abnahme is a hackathon build on Cardano preprod, run by one founder with no company yet. Nothing here is a legal opinion; a legal review is budgeted before the first customer. Sources and details: [business case, section 9](docs/business.md#9-regulatory-and-trust).
 
 | Area | What applies | What Abnahme does today | Open before the first customer |
