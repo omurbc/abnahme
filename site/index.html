@@ -42,7 +42,7 @@
 <section class="hero" aria-labelledby="hero-title">
  <div class="wrap hero-grid">
   <div class="hero-text">
-   <p class="eyebrow">XRechnung · Masumi escrow · Cardano</p>
+   <p class="eyebrow"><a href="https://xeinkauf.de/xrechnung/" target="_blank" rel="noopener">XRechnung</a> · Masumi escrow · Cardano</p>
    <h1 id="hero-title" class="display">No acceptance, no payment.</h1>
    <p class="accent" lang="de">Ohne Abnahme kein Geld.</p>
    <p class="lead">E-invoices that get paid only after the buyer's agent has accepted them.</p>
@@ -62,7 +62,7 @@
      <div class="sheet-head">
       <div>
        <p class="sheet-title">XRechnung</p>
-       <p class="fmt">UBL · EN 16931 · 3.0.2</p>
+       <p class="fmt">UBL · <a href="https://eur-lex.europa.eu/eli/dir/2014/55/oj" target="_blank" rel="noopener">EN 16931</a> · 3.0.2</p>
       </div>
       <p class="stamp" role="img" aria-label="Stamp: Abgenommen, accepted under §640 BGB"><b lang="de">Abgenommen</b><span>Accepted · §640 BGB</span></p>
      </div>
@@ -70,7 +70,7 @@
       <div><dt>BT-10</dt><dd>BV-2026-014</dd></div>
       <div><dt>BT-31</dt><dd>DE312456789</dd></div>
       <div class="ok"><dt>BT-48</dt><dd><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>DE287654321<span class="sr-only"> (fixed, passes)</span></dd></div>
-      <div><dt>BT-151</dt><dd>AE · §13b</dd></div>
+      <div><dt>BT-151</dt><dd>AE · <a href="https://www.gesetze-im-internet.de/ustg_1980/__13b.html" target="_blank" rel="noopener">§13b</a></dd></div>
      </dl>
      <div class="sheet-foot"><span class="eyebrow">Progress invoice</span><b>18,400.00 €</b></div>
     </article>
@@ -84,7 +84,7 @@
   <p class="big-number">21 days<span>Until payment is due</span></p>
   <div class="problem-text">
    <p class="eyebrow">The problem</p>
-   <h2 id="problem-title" class="h1">From 1 Jan 2027, German businesses above €800,000 turnover must send e-invoices (XRechnung / EN 16931).</h2>
+   <h2 id="problem-title" class="h1">From 1 Jan 2027, German businesses above €800,000 turnover must send e-invoices (<a href="https://xeinkauf.de/xrechnung/" target="_blank" rel="noopener">XRechnung</a> / <a href="https://eur-lex.europa.eu/eli/dir/2014/55/oj" target="_blank" rel="noopener">EN 16931</a>).</h2>
    <p class="measure">A general contractor rejects an invoice that misses its own fields, and the 21-day payment clock restarts. Today's converters grade their own work.</p>
   </div>
  </div>
@@ -100,19 +100,19 @@
    <li class="step">
     <p class="step-k"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span class="eyebrow">Step 1</span></p>
     <h3 class="h2">Locked.</h3>
-    <p class="body">The converter's fee is locked in a Masumi escrow on Cardano. The acceptance test (KoSIT validator 1.6.3 plus the recipient's rules) is pinned before money moves.</p>
+    <p class="body">The converter's fee is locked in a Masumi escrow on Cardano. The acceptance test (<a href="https://github.com/itplr-kosit/validator" target="_blank" rel="noopener">KoSIT validator</a> 1.6.3 plus the recipient's rules) is pinned before money moves.</p>
     <a class="receipt" href="https://preprod.cardanoscan.io/transaction/fac4e80e38920f2d7c74ce1a959153996a0441471de051a1ce7a92f935b8356f" target="_blank" rel="noopener"><i class="dot pending" aria-hidden="true"></i><span class="receipt-step">Money locked</span><code>fac4e80e…</code><time datetime="2026-10-30T22:56:46+01:00">22:56:46</time><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg><span class="sr-only">(transaction on Cardanoscan, opens in a new tab)</span></a>
    </li>
    <li class="step">
     <p class="step-k"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span class="eyebrow">Step 2</span></p>
     <h3 class="h2">Checked.</h3>
-    <p class="body">An inspector agent, paid per check over x402, finds a defect. A defect notice (<span lang="de">Mängelrüge</span>, §640(2) BGB) goes on chain and the money stays frozen while the converter cures it.</p>
+    <p class="body">An inspector agent, paid per check over x402, finds a defect. A defect notice (<span lang="de">Mängelrüge</span>, <a href="https://www.gesetze-im-internet.de/bgb/__640.html" target="_blank" rel="noopener">§640(2) BGB</a>) goes on chain and the money stays frozen while the converter cures it.</p>
     <a class="receipt" href="https://preprod.cardanoscan.io/transaction/d61baca2c8f7dc74cfc8317e35b925437940f186c74c1f4c6be1d100cba201ed" target="_blank" rel="noopener"><i class="dot defect" aria-hidden="true"></i><span class="receipt-step">Defect notice</span><code>d61baca2…</code><time datetime="2026-10-30T22:59:40+01:00">22:59:40</time><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg><span class="sr-only">(transaction on Cardanoscan, opens in a new tab)</span></a>
    </li>
    <li class="step">
     <p class="step-k"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span class="eyebrow">Step 3</span></p>
     <h3 class="h2">Paid.</h3>
-    <p class="body">The cured invoice passes and is accepted (<span lang="de">Abnahme</span>, §640(1) BGB). Only then is the converter paid (§641 BGB).</p>
+    <p class="body">The cured invoice passes and is accepted (<span lang="de">Abnahme</span>, <a href="https://www.gesetze-im-internet.de/bgb/__640.html" target="_blank" rel="noopener">§640(1) BGB</a>). Only then is the converter paid (<a href="https://www.gesetze-im-internet.de/bgb/__641.html" target="_blank" rel="noopener">§641 BGB</a>).</p>
     <a class="receipt" href="https://preprod.cardanoscan.io/transaction/324e757fbd400d63fffc546c3622ef5f53a201be68a4cfd52d385521271b9572" target="_blank" rel="noopener"><i class="dot accept" aria-hidden="true"></i><span class="receipt-step">Converter paid</span><code>324e757f…</code><time datetime="2026-10-30T23:04:23+01:00">23:04:23</time><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg><span class="sr-only">(transaction on Cardanoscan, opens in a new tab)</span></a>
    </li>
   </ol>
@@ -140,11 +140,11 @@
     <p class="small">Our reading of the cited rules, not legal advice.</p>
    </div>
    <dl class="rules">
-    <div><dt>XRechnung · EN 16931</dt><dd>Checked by the official KoSIT validator.</dd></div>
-    <div><dt>UStG</dt><dd>§13b, §14a and §14c checks.</dd></div>
-    <div><dt>DSGVO</dt><dd>Only hashes go on chain.</dd></div>
-    <div><dt>ZAG</dt><dd>Only the agent fee is escrowed, never the invoice amount.</dd></div>
-    <div><dt>MiCA</dt><dd>The customer never touches crypto.</dd></div>
+    <div><dt><a href="https://xeinkauf.de/xrechnung/" target="_blank" rel="noopener">XRechnung</a> · <a href="https://eur-lex.europa.eu/eli/dir/2014/55/oj" target="_blank" rel="noopener">EN 16931</a></dt><dd>Checked by the official <a href="https://github.com/itplr-kosit/validator" target="_blank" rel="noopener">KoSIT validator</a>.</dd></div>
+    <div><dt><a href="https://www.gesetze-im-internet.de/ustg_1980/" target="_blank" rel="noopener">UStG</a></dt><dd><a href="https://www.gesetze-im-internet.de/ustg_1980/__13b.html" target="_blank" rel="noopener">§13b</a>, <a href="https://www.gesetze-im-internet.de/ustg_1980/__14a.html" target="_blank" rel="noopener">§14a</a> and <a href="https://www.gesetze-im-internet.de/ustg_1980/__14c.html" target="_blank" rel="noopener">§14c</a> checks.</dd></div>
+    <div><dt><a href="https://eur-lex.europa.eu/eli/reg/2016/679/oj" target="_blank" rel="noopener">DSGVO</a></dt><dd>Only hashes go on chain.</dd></div>
+    <div><dt><a href="https://www.gesetze-im-internet.de/zag_2018/" target="_blank" rel="noopener">ZAG</a></dt><dd>Only the agent fee is escrowed, never the invoice amount.</dd></div>
+    <div><dt><a href="https://eur-lex.europa.eu/eli/reg/2023/1114/oj" target="_blank" rel="noopener">MiCA</a></dt><dd>The customer never touches crypto.</dd></div>
    </dl>
   </div>
 

@@ -3,7 +3,7 @@
 <img src="assets/hero.svg" alt="Abnahme. Ohne Abnahme kein Geld. No acceptance, no payment. An XRechnung invoice sheet with an ABGENOMMEN (accepted) stamp." width="100%" />
 
 Abnahme is a **buyer-run acceptance test for German e-invoices, enforced by a Masumi escrow on Cardano**.
-An agent converts invoices into XRechnung. It gets paid only after the buyer's agent has run the KoSIT validator and the client's own acceptance profile on the result.
+An agent converts invoices into [XRechnung](https://xeinkauf.de/xrechnung/). It gets paid only after the buyer's agent has run the KoSIT validator and the client's own acceptance profile on the result.
 A defect freezes the converter's money on chain until the converter fixes it.
 
 **[Try the demo](https://omurbc.github.io/abnahme/demo2/)** (replay of a real preprod run) · **[Website](https://omurbc.github.io/abnahme/)** · **[Security review](audit/abnahme-audit.md)**
@@ -66,25 +66,25 @@ Two recipients, both fictional, appear in the fixtures and recipient profiles:
 
 | Recipient | Profile | What its accounts payable expects |
 |---|---|---|
-| **Bau Isar Generalunternehmer GmbH**, a general contractor | [`bau-isar.json`](verifier/profiles/empfaenger/bau-isar.json) | §13b reverse charge (VAT category AE, its own VAT ID `DE287654321` in BT-48), a project number like `BV-2026-014` in BT-10, its own name and postcode as buyer, Toni's VAT ID and IBAN from its supplier master data |
+| **Bau Isar Generalunternehmer GmbH**, a general contractor | [`bau-isar.json`](verifier/profiles/empfaenger/bau-isar.json) | [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html) reverse charge (VAT category AE, its own VAT ID `DE287654321` in BT-48), a project number like `BV-2026-014` in BT-10, its own name and postcode as buyer, Toni's VAT ID and IBAN from its supplier master data |
 | **Hausverwaltung Giesing GmbH**, a property manager | [`hv-giesing.json`](verifier/profiles/empfaenger/hv-giesing.json) | Standard 19 % VAT, no category AE, a property number like `OBJ-GIE-0417` in BT-10, its own name and postcode as buyer, Toni's VAT ID and IBAN |
 
 Why now:
 
 - **The e-invoice deadline.** For domestic B2B supplies from **1 January 2027**, a German business whose turnover in the previous year was above **EUR 800,000** can no longer send paper or PDF invoices. From 1 January 2028 the transition ends for everyone ([§27 Abs. 38 UStG](https://www.gesetze-im-internet.de/ustg_1980/__27.html)). With the assumed turnover, Toni is above the threshold.
-- **§13b reverse charge.** When a subcontractor supplies construction work to a contractor that itself supplies construction work, the recipient owes the VAT ([§13b Abs. 2 Nr. 4, Abs. 5 UStG](https://www.gesetze-im-internet.de/ustg_1980/__13b.html)). The invoice shows no VAT and must carry the note "Steuerschuldnerschaft des Leistungsempfängers" ([§14a Abs. 5 UStG](https://www.gesetze-im-internet.de/ustg_1980/__14a.html)). In EN 16931 it carries VAT category `AE`, and rule **BR-AE-02** then requires the buyer's VAT ID (BT-48) or the buyer's legal registration identifier (BT-47). Bau Isar's accounts payable, as its recipient profile pins it, wants its VAT ID in BT-48. A progress invoice without it is our demo defect.
-- **VOB/B 21 days.** Under VOB/B, "Ansprüche auf Abschlagszahlungen werden binnen 21 Tagen nach Zugang der Aufstellung fällig" ([§16 Abs. 1 Nr. 3 VOB/B](https://dejure.org/gesetze/VOB-B/16.html)): a progress payment is due 21 days after the statement arrives. An invoice the contractor's accounts payable cannot book has, in practice, not arrived. On our [18,400 EUR fixture](fixtures/b-abschlag-13b-bau-isar.txt), a bounce means three more weeks without the money. (Our reading, not legal advice.)
+- **§13b reverse charge.** When a subcontractor supplies construction work to a contractor that itself supplies construction work, the recipient owes the VAT ([§13b Abs. 2 Nr. 4, Abs. 5 UStG](https://www.gesetze-im-internet.de/ustg_1980/__13b.html)). The invoice shows no VAT and must carry the note "Steuerschuldnerschaft des Leistungsempfängers" ([§14a Abs. 5 UStG](https://www.gesetze-im-internet.de/ustg_1980/__14a.html)). In [EN 16931](https://eur-lex.europa.eu/eli/dir/2014/55/oj) it carries VAT category `AE`, and rule **BR-AE-02** then requires the buyer's VAT ID (BT-48) or the buyer's legal registration identifier (BT-47). Bau Isar's accounts payable, as its recipient profile pins it, wants its VAT ID in BT-48. A progress invoice without it is our demo defect.
+- **VOB/B 21 days.** Under VOB/B, "Ansprüche auf Abschlagszahlungen werden binnen 21 Tagen nach Zugang der Aufstellung fällig" (§16 Abs. 1 Nr. 3 VOB/B; VOB/B is a standard contract form, not a statute, so there is no official law-portal page for it): a progress payment is due 21 days after the statement arrives. An invoice the contractor's accounts payable cannot book has, in practice, not arrived. On our [18,400 EUR fixture](fixtures/b-abschlag-13b-bau-isar.txt), a bounce means three more weeks without the money. (Our reading, not legal advice.)
 
 ## The problem
 
-1. **The deadline is close.** Small trades have to send structured e-invoices (XRechnung or another EN 16931 format) to their business clients, and most have never produced one.
+1. **The deadline is close.** Small trades have to send structured e-invoices ([XRechnung](https://xeinkauf.de/xrechnung/) or another [EN 16931](https://eur-lex.europa.eu/eli/dir/2014/55/oj) format) to their business clients, and most have never produced one.
 2. **The receiver's rules decide.** A general contractor's accounts payable system rejects what it cannot validate or book. "Valid XRechnung" is necessary but not enough: the contractor also wants its own project number in BT-10, its own VAT ID in BT-48, and the IBAN from its supplier master data.
 3. **Converters grade themselves.** Converters exist, and some promise "no charge if invalid". In that promise the converter grades its own work. Nothing stops it from deciding that its output was fine.
 4. **Agent buyers have the same trust gap.** An agent that hires an unknown converter agent from an open registry has no reason to trust its output, and paying up front leaves the buyer without leverage.
 
 ## The idea: Abnahme, as German law already defines it
 
-German contract-for-work law (*Werkvertrag*, §§631 ff. BGB) already has a protocol for "you get paid when I accept the work": the **Abnahme**. Every German tradesperson knows it. Masumi's V2 escrow on Cardano happens to have the same states. Abnahme maps the law onto the escrow, one transition at a time:
+German contract-for-work law (*Werkvertrag*, [§§631 ff. BGB](https://www.gesetze-im-internet.de/bgb/__631.html)) already has a protocol for "you get paid when I accept the work": the **Abnahme**. Every German tradesperson knows it. Masumi's V2 escrow on Cardano happens to have the same states. Abnahme maps the law onto the escrow, one transition at a time:
 
 | Masumi V2 transition | Who signs | Contract law | Source |
 |---|---|---|---|
@@ -93,13 +93,13 @@ German contract-for-work law (*Werkvertrag*, §§631 ff. BGB) already has a prot
 | `SubmitResult` while `Disputed` (new result hash) | seller | **Right to cure** (*Nacherfüllung*) | [§635 Abs. 1 BGB](https://www.gesetze-im-internet.de/bgb/__635.html): the contractor may remove the defect or make a new work |
 | `AuthorizeWithdrawal` → `WithdrawAuthorized` | buyer | **Acceptance** (*Abnahme*) | [§640 Abs. 1 BGB](https://www.gesetze-im-internet.de/bgb/__640.html) |
 | `Withdraw` → `Withdrawn` | seller | **Payment falls due on acceptance** | [§641 Abs. 1 BGB](https://www.gesetze-im-internet.de/bgb/__641.html): "Die Vergütung ist bei der Abnahme des Werkes zu entrichten." |
-| `Withdraw` from `ResultSubmitted` after `unlock_time` | seller | **Deemed acceptance**: the buyer stayed silent | §640 Abs. 2 BGB |
-| KoSIT `warning` / `information` are "minor" in [`acceptance-v1.json`](verifier/profiles/acceptance-v1.json), except four rules the profile escalates | | **Minor defects cannot justify refusal** | §640 Abs. 1 S. 2 BGB: "Wegen unwesentlicher Mängel kann die Abnahme nicht verweigert werden." |
+| `Withdraw` from `ResultSubmitted` after `unlock_time` | seller | **Deemed acceptance**: the buyer stayed silent | [§640 Abs. 2 BGB](https://www.gesetze-im-internet.de/bgb/__640.html) |
+| KoSIT `warning` / `information` are "minor" in [`acceptance-v1.json`](verifier/profiles/acceptance-v1.json), except four rules the profile escalates | | **Minor defects cannot justify refusal** | [§640 Abs. 1 S. 2 BGB](https://www.gesetze-im-internet.de/bgb/__640.html): "Wegen unwesentlicher Mängel kann die Abnahme nicht verweigert werden." |
 | `WithdrawDisputed` after `external_dispute_unlock_time` | Masumi admins | Arbitration when the parties cannot agree | |
 
 There are three agents. One produces the invoice, one checks it, and the buyer holds the veto:
 
-- **RechnungsMeister** (seller, runs on preprod): a Masumi MIP-003 agent ([`rechnungsmeister/server.mjs`](rechnungsmeister/server.mjs)) that turns pasted invoice text into XRechnung UBL with the conversion core in [`einvoice/`](einvoice). It checks its own output with KoSIT, delivers through the escrow and cures on a dispute.
+- **RechnungsMeister** (seller, runs on preprod): a Masumi MIP-003 agent ([`rechnungsmeister/server.mjs`](rechnungsmeister/server.mjs)) that turns pasted invoice text into [XRechnung](https://xeinkauf.de/xrechnung/) UBL with the conversion core in [`einvoice/`](einvoice). It checks its own output with KoSIT, delivers through the escrow and cures on a dispute.
 - **Büro-Agent** (buyer, runs on preprod): Frau Berger's agent behind the Sokosumi Coworker *Abnahme-Büro* ([`worker.mjs`](worker.mjs), [`buero/`](buero)). It hires RechnungsMeister through the Masumi escrow, runs the acceptance test, and either refuses or accepts.
 - **Gutachter** (inspector, paid on preprod): an x402 seller that runs the KoSIT validator for 1 tADA per inspection. The code is in [`gutachter/`](gutachter).
 
@@ -111,7 +111,7 @@ Abnahme writes as little as possible itself. Rule checking, XML rendering, escro
 
 | Concern | What we use | What we write |
 |---|---|---|
-| EN 16931 + XRechnung business rules (BR-*, BR-DE-*) | [KoSIT validator](https://github.com/itplr-kosit/validator) 1.6.3 with the official [XRechnung configuration](https://github.com/itplr-kosit/validator-configuration-xrechnung) 2026-08-31, published by KoSIT (Koordinierungsstelle für IT-Standards), the body behind the XRechnung standard | none. We pin both by sha256 and pin the matched scenario |
+| [EN 16931](https://eur-lex.europa.eu/eli/dir/2014/55/oj) + [XRechnung](https://xeinkauf.de/xrechnung/) business rules (BR-*, BR-DE-*) | [KoSIT validator](https://github.com/itplr-kosit/validator) 1.6.3 with the official [XRechnung configuration](https://github.com/itplr-kosit/validator-configuration-xrechnung) 2026-08-31, published by KoSIT (Koordinierungsstelle für IT-Standards), the body behind the XRechnung standard | none. We pin both by sha256 and pin the matched scenario |
 | UBL serialization | [`@e-invoice-eu/core`](https://github.com/gflohr/e-invoice-eu) 3.4.2, format `XRECHNUNG-UBL` | the mapping from about 30 flat fields to UBL ([`einvoice/build.mjs`](einvoice/build.mjs)) |
 | Escrow | Masumi V2 `vested_pay` validator (Aiken, Plutus V3), driven by the [Masumi Payment Service](https://github.com/masumi-network/masumi-payment-service) 0.29.0 | none. We deploy no smart contract |
 | Agent identity and job API | Masumi registry (agent NFT) and MIP-003 (`/start_job`, `/status`, `/availability`, `/input_schema`) from the template's `agent-api.mjs` | [`rechnungsmeister/server.mjs`](rechnungsmeister/server.mjs), plus `POST /dispute`, which is not part of MIP-003 |
@@ -205,7 +205,7 @@ sequenceDiagram
     BA->>BI: E-mails the accepted XRechnung
 ```
 
-Campaign run A1 → A1-S (Fri 30 Oct, 13:47–14:46 UTC) covers all 14 steps: a Sokosumi PRÜFEN with the escrow and two paid x402 inspections (REJECT, then ACCEPTABLE), then the paid SENDEN Task that e-mailed the accepted XRechnung into Mailpit, which stands in for Bau Isar's inbox, and settled (see [Recorded runs](#recorded-runs) and [security report §11](audit/abnahme-audit.md#11-live-preprod-scenario-matrices)).
+Campaign run A1 → A1-S (Fri 30 Oct, 13:47–14:46 UTC) covers all 14 steps: a Sokosumi PRÜFEN with the escrow and two paid x402 inspections (REJECT, then ACCEPTABLE), then the paid SENDEN Task that e-mailed the accepted [XRechnung](https://xeinkauf.de/xrechnung/) into Mailpit, which stands in for Bau Isar's inbox, and settled (see [Recorded runs](#recorded-runs) and [security report §11](audit/abnahme-audit.md#11-live-preprod-scenario-matrices)).
 
 ### 2. The converter cannot fix it
 
@@ -320,7 +320,7 @@ What each piece does, and where it lives:
 |---|---|---|
 | Profile hash | [`verifier/profile.mjs`](verifier/profile.mjs) | `profileHash = sha256(canonicalJson({acceptance, recipient}))`. JCS sorts keys by UTF-16 code units, so key order cannot change the hash. A test pins both hashes, so any change to a profile file is deliberate. The hashes changed in `0cff46a`, when six checks were added (bau-isar `0d799b13…` → `64a8294c…`, hv-giesing → `a9c6f943…`), and again in `30ec44c`, when each recipient profile pinned its VAT category and rate and two checks were added (bau-isar → `e9a2831b…`, hv-giesing → `e7f7ba8e…`), while the profile id stayed `abnahme-xrechnung-v1`. The hash, not the id, says which test graded an invoice. |
 | Extraction | [`einvoice/extract.mjs`](einvoice/extract.mjs) | Claude with a strict JSON schema of flat fields (`invoiceNumber`, `buyerVatId`, `buyerReference`, `lines`, `reverseCharge`, ...). The prompt says to copy values as printed and return `null` for missing ones. Text over 16,000 characters is refused before any model call. The call times out after 120 s and is retried once. `EXTRACT_MODE=fixed` uses a deterministic parser for our own fixed-layout format instead ([`parse-fixed.mjs`](einvoice/parse-fixed.mjs)). |
-| Build | [`einvoice/build.mjs`](einvoice/build.mjs) | Computes line, tax and total amounts in cents. Sets VAT category `AE` with exemption code `VATEX-EU-AE` for §13b. Leaves `cbc:CustomizationID` out so the library writes the XRechnung 3.0 ID. A plain EN 16931 ID would skip every BR-DE rule. |
+| Build | [`einvoice/build.mjs`](einvoice/build.mjs) | Computes line, tax and total amounts in cents. Sets VAT category `AE` with exemption code `VATEX-EU-AE` for [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html). Leaves `cbc:CustomizationID` out so the library writes the [XRechnung](https://xeinkauf.de/xrechnung/) 3.0 ID. A plain [EN 16931](https://eur-lex.europa.eu/eli/dir/2014/55/oj) ID would skip every BR-DE rule. |
 | KoSIT client | [`verifier/kosit.mjs`](verifier/kosit.mjs) | `accepted` needs HTTP 200, a KoSIT `accept` assessment **and** the matched scenario `EN16931 XRechnung (UBL Invoice)`. A report from another engine or XRechnung release counts as "not inspected". A 5xx means the invoice was not inspected, never that it is defective. XML over 5 MB is a `KOSIT-SIZE` defect and is never posted. |
 | XML reader | [`verifier/xml.mjs`](verifier/xml.mjs) | A strict, namespace-aware parser. The checks read each fact by exact path from the `Invoice` root, so comments, processing instructions, CDATA, other prefixes or copies inside UBL extensions cannot show the checks a different IBAN, total or VAT ID than the one KoSIT and the ERP read. DOCTYPE and encodings other than UTF-8 are refused. |
 | Semantic checks | [`verifier/checks.mjs`](verifier/checks.mjs) | Thirteen checks, named in the acceptance profile and run against the recipient profile. An unknown check id in a profile throws an error. |
@@ -337,8 +337,8 @@ The [`fixtures/`](fixtures) folder has four invoices from Toni. Each comes as fr
 | Fixture | Recipient profile | Invoice | KoSIT | Defects | Verdict |
 |---|---|---|---|---|---|
 | [`a-reparatur-hv-giesing`](fixtures/a-reparatur-hv-giesing.txt) | `hv-giesing` | repair, 19 % VAT, 527,17 € | HTTP 200 | none | **ABGENOMMEN** |
-| [`b-abschlag-13b-bau-isar`](fixtures/b-abschlag-13b-bau-isar.txt) | `bau-isar` | §13b progress invoice (type 875), 18.400,00 € | HTTP 200 | none | **ABGENOMMEN** |
-| [`c-abschlag-13b-ohne-ustid`](fixtures/c-abschlag-13b-ohne-ustid.txt) | `bau-isar` | same §13b invoice, buyer VAT ID missing | HTTP 406 | `BR-AE-02`, `ABN-BT48` | **ABGELEHNT** |
+| [`b-abschlag-13b-bau-isar`](fixtures/b-abschlag-13b-bau-isar.txt) | `bau-isar` | [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html) progress invoice (type 875), 18.400,00 € | HTTP 200 | none | **ABGENOMMEN** |
+| [`c-abschlag-13b-ohne-ustid`](fixtures/c-abschlag-13b-ohne-ustid.txt) | `bau-isar` | same [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html) invoice, buyer VAT ID missing | HTTP 406 | `BR-AE-02`, `ABN-BT48` | **ABGELEHNT** |
 | [`d-reparatur-ohne-bt10`](fixtures/d-reparatur-ohne-bt10.txt) | `hv-giesing` | same repair invoice, no buyer reference | HTTP 406 | `BR-DE-15`, `ABN-BT10` | **ABGELEHNT** |
 
 In all four runs KoSIT matched the pinned scenario `EN16931 XRechnung (UBL Invoice)`. Fixture **c** is the demo's first delivery. This is the CLI output, as Frau Berger would read it:
@@ -360,7 +360,7 @@ Exit codes: `0` = abgenommen, `1` = abgelehnt, `2` = error or missing argument. 
 
 ## The Gutachter: inspection paid per call over x402
 
-The Gutachter (German for an appointed expert inspector) sells one thing: a KoSIT inspection of raw XRechnung XML for **1 tADA** (`{amount: '1000000', asset: 'lovelace'}`) on `cardano:preprod`. It is built from the Cardano Foundation x402-express template and settles through the CF hosted preprod facilitator.
+The Gutachter (German for an appointed expert inspector) sells one thing: a KoSIT inspection of raw [XRechnung](https://xeinkauf.de/xrechnung/) XML for **1 tADA** (`{amount: '1000000', asset: 'lovelace'}`) on `cardano:preprod`. It is built from the Cardano Foundation x402-express template and settles through the CF hosted preprod facilitator.
 
 The payment sequence (402, verify, inspect, settle, resend) is drawn under [Technical details](#technical-details).
 
@@ -397,7 +397,7 @@ Two limits:
 
 | Leg | Status |
 |---|---|
-| XRechnung build, KoSIT verdict and semantic checks for the four fixtures | **real**, reproducible against KoSIT 1.6.3 (`npm test` and the CLI commands under [Run it yourself](#run-it-yourself)). CI runs both on every push. |
+| [XRechnung](https://xeinkauf.de/xrechnung/) build, KoSIT verdict and semantic checks for the four fixtures | **real**, reproducible against KoSIT 1.6.3 (`npm test` and the CLI commands under [Run it yourself](#run-it-yourself)). CI runs both on every push. |
 | Scenario pin blocks the CustomizationID downgrade | **real**, tested against the live validator ([`verifier/kosit.test.mjs`](verifier/kosit.test.mjs)) |
 | Profile hash is canonical, order-independent and stable | **real**, tested ([`verifier/profile.test.mjs`](verifier/profile.test.mjs)) |
 | Profile hash inside the escrow `input_hash` | **real, checked on chain**: datum field 10 of `470f87f0…` equals `sha256(nonce;JCS(input_data))` with profile `64a8294c…`. Rows 4-11 under [On-chain evidence](#on-chain-evidence) pin the earlier profile `0d799b13…`. |
@@ -421,10 +421,10 @@ The protections, in plain words (each landed with a regression test, see [Securi
 
 What the demo does not prove, stated plainly:
 
-- **KoSIT checks format and rules, not truth.** A well-formed invoice for work that was never done passes KoSIT. Our semantic checks catch only what the recipient profile pins: payable amount, seller VAT ID, IBAN, §13b category and BT-48, the BT-10 pattern, the VAT category and rate, no undeclared prepaid amount, currency, invoice type, the §14a wording, VAT arithmetic, buyer name and postcode, and dates. A pass does not prove that the GC's ERP will book the invoice, that the measured work is reviewable, or that the GC received the e-mail.
+- **KoSIT checks format and rules, not truth.** A well-formed invoice for work that was never done passes KoSIT. Our semantic checks catch only what the recipient profile pins: payable amount, seller VAT ID, IBAN, [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html) category and BT-48, the BT-10 pattern, the VAT category and rate, no undeclared prepaid amount, currency, invoice type, the §14a wording, VAT arithmetic, buyer name and postcode, and dates. A pass does not prove that the GC's ERP will book the invoice, that the measured work is reviewable, or that the GC received the e-mail.
 - **Sokosumi credits are not on-chain refunds.** When an escrow refunds on chain, Sokosumi does not give the credits back. "Pay only after acceptance" is enforced on the **agent-to-agent** hop (Büro-Agent → RechnungsMeister), not on Frau Berger's credits.
 - **The team runs every agent.** Büro-Agent, RechnungsMeister, the Gutachter, KoSIT and one Masumi Payment Service run on one machine. Buyer and seller are different wallets on the same MPS, both registry entries point to `127.0.0.1`, and the x402 payer and payee are both team wallets. One paid hop crosses an ownership boundary: Sokosumi's own preprod wallet locked 1 tUSDM for the Abnahme-Büro (`d9c69f50…`), which withdrew it after `unlock_time` (`5d61bf3f…`, deemed acceptance).
-- **The first-pass defect is seeded.** The demo runs RechnungsMeister with `DEMO_SEED_DEFECT=1`: its first delivery drops the buyer VAT ID (BT-48). Only a §13b recipient (bau-isar) rejects that; a hv-giesing invoice passes on the first try even in demo mode. The cure restores the VAT ID from RechnungsMeister's own first extraction, where it appears verbatim in the invoice text. The refusal demo uses `CHEAT=1`, which submits a result hash that does not match the delivered bytes. `/status` reports both switches as `demo`.
+- **The first-pass defect is seeded.** The demo runs RechnungsMeister with `DEMO_SEED_DEFECT=1`: its first delivery drops the buyer VAT ID (BT-48). Only a [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html) recipient (bau-isar) rejects that; a hv-giesing invoice passes on the first try even in demo mode. The cure restores the VAT ID from RechnungsMeister's own first extraction, where it appears verbatim in the invoice text. The refusal demo uses `CHEAT=1`, which submits a result hash that does not match the delivered bytes. `/status` reports both switches as `demo`.
 - **Recorded evidence.** Campaign run A1 → A1-S goes from Sokosumi through the escrow and two paid x402 inspections to the e-mail and the payout. Earlier runs cover parts of the flow. See [Recorded runs](#recorded-runs).
 - **Follow-up comments are not answered.** The worker posts progress and queue comments only. A comment on a finished Task gets no reply.
 - **Mailpit stands in for the accounts-payable inbox.** No real general contractor receives anything.
@@ -440,7 +440,7 @@ These findings come from building it, from the validator itself, from reading th
 
 | Finding | How we know |
 |---|---|
-| An invoice with the plain EN 16931 `CustomizationID` makes KoSIT match the scenario `EN16931 (UBL Invoice)` and answer **HTTP 200**, even though it skips every German BR-DE rule. Checking "200 = valid" is not enough. | Run against KoSIT 1.6.3 in [`verifier/kosit.test.mjs`](verifier/kosit.test.mjs). This is why `acceptance-v1.json` pins the scenario. |
+| An invoice with the plain [EN 16931](https://eur-lex.europa.eu/eli/dir/2014/55/oj) `CustomizationID` makes KoSIT match the scenario `EN16931 (UBL Invoice)` and answer **HTTP 200**, even though it skips every German BR-DE rule. Checking "200 = valid" is not enough. | Run against KoSIT 1.6.3 in [`verifier/kosit.test.mjs`](verifier/kosit.test.mjs). This is why `acceptance-v1.json` pins the scenario. |
 | KoSIT reports BR-DE-* in German but EN 16931 rules such as BR-AE-02 in English. A German small business needs a lookup table. | Raw validator output: fixture **c** gives `[BR-AE-02]-An Invoice that contains an Invoice line (BG-25) where …`, fixture **d** gives `[BR-DE-15] Das Element "Buyer reference" (BT-10) muss übermittelt werden.` |
 | On V2, MPS `cancel-refund-request` asks for `AuthorizeWithdrawal` and returns 400 unless the purchase is `Disputed`. | MPS 0.29.0 `src/routes/api/purchases/cancel-refund-request/index.ts` |
 | `AuthorizeWithdrawal` cannot be undone. The V2 README says integrators "MUST surface this irrevocability in the buyer-facing UI". In Abnahme the acceptance profile, pinned in `input_hash` before the lock, is the buyer's standing consent: the Büro-Agent signs `AuthorizeWithdrawal` with no human step, and Frau Berger never signs. | MPS 0.29.0 `smart-contracts/payment-v2/README.md`, [`buero/abnahme.mjs`](buero/abnahme.mjs) |
@@ -524,7 +524,7 @@ flowchart LR
 <details>
 <summary><b>One job, end to end: every call (target flow)</b></summary>
 
-This is the flow the code implements, drawn as one job: a §13b progress invoice to Bau Isar whose first delivery is missing the buyer's VAT ID. **Campaign run A1 → A1-S covers all of it**, as two Sokosumi Tasks (PRÜFEN, then the paid SENDEN). Each run is listed under [Recorded runs](#recorded-runs).
+This is the flow the code implements, drawn as one job: a [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html) progress invoice to Bau Isar whose first delivery is missing the buyer's VAT ID. **Campaign run A1 → A1-S covers all of it**, as two Sokosumi Tasks (PRÜFEN, then the paid SENDEN). Each run is listed under [Recorded runs](#recorded-runs).
 
 ```mermaid
 sequenceDiagram
@@ -938,7 +938,7 @@ The CLI commands to create Tasks and read their events and receipts are in [`pla
 
 <img src="assets/board-live.jpg" alt="Abnahme-Board: product header, agents and money flow, the escrow steps on Cardano with BGB mapping, the MANGEL and ABGENOMMEN stamps and the cure diff" width="100%" />
 
-[`board/`](board) is a read-only console for a customer and for live judging. It shows each job as it runs: who hires whom and who pays whom (Masumi escrow 1 tUSDM, x402 1 tADA), the escrow steps with their legal meaning, time, preprod transaction and confirmations, the KoSIT defects (MANGEL / DEFECT), the cure diff, acceptance (ABGENOMMEN / ACCEPTED), the payout and the e-mailed XRechnung. *History* lists every job, *Evidence* every preprod transaction.
+[`board/`](board) is a read-only console for a customer and for live judging. It shows each job as it runs: who hires whom and who pays whom (Masumi escrow 1 tUSDM, x402 1 tADA), the escrow steps with their legal meaning, time, preprod transaction and confirmations, the KoSIT defects (MANGEL / DEFECT), the cure diff, acceptance (ABGENOMMEN / ACCEPTED), the payout and the e-mailed [XRechnung](https://xeinkauf.de/xrechnung/). *History* lists every job, *Evidence* every preprod transaction.
 
 ```sh
 node --env-file=.local/env/board.env --import=./scripts/env-guard.mjs board/server.mjs   # http://127.0.0.1:8787
@@ -950,7 +950,7 @@ A read-only snapshot of it is public at **[omurbc.github.io/abnahme/board](https
 
 | Path | What it is | Status |
 |---|---|---|
-| [`einvoice/`](einvoice) | `extract.mjs` (Claude structured output), `parse-fixed.mjs` (deterministic fallback), `build.mjs` (XRechnung UBL), `cli.mjs` (`abnahme()` and the German summary) | built, tested |
+| [`einvoice/`](einvoice) | `extract.mjs` (Claude structured output), `parse-fixed.mjs` (deterministic fallback), `build.mjs` ([XRechnung](https://xeinkauf.de/xrechnung/) UBL), `cli.mjs` (`abnahme()` and the German summary) | built, tested |
 | [`verifier/`](verifier) | `kosit.mjs` (daemon client, scenario and validator pin, document hash), `xml.mjs` (strict XML reader), `checks.mjs` (semantic checks), `messages-de.mjs` (German rule texts), `profile.mjs` (JCS + profile hash) | built, tested |
 | [`verifier/profiles/`](verifier/profiles) | `acceptance-v1.json` and the recipient profiles `empfaenger/bau-isar.json` and `empfaenger/hv-giesing.json` | hashes pinned in tests |
 | [`rechnungsmeister/`](rechnungsmeister) | `server.mjs` (MIP-003 seller plus `POST /dispute`, job tokens, self-refund), `mip004.mjs` (input and result hashes), `cure.mjs` (provenance-checked cure) | runs on preprod |
@@ -981,7 +981,7 @@ A read-only snapshot of it is public at **[omurbc.github.io/abnahme/board](https
 | Layer | Choice (exact versions from `package.json`, `package-lock.json` and the scripts) |
 |---|---|
 | Runtime | Node.js `>=24.2.0`, enforced by `engine-strict` (tested on v24.22.2), ES modules, `node:test` |
-| E-invoice | `@e-invoice-eu/core` 3.4.2, format `XRECHNUNG-UBL` (XRechnung 3.0) |
+| E-invoice | `@e-invoice-eu/core` 3.4.2, format `XRECHNUNG-UBL` ([XRechnung](https://xeinkauf.de/xrechnung/) 3.0) |
 | Validation | KoSIT validator 1.6.3 standalone jar, `validator-configuration-xrechnung` 2026-08-31 (XRechnung 3.0.2), in `eclipse-temurin:21-jre` 21.0.13+9 pinned by digest. The long-running demo container predates the pin and still runs an older JRE ([`SECURITY.md`](SECURITY.md) §2). |
 | Extraction | `@anthropic-ai/sdk` 1.3.0, model `claude-opus-5-5`, JSON-schema structured output |
 | Escrow and registry | Masumi Payment Service 0.29.0 (`ghcr.io/masumi-network/masumi-payment-service:0.29.0`, pinned by digest), `postgres:15` (pinned by digest), payment source `Web3CardanoV2` on Cardano preprod |
@@ -1007,11 +1007,11 @@ Every row is a confirmed preprod transaction. The audit's forensics and claims a
 | 4 | `FundsLocked` | Masumi V2 escrow | Büro-Agent buys from RechnungsMeister; `input_hash` pins the profile current at lock time (`0d799b13…`) | [`a57c43ee1030…`](https://preprod.cardanoscan.io/transaction/a57c43ee103097f67b6650b2db896682ef254fef0c3dcf0f8e03d82cce9d1cab) |
 | 5 | `ResultSubmitted`, first delivery | Masumi V2 escrow | Delivery with BT-48 missing (`DEMO_SEED_DEFECT=1`) | [`20ca2cf5c3a9…`](https://preprod.cardanoscan.io/transaction/20ca2cf5c3a9acc46b89e076a606e6bd4ff094254aa996eafbf9edcb307ead26) |
 | 6 | x402 inspection → REJECT `BR-AE-02` | x402 | The paid inspection that found the defect | [`7dc0c48aeea2…`](https://preprod.cardanoscan.io/transaction/7dc0c48aeea27ad28af8329a6eab14730aa77756ca1f4e95d6261293034ced60) |
-| 7 | `SetRefundRequested` → `Disputed` | Masumi V2 escrow | Mängelrüge, §640(2) BGB | [`995c6c489cb5…`](https://preprod.cardanoscan.io/transaction/995c6c489cb537edecdfe565fba78565560c6a6b2ef438fc527a3d6f22669c77) |
-| 8 | `SubmitResult` while `Disputed` (stays `Disputed`) | Masumi V2 escrow | Nacherfüllung, §635 BGB | [`6c63b8f64ae0…`](https://preprod.cardanoscan.io/transaction/6c63b8f64ae0684b717fc9c4b39dc4ad4edf71aa940d4361d78b14db02476f5c) |
+| 7 | `SetRefundRequested` → `Disputed` | Masumi V2 escrow | Mängelrüge, [§640(2) BGB](https://www.gesetze-im-internet.de/bgb/__640.html) | [`995c6c489cb5…`](https://preprod.cardanoscan.io/transaction/995c6c489cb537edecdfe565fba78565560c6a6b2ef438fc527a3d6f22669c77) |
+| 8 | `SubmitResult` while `Disputed` (stays `Disputed`) | Masumi V2 escrow | Nacherfüllung, [§635 BGB](https://www.gesetze-im-internet.de/bgb/__635.html) | [`6c63b8f64ae0…`](https://preprod.cardanoscan.io/transaction/6c63b8f64ae0684b717fc9c4b39dc4ad4edf71aa940d4361d78b14db02476f5c) |
 | 9 | x402 re-inspection → ACCEPTABLE | x402 | The cure passes | [`f846f7980834…`](https://preprod.cardanoscan.io/transaction/f846f7980834260f46e297643936ab5f07b2ad27ed4b182f564b1cccdc5c6d9b) |
-| 10 | `AuthorizeWithdrawal` → `WithdrawAuthorized` | Masumi V2 escrow | Abnahme, §640(1) BGB | [`4b6d275e39d4…`](https://preprod.cardanoscan.io/transaction/4b6d275e39d47fd21f5a70b2c6a7b3115b39f99b281bb3a1fe8b548065047c50) |
-| 11 | `Withdraw` → `Withdrawn` | Masumi V2 escrow | Payment on acceptance, §641(1) BGB | [`8f21ca18ad0a…`](https://preprod.cardanoscan.io/transaction/8f21ca18ad0aa9ee7e10ac9f9022a47a02e360a33c4329a74d7218dab66d4435) |
+| 10 | `AuthorizeWithdrawal` → `WithdrawAuthorized` | Masumi V2 escrow | Abnahme, [§640(1) BGB](https://www.gesetze-im-internet.de/bgb/__640.html) | [`4b6d275e39d4…`](https://preprod.cardanoscan.io/transaction/4b6d275e39d47fd21f5a70b2c6a7b3115b39f99b281bb3a1fe8b548065047c50) |
+| 11 | `Withdraw` → `Withdrawn` | Masumi V2 escrow | Payment on acceptance, [§641(1) BGB](https://www.gesetze-im-internet.de/bgb/__641.html) | [`8f21ca18ad0a…`](https://preprod.cardanoscan.io/transaction/8f21ca18ad0aa9ee7e10ac9f9022a47a02e360a33c4329a74d7218dab66d4435) |
 | 12 | Sokosumi paid Task `FundsLocked` | Masumi V2 escrow (Sokosumi) | Frau Berger's SENDEN AR-2026-0087 Task (`01a18c2a…`), paid in credits; Sokosumi's wallet locks 1 tUSDM | [`d9c69f508f1f…`](https://preprod.cardanoscan.io/transaction/d9c69f508f1f15299cdd3cc056ff4444b9ba0fcadf00e197cd14f7286c952859) |
 | 13 | Sokosumi paid Task `Withdrawn` + seller receipt check | Masumi V2 escrow (Sokosumi) | Abnahme-Büro paid by deemed acceptance after `unlock_time`, checked by `settlement.mjs` (receipt `settled: true`, +1 tUSDM) | [`5d61bf3f11db…`](https://preprod.cardanoscan.io/transaction/5d61bf3f11db7fb2e4a110e98ea44f1699e7fb8d779866d5513cb5e83e0a7146) |
 
@@ -1074,13 +1074,13 @@ Abnahme is a hackathon build on Cardano preprod, run by one founder with no comp
 
 | Area | What applies | What Abnahme does today | Open before the first customer |
 |---|---|---|---|
-| E-invoicing (UStG) | §14 UStG: structured e-invoices (EN 16931) for domestic B2B; issuing is mandatory from 1 Jan 2027 above EUR 800,000 turnover. §13b reverse charge with the §14a Abs. 5 wording. §14c: VAT shown on an invoice issued twice can be owed twice | XRechnung UBL, validated by the official KoSIT validator 1.6.3 with the pinned XRechnung configuration 2026-08-31. Checks for the §13b category, the buyer VAT ID (BT-48), the §14a wording and the VAT rate. One send per invoice number | – |
-| Archiving (GoBD, §147 AO, §14b UStG) | Invoices are kept for 8 years, the structured part in its original form | Hands over the original XML, its sha256 and the acceptance protocol. Archiving stays with the customer's accounting tool | An archive partner |
-| Data protection (DSGVO) | Invoice text holds personal data: names, contacts, IBANs | Only hashes go on chain. Extraction runs on the Anthropic API under its Data Processing Addendum with the EU Standard Contractual Clauses | EU-only processing (an EU route such as AWS Bedrock); salting the SENDEN `input_hash`, which today lets invoice numbers be guessed |
-| Payment services (ZAG) | Escrowing third parties' purchase prices is money remittance (Finanztransfergeschäft, §1 Abs. 1 S. 2 Nr. 6 ZAG) | Escrows only the agent fee, paid by our own agent from our own funds. Never the invoice amount | A legal opinion on the fee escrow. Escrowing invoice amounts ("Fällig") only with a licensed partner |
-| Crypto-assets (MiCA) | Stablecoins and services for clients' crypto-assets are regulated in the EU | Preprod test tokens only, with no value. Frau Berger pays in Sokosumi credits and never holds a wallet or crypto | On mainnet: a MiCA-compliant settlement token, and a check whether any role is a crypto-asset service |
-| Tax advice (StBerG) | Tax advice is reserved to tax advisers | The result is the buyer's acceptance criteria, identified by the profile hash, not a tax opinion. The recipient must still check the invoice (BMF 2025, Rn. 35a) | Terms of service, liability insurance |
-| Imprint (§5 DDG) | A commercial site needs a full imprint | [Hackathon imprint](site/impressum.html), no company yet | A full imprint once incorporated |
+| E-invoicing ([UStG](https://www.gesetze-im-internet.de/ustg_1980/)) | [§14 UStG](https://www.gesetze-im-internet.de/ustg_1980/__14.html): structured e-invoices ([EN 16931](https://eur-lex.europa.eu/eli/dir/2014/55/oj)) for domestic B2B; issuing is mandatory from 1 Jan 2027 above EUR 800,000 turnover. [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html) reverse charge with the [§14a Abs. 5](https://www.gesetze-im-internet.de/ustg_1980/__14a.html) wording. [§14c](https://www.gesetze-im-internet.de/ustg_1980/__14c.html): VAT shown on an invoice issued twice can be owed twice | [XRechnung](https://xeinkauf.de/xrechnung/) UBL, validated by the official KoSIT validator 1.6.3 with the pinned XRechnung configuration 2026-08-31. Checks for the [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html) category, the buyer VAT ID (BT-48), the [§14a](https://www.gesetze-im-internet.de/ustg_1980/__14a.html) wording and the VAT rate. One send per invoice number | – |
+| Archiving (GoBD, [§147 AO](https://www.gesetze-im-internet.de/ao_1977/__147.html), [§14b UStG](https://www.gesetze-im-internet.de/ustg_1980/__14b.html)) | Invoices are kept for 8 years, the structured part in its original form | Hands over the original XML, its sha256 and the acceptance protocol. Archiving stays with the customer's accounting tool | An archive partner |
+| Data protection ([DSGVO](https://eur-lex.europa.eu/eli/reg/2016/679/oj)) | Invoice text holds personal data: names, contacts, IBANs | Only hashes go on chain. Extraction runs on the Anthropic API under its Data Processing Addendum with the EU Standard Contractual Clauses | EU-only processing (an EU route such as AWS Bedrock); salting the SENDEN `input_hash`, which today lets invoice numbers be guessed |
+| Payment services ([ZAG](https://www.gesetze-im-internet.de/zag_2018/)) | Escrowing third parties' purchase prices is money remittance (Finanztransfergeschäft, [§1 Abs. 1 S. 2 Nr. 6 ZAG](https://www.gesetze-im-internet.de/zag_2018/__1.html)) | Escrows only the agent fee, paid by our own agent from our own funds. Never the invoice amount | A legal opinion on the fee escrow. Escrowing invoice amounts ("Fällig") only with a licensed partner |
+| Crypto-assets ([MiCA](https://eur-lex.europa.eu/eli/reg/2023/1114/oj)) | Stablecoins and services for clients' crypto-assets are regulated in the EU | Preprod test tokens only, with no value. Frau Berger pays in Sokosumi credits and never holds a wallet or crypto | On mainnet: a [MiCA](https://eur-lex.europa.eu/eli/reg/2023/1114/oj)-compliant settlement token, and a check whether any role is a crypto-asset service |
+| Tax advice ([StBerG](https://www.gesetze-im-internet.de/stberg/)) | Tax advice is reserved to tax advisers | The result is the buyer's acceptance criteria, identified by the profile hash, not a tax opinion. The recipient must still check the invoice (BMF 2025, Rn. 35a) | Terms of service, liability insurance |
+| Imprint ([§5 DDG](https://www.gesetze-im-internet.de/ddg/__5.html)) | A commercial site needs a full imprint | [Hackathon imprint](site/impressum.html), no company yet | A full imprint once incorporated |
 
 ## Security review
 
@@ -1115,7 +1115,7 @@ Hackathon build, Cardano preprod only. Build window Fri 30 Oct 09:00 → Sat 31 
 
 **Done, and run on preprod:**
 
-- [x] Acceptance test: Claude extraction, fixed-layout parser, XRechnung UBL build, KoSIT with pinned validator and scenario, strict XML reader, 13 semantic checks, German defect texts, JCS profile hash
+- [x] Acceptance test: Claude extraction, fixed-layout parser, [XRechnung](https://xeinkauf.de/xrechnung/) UBL build, KoSIT with pinned validator and scenario, strict XML reader, 13 semantic checks, German defect texts, JCS profile hash
 - [x] Gutachter: x402 seller and buyer with replay ledger and payment budget, paid on preprod
 - [x] Masumi Payment Service 0.29.0 with three hot wallets and wallet-scoped runtime keys; RechnungsMeister and Abnahme-Büro registered
 - [x] RechnungsMeister: MIP-003 seller with the profile hash inside `input_hash`, job tokens, provenance-checked cure, self-refund of a stuck dispute

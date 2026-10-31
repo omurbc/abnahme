@@ -24,7 +24,7 @@ In the order we would ask a professional reviewer to look:
 
 1. **The buyer's deadlines against the escrow timers.** The Büro-Agent must get its defect notice on chain before `unlock_time`, or the seller is paid for an invoice nobody accepted. Our margins are 25, 15 and 5 minutes, and MPS 0.29.0 answers a late refund request with HTTP 200 but never builds the transaction (ESCROW-1, [§9](#9-cardano-specific-analysis)).
 2. **The Masumi Payment Service and its keys.** MPS 0.29.0 holds every hot-wallet key, runs on end-of-life Node 20, and has two open upstream bugs that our repair loop works around (DEPS-1, [§14](#14-residual-risks-and-what-was-not-tested)).
-3. **The acceptance test as an attack surface.** Crafted XRechnung deliveries (XML tricks, tax content, encodings) against the strict XML reader, the KoSIT pins and the semantic checks (EINVOICE-1, DELTA-VERIFIER-1, DELTA-VERIFIER-4).
+3. **The acceptance test as an attack surface.** Crafted [XRechnung](https://xeinkauf.de/xrechnung/) deliveries (XML tricks, tax content, encodings) against the strict XML reader, the KoSIT pins and the semantic checks (EINVOICE-1, DELTA-VERIFIER-1, DELTA-VERIFIER-4).
 4. **The extraction step.** Invoice text goes through Claude (Anthropic API). A prompt injection that changes an IBAN or an amount is stopped only where the recipient profile pins the field ([§6](#6-threat-model), [§14.2](#142-structural-limits-of-this-build)).
 5. **The single-operator deployment.** Every agent, key and the MPS run on one host under one OS user; buyer and seller are separated logically, not physically ([§14.2](#142-structural-limits-of-this-build)).
 6. **Fix round 5** ([`30ec44c`](https://github.com/omurbc/abnahme/commit/30ec44c) to [`13d51cf`](https://github.com/omurbc/abnahme/commit/13d51cf)), which no review track has re-read.
@@ -213,7 +213,7 @@ The rule for every fix was: a regression test that fails on the old code first, 
 | 1 | 14:47 first Task, 16:14 last tx | `824604c` (`140aec4` changed only documentation) | 22 (lane A 16, lane B 6) | 20 PASS, 1 FAIL (A3: the expectation was wrong), 1 PARTIAL (A12) |
 | 2 | 17:00 first Task, 18:10 last tx, 18:27 last engine exit | `b8c781d` | 21 (lane A 14, lane B 7) | 16 PASS, 1 FAIL (C5), 4 PARTIAL (C2, C8, D1, D4) |
 
-RechnungsMeister ran with `DEMO_SEED_DEFECT=1` in both campaigns: its first delivery for a §13b recipient drops the buyer's VAT ID (BT-48). The scenario matrices are in [§11](#11-live-preprod-scenario-matrices).
+RechnungsMeister ran with `DEMO_SEED_DEFECT=1` in both campaigns: its first delivery for a [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html) recipient drops the buyer's VAT ID (BT-48). The scenario matrices are in [§11](#11-live-preprod-scenario-matrices).
 
 ### 3.5 Delta review
 
@@ -372,7 +372,7 @@ Balances were read on Blockfrost on Fri 30 Oct at 22:21 CET.
 | Acceptance profile | Repository and the escrow `input_hash` | The agreed test | Swapped after the lock | Pinned in `input_hash`, re-checked on chain | STATEMACHINE-5, CLAIMS-4 |
 | Evidence and documentation | README, `plan/EVIDENCE.md` | Credibility of every claim | Wrong or stale claims | Forensics and claims tracks; this report's re-check | CLAIMS-1 to CLAIMS-20, FORENSICS-1 to FORENSICS-7 |
 
-**GDPR note.** For extraction, the invoice text goes to the Anthropic API. RechnungsMeister does this for every escrow job, and the worker does it in local mode (`ABNAHME_IMPL=local`). An invoice of a small trade carries personal data: the owner's or a contact person's name, phone number and e-mail, the bank account (IBAN) and VAT IDs. In the demo every party is fictional and every e-mail domain ends in `.example`. A real deployment would need, at least: a processing agreement with Anthropic (Art. 28 GDPR), a legal basis for the transfer outside the EU, data minimisation (send only the invoice), retention limits for journals, job files and the mail outbox, and a record of processing activities. Task texts are also visible to the members of the Sokosumi workspace. This note was not reviewed by a lawyer.
+**[GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj) note.** For extraction, the invoice text goes to the Anthropic API. RechnungsMeister does this for every escrow job, and the worker does it in local mode (`ABNAHME_IMPL=local`). An invoice of a small trade carries personal data: the owner's or a contact person's name, phone number and e-mail, the bank account (IBAN) and VAT IDs. In the demo every party is fictional and every e-mail domain ends in `.example`. A real deployment would need, at least: a processing agreement with Anthropic (Art. 28 GDPR), a legal basis for the transfer outside the EU, data minimisation (send only the invoice), retention limits for journals, job files and the mail outbox, and a record of processing activities. Task texts are also visible to the members of the Sokosumi workspace. This note was not reviewed by a lawyer.
 
 ---
 
@@ -550,7 +550,7 @@ The IDs ABN-H-nn, ABN-M-nn, ABN-L-nnn and ABN-I-nn number the findings of this r
 #### ABN-M-03 · EINVOICE-2 · Every KoSIT warning counted as "minor"
 
 - **Severity:** MEDIUM (refuters: MEDIUM, MEDIUM). VERIFIED. **Component:** acceptance profile. **Location (`69a1309`):** `verifier/profiles/acceptance-v1.json:19-23`; `verifier/checks.mjs:61-64`.
-- **Issue:** the profile mapped every KoSIT warning and information message to "minor". So an invoice without the date of supply (Leistungsdatum, §14 Abs. 4 Nr. 6 UStG; KoSIT information BR-DE-TMP-32), a pro-forma invoice (type 325), a prepayment invoice (386), a 384 without BG-3 and wrong line arithmetic (PEPPOL-EN16931-R120) were all ABGENOMMEN.
+- **Issue:** the profile mapped every KoSIT warning and information message to "minor". So an invoice without the date of supply (Leistungsdatum, [§14 Abs. 4 Nr. 6 UStG](https://www.gesetze-im-internet.de/ustg_1980/__14.html); KoSIT information BR-DE-TMP-32), a pro-forma invoice (type 325), a prepayment invoice (386), a 384 without BG-3 and wrong line arithmetic (PEPPOL-EN16931-R120) were all ABGENOMMEN.
 - **Evidence:** PoCs through our own builder and as converter XML against KoSIT 1.6.3; both refuters rebuilt them.
 - **Fix:** [`0cff46a`](https://github.com/omurbc/abnahme/commit/0cff46a): `kositRules` escalate BR-DE-TMP-32, BR-DE-17, BR-DE-26 and PEPPOL-EN16931-R120 to failures. The profile hashes were re-pinned (bau-isar `64a8294c…`).
 - **Regression tests:** "KoSIT notes that make the invoice unusable are failures despite their level" (`verifier/checks.test.mjs:99`), "an invoice without Leistungsdatum passes KoSIT (information only) but is ABGELEHNT" (`einvoice/roundtrip.test.mjs:80`).
@@ -559,7 +559,7 @@ The IDs ABN-H-nn, ABN-M-nn, ABN-L-nnn and ABN-I-nn number the findings of this r
 #### ABN-M-04 · EINVOICE-3 · Currency, type, §14a wording and VAT amount were unchecked
 
 - **Severity:** MEDIUM (refuters: MEDIUM, MEDIUM). VERIFIED. **Component:** acceptance test. **Location (`69a1309`):** `verifier/checks.mjs:27-31`; `verifier/profiles/acceptance-v1.json:24-30`.
-- **Issue:** four converter deliveries passed KoSIT with no message and every check: the same amounts in USD; invoice type 389 (self-billed); the §14a Abs. 5 UStG wording removed; and a VAT amount 0.99 EUR too high, inside the ±1.00 tolerance of BR-CO-17. Under §14c Abs. 1 UStG the overstated tax would be owed.
+- **Issue:** four converter deliveries passed KoSIT with no message and every check: the same amounts in USD; invoice type 389 (self-billed); the [§14a Abs. 5 UStG](https://www.gesetze-im-internet.de/ustg_1980/__14a.html) wording removed; and a VAT amount 0.99 EUR too high, inside the ±1.00 tolerance of BR-CO-17. Under §14c Abs. 1 UStG the overstated tax would be owed.
 - **Evidence:** four mutants, KoSIT HTTP 200 without messages, no failures, ABGENOMMEN; one refuter also drove the real buyer engine with a hostile converter.
 - **Fix:** [`0cff46a`](https://github.com/omurbc/abnahme/commit/0cff46a): new checks for currency, invoice type (380 or 875), the exact reverse-charge wording and exact VAT arithmetic (half-up).
 - **Regression tests:** "currency, invoice type, § 14a Abs. 5 wording and VAT arithmetic are checked" (`verifier/checks.test.mjs:207`), "KoSIT accepts the converter deliveries without an error, the acceptance test refuses them" (`:221`).
@@ -1325,7 +1325,7 @@ These are the properties the tracks tried to break and could not, by component [
 - **Gutachter (x402).** An answer of 400 or more cancels settlement on every branch (400 not XML, 413 over 5 MB, 502 KoSIT error, 503 KoSIT down): verified against a fake facilitator that counts `settle` calls. Unpaid requests never reach KoSIT. Amount, asset, network and `payTo` are bound by the facilitator's `verify`; a transaction without an output to `payTo` is refused. Every response carries `Cache-Control: no-store`. The report is withheld until settlement succeeds. Stub mode cannot be switched per request. The wallet helper prints addresses only. After the fixes: the replay through the real `@x402/cardano` verify path runs KoSIT once per payment, and a squatter on `[::1]` gets no request.
 - **Secrets.** No secret was ever committed: the history scan at part 1 (all objects, all live secret values and mnemonic fragments) and the scan of the published history in the delta review found none. `ADMIN_KEY` has 192 bits and `ENCRYPTION_KEY` 256 bits, neither a default. Each wallet-scoped MPS key sees only its own wallet and gets 401 on admin routes and on mnemonic export (checked live). No secret appears in container logs, process command lines, journals, `docs/*.json`, the payment log or `plan/EVIDENCE.md`. Every listener except the Gutachter (before its fix) was loopback-only. Credentials travel in headers, never in URLs.
 - **Extraction (Claude).** In 9 injection attempts the model never swapped the IBAN or a VAT ID and never invented a missing buyer VAT ID; it ignored a role-swap instruction and normalised full-width digits, zero-width spaces and a right-to-left override back to the master data. The semantic checks fail closed on every money and identity field the track could move. Structured output pins the invoice type, unit and VAT category enums. The builder recomputes every total from the lines. The e-mail recipient never comes from the invoice. Output is bounded by `max_tokens`.
-- **E-invoice and tax.** The builder writes the exact §14a Abs. 5 UStG wording in BT-22 and BT-120 with VATEX-EU-AE at 0 %; type 875 is the right code for a progress invoice for construction work; VAT is computed per category from integer cents. The scenario pin fails closed for the XRechnung Extension, the XRechnung 2.3 identifier and Peppol BIS 3. Markup in invoice fields cannot forge the KoSIT verdict. The JCS canonicaliser passes 29 of 29 RFC 8785 vectors. E-mail is a valid B2B channel for an e-invoice (BMF letter of 15 Oct 2024). The README's §27 Abs. 38 UStG thresholds and dates are correct.
+- **E-invoice and tax.** The builder writes the exact [§14a Abs. 5 UStG](https://www.gesetze-im-internet.de/ustg_1980/__14a.html) wording in BT-22 and BT-120 with VATEX-EU-AE at 0 %; type 875 is the right code for a progress invoice for construction work; VAT is computed per category from integer cents. The scenario pin fails closed for the [XRechnung](https://xeinkauf.de/xrechnung/) Extension, the XRechnung 2.3 identifier and Peppol BIS 3. Markup in invoice fields cannot forge the KoSIT verdict. The JCS canonicaliser passes 29 of 29 RFC 8785 vectors. E-mail is a valid B2B channel for an e-invoice (BMF letter of 15 Oct 2024). The README's §27 Abs. 38 UStG thresholds and dates are correct.
 - **Sokosumi worker.** Sequential Tasks are gated correctly: SENDEN before PRÜFEN, for a refused invoice and after delivery all fail before any payment request. The recipient address comes only from `mail/recipients.mjs`. Stored XML is re-hashed before sending. The paid adapter checks Task, Coworker and workspace before any write. The worker lock admits exactly one owner. Journals, ledger and accepted XML are written with mode 600.
 - **Reproducibility and supply chain.** A fresh clone needs no secret for `npm ci`, the tests, `kosit/start.sh` or the CLI; the CLI output for fixture c is byte-identical to the README. The KoSIT jar pin equals GitHub's asset digest and Maven Central's checksum, and its PGP signature verifies; the XRechnung configuration pin equals GitHub's asset digest. Both lockfiles resolve only from registry.npmjs.org with sha512, all registry signatures verify, and no install script runs. The Gutachter parses the payment header with `JSON.parse`; `zod` parses only facilitator responses. Every external endpoint is HTTPS. The MPS tag 0.29.0 resolves to the verified commit that matches the image's revision label. No copyleft licence in any dependency tree.
 - **Local services.** KoSIT refuses DOCTYPE (no XXE, no entity expansion). MPS enforces its admin token and sends hardening headers. Recipient profile ids cannot traverse paths (two allowlists). Job ids are validated before any file access. SMTP top-level headers and addresses are safe.
@@ -1335,7 +1335,7 @@ These are the properties the tracks tried to break and could not, by component [
 - **RechnungsMeister.** A dispute cannot make the seller inject data: the cure copies only values that appear verbatim in the pinned order or equal a recipient-profile value, and every cure passes a KoSIT self-check before it is submitted. `/dispute` acts only on an escrow that is `Disputed` on chain. Loopback bind, strict input validation, no prototype pollution, body limits, no error leaks.
 - **Repair loop.** It cannot send money to the wrong party: every write is previewed and applied with the preview's version, never forced, and MPS re-checks the chain on apply. Five crafted datums were skipped before any MPS call.
 - **Abnahme-Board.** Loopback only; the Host allowlist stops DNS rebinding; cross-origin reads, the event stream, framing and the demo POST are blocked; about 720 KB of live responses held no key, token, mnemonic, local path or invoice text; 21 hostile journal fields rendered as text only.
-- **Documentation.** Every MPS contract fact the README quotes is accurate, and so are the quoted sections of the BGB (§§635, 640, 641) and VOB/B (§16).
+- **Documentation.** Every MPS contract fact the README quotes is accurate, and so are the quoted sections of the BGB ([§§635](https://www.gesetze-im-internet.de/bgb/__635.html), [640](https://www.gesetze-im-internet.de/bgb/__640.html), [641](https://www.gesetze-im-internet.de/bgb/__641.html)) and VOB/B (§16).
 
 ---
 
@@ -1350,7 +1350,7 @@ These are the properties the tracks tried to break and could not, by component [
 - **Supply chain (DEPS-5, DEPS-6, DEPS-7, DEPS-8, accepted).** The Sokosumi CLI is outside every lockfile; `@x402/*` 2.26.0 is flagged high through `zod`; template-agent advisories; one caret range.
 - **Keys on one OS user (SECRETS-7, SECRETS-8, SECRETS-10, SECRETS-11, accepted).** Keychain items readable by any Node 24 script of the user; runtime keys without a usage limit; `ENCRYPTION_KEY` next to the mnemonics; default Postgres credentials (unpublished).
 - **Upstream MPS bugs (#1327, #1331).** Our repair loop must keep running; it is not yet in the documented start procedure (DELTA-OPERATOR-2) and runs without the env guard (DELTA-OPERATOR-4).
-- **E-invoice gaps (EINVOICE-8, EINVOICE-12, CAMPAIGN2-11, open; DELTA-VERIFIER-1, fix round 5).** The tax content is not bound to anything independent; register data and the service period are not in the XRechnung; the §13b check is all-or-nothing per invoice.
+- **E-invoice gaps (EINVOICE-8, EINVOICE-12, CAMPAIGN2-11, open; DELTA-VERIFIER-1, fix round 5).** The tax content is not bound to anything independent; register data and the service period are not in the [XRechnung](https://xeinkauf.de/xrechnung/); the [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html) check is all-or-nothing per invoice.
 - **Arbitration (ESCROW-8, open).** No runbook for asking Masumi's admins to arbitrate.
 - **Privacy of the paid-task hash (FORENSICS-4, open).** The SENDEN escrow datum allows guessing the invoice number.
 - **Capacity (CAMPAIGN-3, CAMPAIGN2-6, CAMPAIGN2-8, open).** One selling wallet serialises deliveries; RechnungsMeister admits 10 new jobs per 10 min for all buyers together.
@@ -1377,7 +1377,7 @@ These are the properties the tracks tried to break and could not, by component [
 - Paid SENDEN failures after the payment request, SENDEN by another Sokosumi user, and input-format edge cases, live (unit tests cover them).
 - The worker's 5-minute resume of a FAILED PRÜFEN, live.
 - A kill before `/dispute` has left the process in campaign 2 (campaign 1's B4 covered it once).
-- The §193 BGB shift, live (it needs a send on a weekend or holiday).
+- The [§193 BGB](https://www.gesetze-im-internet.de/bgb/__193.html) shift, live (it needs a send on a weekend or holiday).
 - The x402 input-reuse fix of `d8e19b1`, live after the fix (only PoCs).
 - Timing on an idle system; every median above was measured under load with small samples.
 - Mainnet, independent hosts, and a contract audit of `vested_pay`.
@@ -1528,7 +1528,7 @@ Fix round 5 ran on Fri 30 Oct from about 22:00 CET, on the 6 MEDIUM and the LOW 
 
 The operator moved the four secrets out of the repo-root `.env` into `.local/secrets.env` and regenerated the per-process env files (names checked only, values never printed). All five services were restarted on the round-5 code at 22:52 CET from a clean environment (`env -i`), each through the env guard.
 
-**Live run on the round-5 code** (Fri 30 Oct, `buero/run.mjs`, a fresh §13b invoice AR-2026-0089, recipient `bau-isar`, RechnungsMeister with `DEMO_SEED_DEFECT=1`, x402 inspections). The escrow datum of the lock carries `input_hash` `e435aea1…`, which the buyer computed with the new profile hash `e9a2831b…`. All eight transactions were re-checked on Blockfrost: on chain, `valid_contract: true`.
+**Live run on the round-5 code** (Fri 30 Oct, `buero/run.mjs`, a fresh [§13b](https://www.gesetze-im-internet.de/ustg_1980/__13b.html) invoice AR-2026-0089, recipient `bau-isar`, RechnungsMeister with `DEMO_SEED_DEFECT=1`, x402 inspections). The escrow datum of the lock carries `input_hash` `e435aea1…`, which the buyer computed with the new profile hash `e9a2831b…`. All eight transactions were re-checked on Blockfrost: on chain, `valid_contract: true`.
 
 | Step | Block time (CET) | Transaction |
 |---|---|---|
@@ -1581,32 +1581,32 @@ Impact: **high** = funds, a legally relevant invoice or the credibility of all e
 
 | Term | Meaning |
 |---|---|
-| Acceptance (Abnahme, §640 BGB) | In a contract for work (Werkvertrag) the client accepts the finished work. It may not be refused for minor defects (§640 Abs. 1 S. 2). Deemed acceptance (fiktive Abnahme, §640 Abs. 2): the work counts as accepted if the client does not refuse within a reasonable period set by the contractor, naming at least one defect. |
-| Contract for work (Werkvertrag, §631 BGB) | A contract in which the contractor owes a result, not only effort; acceptance (§640) and the defect rights (§634) belong to it. |
+| Acceptance (Abnahme, [§640 BGB](https://www.gesetze-im-internet.de/bgb/__640.html)) | In a contract for work (Werkvertrag) the client accepts the finished work. It may not be refused for minor defects ([§640 Abs. 1 S. 2](https://www.gesetze-im-internet.de/bgb/__640.html)). Deemed acceptance (fiktive Abnahme, [§640 Abs. 2](https://www.gesetze-im-internet.de/bgb/__640.html)): the work counts as accepted if the client does not refuse within a reasonable period set by the contractor, naming at least one defect. |
+| Contract for work (Werkvertrag, [§631 BGB](https://www.gesetze-im-internet.de/bgb/__631.html)) | A contract in which the contractor owes a result, not only effort; acceptance ([§640](https://www.gesetze-im-internet.de/bgb/__640.html)) and the defect rights ([§634](https://www.gesetze-im-internet.de/bgb/__634.html)) belong to it. |
 | Progress invoice (Abschlagsrechnung) | Invoice for a progress payment (Abschlag, Abschlagszahlung) on part of the work, before the work is finished. |
-| Final invoice (Schlussrechnung) | The last invoice for the whole work; it deducts the progress payments already invoiced or paid (in EN 16931 through the paid amount BT-113 and the preceding-invoice references BG-3). |
-| Date of supply (Leistungsdatum) | Date on which the service was supplied; mandatory content of an invoice under §14 Abs. 4 Nr. 6 UStG. |
-| Service period (Leistungszeitraum) | The period over which a service was supplied; in EN 16931 the invoicing period BG-14. |
-| Notice of defect (Mängelrüge, §640 Abs. 2, §634 BGB) | Refusal of acceptance that names a defect; §634 lists the client's rights for defective work. In Abnahme this is `SetRefundRequested`, which puts the escrow into `Disputed`. |
-| Cure (Nacherfüllung, §635 BGB) | The contractor removes the defect or delivers a new work. In Abnahme: a new `SubmitResult` while `Disputed`. |
-| Payment falls due (Vergütung fällig, §641 BGB) | "Die Vergütung ist bei der Abnahme des Werkes zu entrichten": the price is due on acceptance. In Abnahme: `AuthorizeWithdrawal`, then `Withdraw`. |
-| Reverse charge (§13b UStG) | For construction services supplied to a business that itself supplies construction services, the recipient owes the VAT (§13b Abs. 2 Nr. 4, Abs. 5). The invoice shows no VAT; EN 16931 VAT category AE. |
-| §14 UStG | Rules for issuing invoices, including the mandatory content (§14 Abs. 4, for example Nr. 6: the date of supply) and, since 2025, the definition of an e-invoice. |
-| §14a UStG | Extra duties in special cases; §14a Abs. 5 requires the wording "Steuerschuldnerschaft des Leistungsempfängers" ("the recipient of the service is liable for the tax") on a reverse-charge invoice. |
-| §14c UStG | Tax shown too high or without entitlement is owed anyway, which is why sending the same supply twice under different numbers is a tax risk. |
+| Final invoice (Schlussrechnung) | The last invoice for the whole work; it deducts the progress payments already invoiced or paid (in [EN 16931](https://eur-lex.europa.eu/eli/dir/2014/55/oj) through the paid amount BT-113 and the preceding-invoice references BG-3). |
+| Date of supply (Leistungsdatum) | Date on which the service was supplied; mandatory content of an invoice under [§14 Abs. 4 Nr. 6 UStG](https://www.gesetze-im-internet.de/ustg_1980/__14.html). |
+| Service period (Leistungszeitraum) | The period over which a service was supplied; in [EN 16931](https://eur-lex.europa.eu/eli/dir/2014/55/oj) the invoicing period BG-14. |
+| Notice of defect (Mängelrüge, [§640 Abs. 2](https://www.gesetze-im-internet.de/bgb/__640.html), [§634 BGB](https://www.gesetze-im-internet.de/bgb/__634.html)) | Refusal of acceptance that names a defect; [§634](https://www.gesetze-im-internet.de/bgb/__634.html) lists the client's rights for defective work. In Abnahme this is `SetRefundRequested`, which puts the escrow into `Disputed`. |
+| Cure (Nacherfüllung, [§635 BGB](https://www.gesetze-im-internet.de/bgb/__635.html)) | The contractor removes the defect or delivers a new work. In Abnahme: a new `SubmitResult` while `Disputed`. |
+| Payment falls due (Vergütung fällig, [§641 BGB](https://www.gesetze-im-internet.de/bgb/__641.html)) | "Die Vergütung ist bei der Abnahme des Werkes zu entrichten": the price is due on acceptance. In Abnahme: `AuthorizeWithdrawal`, then `Withdraw`. |
+| Reverse charge ([§13b UStG](https://www.gesetze-im-internet.de/ustg_1980/__13b.html)) | For construction services supplied to a business that itself supplies construction services, the recipient owes the VAT ([§13b Abs. 2 Nr. 4, Abs. 5](https://www.gesetze-im-internet.de/ustg_1980/__13b.html)). The invoice shows no VAT; [EN 16931](https://eur-lex.europa.eu/eli/dir/2014/55/oj) VAT category AE. |
+| [§14 UStG](https://www.gesetze-im-internet.de/ustg_1980/__14.html) | Rules for issuing invoices, including the mandatory content ([§14 Abs. 4](https://www.gesetze-im-internet.de/ustg_1980/__14.html), for example Nr. 6: the date of supply) and, since 2025, the definition of an e-invoice. |
+| [§14a UStG](https://www.gesetze-im-internet.de/ustg_1980/__14a.html) | Extra duties in special cases; [§14a Abs. 5](https://www.gesetze-im-internet.de/ustg_1980/__14a.html) requires the wording "Steuerschuldnerschaft des Leistungsempfängers" ("the recipient of the service is liable for the tax") on a reverse-charge invoice. |
+| [§14c UStG](https://www.gesetze-im-internet.de/ustg_1980/__14c.html) | Tax shown too high or without entitlement is owed anyway, which is why sending the same supply twice under different numbers is a tax risk. |
 | VOB/B §16 | Payment rules of the German construction contract terms; §16 Abs. 1 Nr. 3: progress payments are due 21 days after the statement is received. |
-| §193 BGB | If the last day of a period falls on a Saturday, a Sunday or a public holiday, the next working day takes its place. |
+| [§193 BGB](https://www.gesetze-im-internet.de/bgb/__193.html) | If the last day of a period falls on a Saturday, a Sunday or a public holiday, the next working day takes its place. |
 | PRÜFEN, SENDEN | The two Task commands of the Coworker Abnahme-Büro: PRÜFEN (check) runs the acceptance test on an invoice, SENDEN (send) e-mails an accepted invoice to the recipient. |
 | ABGENOMMEN, ABGELEHNT | The two verdicts of the acceptance test: ABGENOMMEN (accepted) and ABGELEHNT (refused). |
 | Gutachter | Inspector: the paid x402 service that runs KoSIT on a delivered invoice for the buyer. |
-| XRechnung | The German specification (CIUS) of the European e-invoice standard EN 16931, maintained by KoSIT. Version 3.0.2 here, in the UBL syntax. |
-| KoSIT | Koordinierungsstelle für IT-Standards, the body that publishes XRechnung, its validator and the validator configuration. |
+| [XRechnung](https://xeinkauf.de/xrechnung/) | The German specification (CIUS) of the European e-invoice standard [EN 16931](https://eur-lex.europa.eu/eli/dir/2014/55/oj), maintained by KoSIT. Version 3.0.2 here, in the UBL syntax. |
+| KoSIT | Koordinierungsstelle für IT-Standards, the body that publishes [XRechnung](https://xeinkauf.de/xrechnung/), its validator and the validator configuration. |
 | BT-10 | Buyer reference (for example a project or property number; for public buyers the Leitweg-ID). |
 | BT-48 | Buyer VAT identifier. |
 | BT-113 | Paid amount: prepayments already made. |
 | BT-115 | Amount due for payment. |
-| BR-AE-02 | EN 16931 rule for VAT category AE: the seller's VAT ID (or tax number) and the buyer's VAT ID (BT-48) or legal registration identifier (BT-47) must be present. |
-| BR-DE-15 | XRechnung rule: the buyer reference (BT-10) must be transmitted. |
+| BR-AE-02 | [EN 16931](https://eur-lex.europa.eu/eli/dir/2014/55/oj) rule for VAT category AE: the seller's VAT ID (or tax number) and the buyer's VAT ID (BT-48) or legal registration identifier (BT-47) must be present. |
+| BR-DE-15 | [XRechnung](https://xeinkauf.de/xrechnung/) rule: the buyer reference (BT-10) must be transmitted. |
 | Leitweg-ID | Routing identifier of German public-sector invoice recipients, carried in BT-10. |
 | Peppol | International network and document specifications for e-invoice exchange; KoSIT's configuration recognises Peppol BIS documents as another scenario. |
 
